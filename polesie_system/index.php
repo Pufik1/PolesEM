@@ -129,16 +129,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </button>
             </form>
             
-            <div style="margin-top: 25px; padding-top: 25px; border-top: 1px solid var(--border-color);">
-                <p style="text-align: center; color: var(--text-secondary); font-size: 13px;">
-                    <i class="fas fa-info-circle"></i> 
-                    Тестовый вход: <strong>admin</strong> / <strong>admin123</strong>
-                </p>
-            </div>
-            
             <div style="margin-top: 20px; text-align: center;">
                 <p style="color: var(--text-secondary); font-size: 12px;">
-                    © 2024 ОАО «Полесьеэлектромаш»<br>
+                    © 2026 ОАО «Полесьеэлектромаш»<br>
                     г. Лунинец, ул. Красная 179
                 </p>
             </div>

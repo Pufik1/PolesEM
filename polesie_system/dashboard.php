@@ -81,7 +81,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
 // Menu items based on roles
 $menuItems = [
     'admin' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Дашборд', 'url' => 'dashboard.php'],
+        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
         ['icon' => 'fa-users', 'text' => 'Пользователи', 'url' => 'modules/users/index.php'],
         ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
         ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
@@ -93,7 +93,7 @@ $menuItems = [
         ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
     ],
     'director' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Дашборд', 'url' => 'dashboard.php'],
+        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
         ['icon' => 'fa-chart-line', 'text' => 'Аналитика', 'url' => 'modules/analytics/index.php'],
         ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
         ['icon' => 'fa-shopping-cart', 'text' => 'Заказы', 'url' => 'modules/orders/index.php'],
@@ -102,31 +102,31 @@ $menuItems = [
         ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
     ],
     'manager' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Дашборд', 'url' => 'dashboard.php'],
+        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
         ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
         ['icon' => 'fa-shopping-cart', 'text' => 'Заказы', 'url' => 'modules/orders/index.php'],
         ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
         ['icon' => 'fa-file-invoice', 'text' => 'Документы', 'url' => 'modules/documents/index.php'],
     ],
     'production_master' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Дашборд', 'url' => 'dashboard.php'],
+        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
         ['icon' => 'fa-industry', 'text' => 'Производство', 'url' => 'modules/production/index.php'],
         ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
         ['icon' => 'fa-clipboard-check', 'text' => 'Контроль качества', 'url' => 'modules/quality/index.php'],
     ],
     'warehouse_keeper' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Дашборд', 'url' => 'dashboard.php'],
+        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
         ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
         ['icon' => 'fa-boxes', 'text' => 'Инвентаризация', 'url' => 'modules/inventory/index.php'],
     ],
     'accountant' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Дашборд', 'url' => 'dashboard.php'],
+        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
         ['icon' => 'fa-file-invoice-dollar', 'text' => 'Финансы', 'url' => 'modules/finance/index.php'],
         ['icon' => 'fa-file-invoice', 'text' => 'Документы', 'url' => 'modules/documents/index.php'],
         ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
     ],
     'hr_manager' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Дашборд', 'url' => 'dashboard.php'],
+        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
         ['icon' => 'fa-user-tie', 'text' => 'Кадры', 'url' => 'modules/hr/index.php'],
         ['icon' => 'fa-users', 'text' => 'Сотрудники', 'url' => 'modules/employees/index.php'],
         ['icon' => 'fa-calendar-alt', 'text' => 'График', 'url' => 'modules/schedule/index.php'],
@@ -140,7 +140,7 @@ $currentMenu = $menuItems[$userRole] ?? $menuItems['manager'];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дашборд - <?php echo APP_NAME; ?></title>
+    <title>Главная - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -188,7 +188,7 @@ $currentMenu = $menuItems[$userRole] ?? $menuItems['manager'];
             <header class="header">
                 <div class="header-left">
                     <div class="header-title">
-                        <h1>Панель управления</h1>
+                        <h1>Главная</h1>
                     </div>
                 </div>
                 
