@@ -269,24 +269,13 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             padding: 6px 10px;
             font-size: 14px;
         }
-        /* Компактная таблица */
-        .data-table th, .data-table td {
-            padding: 8px 12px;
-            font-size: 13px;
-            white-space: nowrap;
-        }
-        .data-table th {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
         .user-email {
-            max-width: 180px;
+            max-width: 200px;
             overflow: hidden;
             text-overflow: ellipsis;
         }
         .user-fullname {
-            max-width: 150px;
+            max-width: 180px;
             overflow: hidden;
             text-overflow: ellipsis;
         }
@@ -544,8 +533,8 @@ $initials = strtoupper(substr($userFullName, 0, 1));
     
     <script src="../../assets/js/main.js"></script>
     <script>
-        // Делаем функции глобальными
-        window.openCreateModal = function() {
+        // Глобальные функции для работы с модальными окнами
+        function openCreateModal() {
             document.getElementById('modalTitle').textContent = 'Добавить пользователя';
             document.getElementById('formAction').value = 'create';
             document.getElementById('userId').value = '';
@@ -561,9 +550,9 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             document.getElementById('position').value = '';
             document.getElementById('isActive').checked = true;
             document.getElementById('userModal').classList.add('active');
-        };
+        }
         
-        window.openEditModal = function(userId) {
+        function openEditModal(userId) {
             console.log('Opening edit modal for user ID:', userId);
             // Загружаем данные пользователя через AJAX
             fetch('get_user.php?id=' + userId)
@@ -598,18 +587,19 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                     console.error('Error:', error);
                     alert('Ошибка загрузки данных пользователя');
                 });
-        };
+        }
         
-        window.closeModal = function() {
+        function closeModal() {
             document.getElementById('userModal').classList.remove('active');
-        };
+        }
         
-        window.confirmDelete = function(userId, username) {
+        function confirmDelete(userId, username) {
+            console.log('Confirm delete for user ID:', userId, 'username:', username);
             if (confirm('Вы уверены, что хотите деактивировать пользователя "' + username + '"?')) {
                 document.getElementById('deleteUserId').value = userId;
                 document.getElementById('deleteForm').submit();
             }
-        };
+        }
         
         // Close modal on outside click
         window.onclick = function(event) {
