@@ -14,6 +14,103 @@ if (!isLoggedIn()) {
 $pdo = getDBConnection();
 $error = '';
 $success = '';
+$userFullName = $_SESSION['full_name'];
+$userRole = $_SESSION['user_role'];
+$initials = strtoupper(substr($userFullName, 0, 1));
+
+// Handle form submissions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
+    
+    try {
+        if ($action === 'add') {
+            $product_code = trim($_POST['product_code']);
+            $product_name = trim($_POST['product_name']);
+            $category_id = !empty($_POST['category_id']) ? (int)$_POST['category_id'] : null;
+            $description = trim($_POST['description']);
+            $base_price = (float)$_POST['base_price'];
+            $stock_quantity = (int)($_POST['stock_quantity'] ?? 0);
+            $min_stock_level = (int)($_POST['min_stock_level'] ?? 10);
+            
+            $stmt = $pdo->prepare("INSERT INTO products (product_code, product_name, category_id, description, base_price, stock_quantity, min_stock_level) 
+                                   VALUES (:product_code, :product_name, :category_id, :description, :base_price, :stock_quantity, :min_stock_level)");
+            $stmt->execute([
+                ':product_code' => $product_code,
+                ':product_name' => $product_name,
+                ':category_id' => $category_id,
+                ':description' => $description,
+                ':base_price' => $base_price,
+                ':stock_quantity' => $stock_quantity,
+                ':min_stock_level' => $min_stock_level
+            ]);
+            
+            logActivity($pdo, $_SESSION['user_id'], 'create_product', 'products', $pdo->lastInsertId());
+            $success = 'Продукция успешно добавлена';
+            
+        } elseif ($action === 'edit') {
+            $product_id = (int)$_POST['product_id'];
+            $product_code = trim($_POST['product_code']);
+            $product_name = trim($_POST['product_name']);
+            $category_id = !empty($_POST['category_id']) ? (int)$_POST['category_id'] : null;
+            $description = trim($_POST['description']);
+            $base_price = (float)$_POST['base_price'];
+            $stock_quantity = (int)($_POST['stock_quantity'] ?? 0);
+            $min_stock_level = (int)($_POST['min_stock_level'] ?? 10);
+            $is_active = isset($_POST['is_active']) ? 1 : 0;
+            
+            $stmt = $pdo->prepare("UPDATE products SET 
+                                   product_code = :product_code,
+                                   product_name = :product_name,
+                                   category_id = :category_id,
+                                   description = :description,
+                                   base_price = :base_price,
+                                   stock_quantity = :stock_quantity,
+                                   min_stock_level = :min_stock_level,
+                                   is_active = :is_active
+                                   WHERE id = :id");
+            $stmt->execute([
+                ':product_code' => $product_code,
+                ':product_name' => $product_name,
+                ':category_id' => $category_id,
+                ':description' => $description,
+                ':base_price' => $base_price,
+                ':stock_quantity' => $stock_quantity,
+                ':min_stock_level' => $min_stock_level,
+                ':is_active' => $is_active,
+                ':id' => $product_id
+            ]);
+            
+            logActivity($pdo, $_SESSION['user_id'], 'update_product', 'products', $product_id);
+            $success = 'Продукция успешно обновлена';
+            
+        } elseif ($action === 'delete') {
+            $product_id = (int)$_POST['product_id'];
+            
+            $stmt = $pdo->prepare("UPDATE products SET is_active = 0 WHERE id = :id");
+            $stmt->execute([':id' => $product_id]);
+            
+            logActivity($pdo, $_SESSION['user_id'], 'delete_product', 'products', $product_id);
+            $success = 'Продукция успешно удалена';
+        }
+    } catch (PDOException $e) {
+        $error = 'Ошибка: ' . $e->getMessage();
+    }
+}
+
+// Get action parameter for modals
+$viewAction = $_GET['action'] ?? '';
+$viewProductId = $_GET['product_id'] ?? null;
+$editProduct = null;
+
+if ($viewAction === 'edit' && $viewProductId) {
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM products WHERE id = :id");
+        $stmt->execute([':id' => (int)$viewProductId]);
+        $editProduct = $stmt->fetch();
+    } catch (PDOException $e) {
+        // Error handling
+    }
+}
 
 // Get all active products with categories
 try {
@@ -21,7 +118,6 @@ try {
         SELECT p.*, pc.category_name 
         FROM products p
         LEFT JOIN product_categories pc ON p.category_id = pc.id
-        WHERE p.is_active = 1 
         ORDER BY p.created_at DESC
     ");
     $products = $stmt->fetchAll();
@@ -34,10 +130,6 @@ try {
     $products = [];
     $categories = [];
 }
-
-$userFullName = $_SESSION['full_name'];
-$userRole = $_SESSION['user_role'];
-$initials = strtoupper(substr($userFullName, 0, 1));
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -118,6 +210,13 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             
             <!-- Content Area -->
             <div class="content-area">
+                <?php if ($success): ?>
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        <span><?php echo htmlspecialchars($success); ?></span>
+                    </div>
+                <?php endif; ?>
+                
                 <?php if ($error): ?>
                     <div class="alert alert-error">
                         <i class="fas fa-exclamation-circle"></i>
@@ -189,11 +288,14 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                             </td>
                                             <td>
                                                 <div class="action-buttons">
-                                                    <button class="btn btn-sm btn-icon btn-primary" title="Просмотр">
+                                                    <button class="btn btn-sm btn-icon btn-primary" title="Просмотр" onclick="viewProduct(<?php echo $product['id']; ?>)">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
-                                                    <button class="btn btn-sm btn-icon btn-secondary" title="Редактировать">
+                                                    <button class="btn btn-sm btn-icon btn-secondary" title="Редактировать" onclick="editProduct(<?php echo $product['id']; ?>)">
                                                         <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-icon btn-danger" title="Удалить" onclick="deleteProduct(<?php echo $product['id']; ?>, '<?php echo htmlspecialchars($product['product_name']); ?>')">
+                                                        <i class="fas fa-trash"></i>
                                                     </button>
                                                 </div>
                                             </td>
@@ -253,51 +355,56 @@ $initials = strtoupper(substr($userFullName, 0, 1));
     
     <!-- Add Product Modal -->
     <div id="addProductModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-large">
             <div class="modal-header">
                 <h2>Добавить продукцию</h2>
                 <button class="modal-close">&times;</button>
             </div>
             <form method="POST" action="">
+                <input type="hidden" name="action" value="add">
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label for="product_code">Артикул *</label>
-                        <input type="text" id="product_code" name="product_code" required>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="product_code">Артикул *</label>
+                            <input type="text" id="product_code" name="product_code" required placeholder="Например: AIR71A2">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="category_id">Категория</label>
+                            <select id="category_id" name="category_id">
+                                <option value="">Выберите категорию</option>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?php echo $cat['id']; ?>"><?php echo htmlspecialchars($cat['category_name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                     </div>
                     
                     <div class="form-group">
                         <label for="product_name">Наименование *</label>
-                        <input type="text" id="product_name" name="product_name" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="category_id">Категория</label>
-                        <select id="category_id" name="category_id">
-                            <option value="">Выберите категорию</option>
-                            <?php foreach ($categories as $cat): ?>
-                                <option value="<?php echo $cat['id']; ?>"><?php echo htmlspecialchars($cat['category_name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <input type="text" id="product_name" name="product_name" required placeholder="Полное наименование продукции">
                     </div>
                     
                     <div class="form-group">
                         <label for="description">Описание</label>
-                        <textarea id="description" name="description" rows="3"></textarea>
+                        <textarea id="description" name="description" rows="3" placeholder="Технические характеристики, особенности"></textarea>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="base_price">Базовая цена (BYN) *</label>
-                        <input type="number" id="base_price" name="base_price" step="0.01" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="stock_quantity">Остаток на складе</label>
-                        <input type="number" id="stock_quantity" name="stock_quantity" value="0">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="min_stock_level">Минимальный запас</label>
-                        <input type="number" id="min_stock_level" name="min_stock_level" value="10">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="base_price">Базовая цена (BYN) *</label>
+                            <input type="number" id="base_price" name="base_price" step="0.01" required min="0">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="stock_quantity">Остаток на складе</label>
+                            <input type="number" id="stock_quantity" name="stock_quantity" value="0" min="0">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="min_stock_level">Минимальный запас</label>
+                            <input type="number" id="min_stock_level" name="min_stock_level" value="10" min="0">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -308,6 +415,141 @@ $initials = strtoupper(substr($userFullName, 0, 1));
         </div>
     </div>
     
+    <!-- Edit Product Modal -->
+    <div id="editProductModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Редактировать продукцию</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" name="product_id" id="edit_product_id">
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit_product_code">Артикул *</label>
+                            <input type="text" id="edit_product_code" name="product_code" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit_category_id">Категория</label>
+                            <select id="edit_category_id" name="category_id">
+                                <option value="">Выберите категорию</option>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?php echo $cat['id']; ?>"><?php echo htmlspecialchars($cat['category_name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_product_name">Наименование *</label>
+                        <input type="text" id="edit_product_name" name="product_name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_description">Описание</label>
+                        <textarea id="edit_description" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit_base_price">Базовая цена (BYN) *</label>
+                            <input type="number" id="edit_base_price" name="base_price" step="0.01" required min="0">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit_stock_quantity">Остаток на складе</label>
+                            <input type="number" id="edit_stock_quantity" name="stock_quantity" min="0">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit_min_stock_level">Минимальный запас</label>
+                            <input type="number" id="edit_min_stock_level" name="min_stock_level" min="0">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="edit_is_active" name="is_active" checked>
+                            <span>Активен</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('editProductModal')">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteProductModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>Удаление продукции</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="product_id" id="delete_product_id">
+                <div class="modal-body">
+                    <p>Вы уверены, что хотите удалить продукцию <strong id="delete_product_name"></strong>?</p>
+                    <p class="text-muted">Это действие деактивирует продукт в системе.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('deleteProductModal')">Отмена</button>
+                    <button type="submit" class="btn btn-danger">Удалить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
     <script src="../../assets/js/main.js"></script>
+    <script>
+        // Product management functions
+        function editProduct(productId) {
+            // Fetch product data and populate edit modal
+            fetch(`index.php?action=edit&product_id=${productId}`)
+                .then(response => response.text())
+                .then(html => {
+                    // Parse the HTML to extract product data
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    // For now, we'll redirect with query params
+                    window.location.href = `index.php?action=edit&product_id=${productId}`;
+                });
+        }
+        
+        function viewProduct(productId) {
+            // Implement view functionality
+            alert('Функция просмотра продукта ID: ' + productId);
+        }
+        
+        function deleteProduct(productId, productName) {
+            document.getElementById('delete_product_id').value = productId;
+            document.getElementById('delete_product_name').textContent = productName;
+            openModal('deleteProductModal');
+        }
+        
+        // Populate edit modal if editing
+        <?php if ($editProduct): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('edit_product_id').value = '<?php echo $editProduct['id']; ?>';
+            document.getElementById('edit_product_code').value = '<?php echo htmlspecialchars($editProduct['product_code']); ?>';
+            document.getElementById('edit_product_name').value = '<?php echo htmlspecialchars($editProduct['product_name']); ?>';
+            document.getElementById('edit_category_id').value = '<?php echo $editProduct['category_id']; ?>';
+            document.getElementById('edit_description').value = '<?php echo htmlspecialchars($editProduct['description']); ?>';
+            document.getElementById('edit_base_price').value = '<?php echo $editProduct['base_price']; ?>';
+            document.getElementById('edit_stock_quantity').value = '<?php echo $editProduct['stock_quantity']; ?>';
+            document.getElementById('edit_min_stock_level').value = '<?php echo $editProduct['min_stock_level']; ?>';
+            document.getElementById('edit_is_active').checked = <?php echo $editProduct['is_active'] ? 'true' : 'false'; ?>;
+            openModal('editProductModal');
+        });
+        <?php endif; ?>
+    </script>
 </body>
 </html>
