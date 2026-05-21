@@ -150,7 +150,7 @@ $sql = "SELECT u.*, r.role_name, r.role_description
         LEFT JOIN roles r ON u.role_id = r.id";
 
 if (!empty($searchQuery)) {
-    $sql .= " WHERE (u.username LIKE :search1 OR u.full_name LIKE :search2 OR u.email LIKE :search3)";
+    $sql .= " WHERE (u.username COLLATE utf8mb4_unicode_ci LIKE :search1 OR u.full_name COLLATE utf8mb4_unicode_ci LIKE :search2 OR u.email COLLATE utf8mb4_unicode_ci LIKE :search3)";
     $filterParams['search1'] = '%' . $searchQuery . '%';
     $filterParams['search2'] = '%' . $searchQuery . '%';
     $filterParams['search3'] = '%' . $searchQuery . '%';
