@@ -21,7 +21,8 @@ $pdo = getDBConnection();
 $message = '';
 $error = '';
 $action = $_GET['action'] ?? 'list';
-$userId = $_GET['id'] ?? null;
+// Получаем ID пользователя из GET или POST (для обработки форм)
+$userId = $_GET['id'] ?? $_POST['id'] ?? null;
 
 // Обработка действий
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -526,7 +527,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
     </div>
     
     <!-- Delete Confirmation Form -->
-    <form id="deleteForm" method="POST" action="" style="display: none;">
+    <form id="deleteForm" method="POST" action="">
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="id" id="deleteUserId">
     </form>
