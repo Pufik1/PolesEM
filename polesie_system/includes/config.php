@@ -77,13 +77,34 @@ function sanitize($data) {
     return htmlspecialchars(trim($data), ENT_QUOTES, 'UTF-8');
 }
 
-// Function to log user activity
+// Function to log user activity with Russian action names
 function logActivity($pdo, $userId, $action, $tableName = null, $recordId = null, $oldValues = null, $newValues = null) {
+    // Перевод действий на русский язык
+    $actionTranslations = [
+        'Создание пользователя' => 'Создание пользователя',
+        'Редактирование пользователя' => 'Редактирование пользователя',
+        'Удаление пользователя' => 'Удаление пользователя',
+        'user_create' => 'Создание пользователя',
+        'user_update' => 'Редактирование пользователя',
+        'user_delete' => 'Удаление пользователя',
+        'create_order' => 'Создание заказа',
+        'update_order' => 'Редактирование заказа',
+        'delete_order' => 'Удаление заказа',
+        'create_product' => 'Создание продукта',
+        'update_product' => 'Редактирование продукта',
+        'delete_product' => 'Удаление продукта',
+        'create_client' => 'Создание клиента',
+        'update_client' => 'Редактирование клиента',
+        'delete_client' => 'Удаление клиента',
+    ];
+    
+    $translatedAction = $actionTranslations[$action] ?? $action;
+    
     $stmt = $pdo->prepare("INSERT INTO activity_log (user_id, action, table_name, record_id, old_values, new_values, ip_address) 
                            VALUES (:user_id, :action, :table_name, :record_id, :old_values, :new_values, :ip_address)");
     $stmt->execute([
         ':user_id' => $userId,
-        ':action' => $action,
+        ':action' => $translatedAction,
         ':table_name' => $tableName,
         ':record_id' => $recordId,
         ':old_values' => $oldValues ? json_encode($oldValues) : null,
