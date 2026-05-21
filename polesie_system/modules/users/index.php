@@ -79,10 +79,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = 'Пользователь успешно создан';
                 
             } elseif ($postAction === 'update' && $userId) {
-                // Получаем текущий логин пользователя
-                $currentUser = $pdo->prepare("SELECT username FROM users WHERE id = :id");
-                $currentUser->execute([':id' => $userId]);
-                $currentUsername = $currentUser->fetchColumn();
+                // Проверка уникальности username (исключая текущего пользователя)
+                $checkStmt = $pdo->prepare("SELECT id FROM users WHERE username = :username AND id != :id");
+                $checkStmt->execute([':username' => $username, ':id' => $userId]);
+                if ($checkStmt->fetch()) {
+                    throw new Exception('Пользователь с таким логином уже существует');
+                }
                 
                 // Проверка уникальности email (исключая текущего пользователя)
                 $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email AND id != :id");
@@ -91,8 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Пользователь с таким email уже существует');
                 }
                 
-                // Обновление пользователя (логин не изменяется)
+                // Обновление пользователя (логин можно изменить)
                 $updateData = [
+                    ':username' => $username,
                     ':full_name' => $fullName,
                     ':email' => $email,
                     ':phone' => $phone,
@@ -107,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $updateData[':password'] = $password;
                     $stmt = $pdo->prepare("
                         UPDATE users 
-                        SET full_name = :full_name, email = :email, phone = :phone, 
+                        SET username = :username, full_name = :full_name, email = :email, phone = :phone, 
                             role_id = :role_id, department = :department, position = :position,
                             is_active = :is_active, password = :password
                         WHERE id = :id
@@ -115,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $stmt = $pdo->prepare("
                         UPDATE users 
-                        SET full_name = :full_name, email = :email, phone = :phone, 
+                        SET username = :username, full_name = :full_name, email = :email, phone = :phone, 
                             role_id = :role_id, department = :department, position = :position,
                             is_active = :is_active
                         WHERE id = :id
@@ -153,14 +156,18 @@ $sql = "SELECT u.*, r.role_name, r.role_description
 
 if (!empty($searchQuery)) {
     $sql .= " WHERE (u.username LIKE :search OR u.full_name LIKE :search OR u.email LIKE :search)";
-    $filterParams[':search'] = '%' . $searchQuery . '%';
+    $filterParams['search'] = '%' . $searchQuery . '%';
 }
 
 $sql .= " ORDER BY u.created_at DESC";
 
 try {
     $stmt = $pdo->prepare($sql);
-    $stmt->execute($filterParams);
+    if (!empty($filterParams)) {
+        $stmt->execute($filterParams);
+    } else {
+        $stmt->execute();
+    }
     $users = $stmt->fetchAll();
     
     // Получение списка ролей
@@ -480,13 +487,14 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                 <div class="form-row">
                     <div class="form-group">
                         <label for="username"><i class="fas fa-user"></i> Логин *</label>
-                        <input type="text" id="username" name="username" required disabled>
-                        <small style="color: #666; font-size: 11px;">Логин нельзя изменить</small>
+                        <input type="text" id="username" name="username" required>
+                        <small style="color: #666; font-size: 11px;" id="usernameHint">Логин можно изменить</small>
                     </div>
                     
                     <div class="form-group">
                         <label for="password"><i class="fas fa-lock"></i> Пароль <span id="passwordRequired">*</span></label>
                         <input type="password" id="password" name="password">
+                        <small style="color: #666; font-size: 11px;" id="passwordHint">Оставьте пустым, чтобы не менять пароль</small>
                     </div>
                 </div>
                 
@@ -565,9 +573,11 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             document.getElementById('userId').value = '';
             document.getElementById('username').value = '';
             document.getElementById('username').disabled = false;
+            document.getElementById('usernameHint').textContent = 'Введите уникальный логин';
             document.getElementById('password').value = '';
             document.getElementById('password').required = true;
             document.getElementById('passwordRequired').style.display = 'inline';
+            document.getElementById('passwordHint').style.display = 'none';
             document.getElementById('fullName').value = '';
             document.getElementById('email').value = '';
             document.getElementById('phone').value = '';
@@ -594,10 +604,12 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                         document.getElementById('formAction').value = 'update';
                         document.getElementById('userId').value = user.id;
                         document.getElementById('username').value = user.username;
-                        document.getElementById('username').disabled = true;
+                        document.getElementById('username').disabled = false;
+                        document.getElementById('usernameHint').textContent = 'Логин можно изменить';
                         document.getElementById('password').value = '';
                         document.getElementById('password').required = false;
                         document.getElementById('passwordRequired').style.display = 'none';
+                        document.getElementById('passwordHint').style.display = 'block';
                         document.getElementById('fullName').value = user.full_name;
                         document.getElementById('email').value = user.email;
                         document.getElementById('phone').value = user.phone || '';
