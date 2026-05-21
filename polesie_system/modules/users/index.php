@@ -269,6 +269,27 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             padding: 6px 10px;
             font-size: 14px;
         }
+        /* Компактная таблица */
+        .data-table th, .data-table td {
+            padding: 8px 12px;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        .data-table th {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .user-email {
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .user-fullname {
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
     </style>
 </head>
 <body>
@@ -359,41 +380,45 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
+                                    <th style="width: 50px;">ID</th>
                                     <th>Логин</th>
                                     <th>ФИО</th>
                                     <th>Email</th>
                                     <th>Роль</th>
-                                    <th>Отдел</th>
-                                    <th>Должность</th>
-                                    <th>Статус</th>
-                                    <th>Последний вход</th>
-                                    <th>Действия</th>
+                                    <th>Отдел/Должность</th>
+                                    <th style="width: 80px;">Статус</th>
+                                    <th style="width: 120px;">Последний вход</th>
+                                    <th style="width: 100px;">Действия</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($users)): ?>
                                     <tr>
-                                        <td colspan="10" class="text-center">Пользователи не найдены</td>
+                                        <td colspan="9" class="text-center">Пользователи не найдены</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($users as $user): ?>
                                         <tr>
                                             <td><?php echo $user['id']; ?></td>
                                             <td><strong><?php echo htmlspecialchars($user['username']); ?></strong></td>
-                                            <td><?php echo htmlspecialchars($user['full_name']); ?></td>
-                                            <td><?php echo htmlspecialchars($user['email']); ?></td>
+                                            <td class="user-fullname"><?php echo htmlspecialchars($user['full_name']); ?></td>
+                                            <td class="user-email"><?php echo htmlspecialchars($user['email']); ?></td>
                                             <td><?php echo htmlspecialchars($user['role_name'] ?? 'Не назначена'); ?></td>
-                                            <td><?php echo htmlspecialchars($user['department'] ?? '-'); ?></td>
-                                            <td><?php echo htmlspecialchars($user['position'] ?? '-'); ?></td>
+                                            <td>
+                                                <div style="font-size: 11px;">
+                                                    <div><?php echo htmlspecialchars($user['department'] ?? '-'); ?></div>
+                                                    <div style="color: #666;"><?php echo htmlspecialchars($user['position'] ?? ''); ?></div>
+                                                </div>
+                                            </td>
                                             <td>
                                                 <span class="status-badge <?php echo $user['is_active'] ? 'status-active' : 'status-inactive'; ?>">
-                                                    <?php echo $user['is_active'] ? 'Активен' : 'Неактивен'; ?>
+                                                    <?php echo $user['is_active'] ? 'Активен' : 'Неакт.'; ?>
                                                 </span>
                                             </td>
                                             <td>
                                                 <?php if ($user['last_login']): ?>
-                                                    <?php echo date('d.m.Y H:i', strtotime($user['last_login'])); ?>
+                                                    <div style="font-size: 11px;"><?php echo date('d.m.Y', strtotime($user['last_login'])); ?></div>
+                                                    <div style="font-size: 10px; color: #666;"><?php echo date('H:i', strtotime($user['last_login'])); ?></div>
                                                 <?php else: ?>
                                                     -
                                                 <?php endif; ?>
@@ -519,7 +544,8 @@ $initials = strtoupper(substr($userFullName, 0, 1));
     
     <script src="../../assets/js/main.js"></script>
     <script>
-        function openCreateModal() {
+        // Делаем функции глобальными
+        window.openCreateModal = function() {
             document.getElementById('modalTitle').textContent = 'Добавить пользователя';
             document.getElementById('formAction').value = 'create';
             document.getElementById('userId').value = '';
@@ -535,13 +561,18 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             document.getElementById('position').value = '';
             document.getElementById('isActive').checked = true;
             document.getElementById('userModal').classList.add('active');
-        }
+        };
         
-        function openEditModal(userId) {
+        window.openEditModal = function(userId) {
+            console.log('Opening edit modal for user ID:', userId);
             // Загружаем данные пользователя через AJAX
             fetch('get_user.php?id=' + userId)
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Received data:', data);
                     if (data.success) {
                         const user = data.user;
                         document.getElementById('modalTitle').textContent = 'Редактировать пользователя';
@@ -560,25 +591,25 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                         document.getElementById('isActive').checked = user.is_active == 1;
                         document.getElementById('userModal').classList.add('active');
                     } else {
-                        alert('Ошибка загрузки данных пользователя');
+                        alert('Ошибка загрузки данных пользователя: ' + (data.message || ''));
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
                     alert('Ошибка загрузки данных пользователя');
                 });
-        }
+        };
         
-        function closeModal() {
+        window.closeModal = function() {
             document.getElementById('userModal').classList.remove('active');
-        }
+        };
         
-        function confirmDelete(userId, username) {
+        window.confirmDelete = function(userId, username) {
             if (confirm('Вы уверены, что хотите деактивировать пользователя "' + username + '"?')) {
                 document.getElementById('deleteUserId').value = userId;
                 document.getElementById('deleteForm').submit();
             }
-        }
+        };
         
         // Close modal on outside click
         window.onclick = function(event) {
@@ -586,7 +617,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             if (event.target === modal) {
                 closeModal();
             }
-        }
+        };
     </script>
 </body>
 </html>
