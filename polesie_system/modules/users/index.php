@@ -79,14 +79,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = 'Пользователь успешно создан';
                 
             } elseif ($postAction === 'update' && $userId) {
-                // Проверка уникальности (исключая текущего пользователя)
-                $checkStmt = $pdo->prepare("SELECT id FROM users WHERE (username = :username OR email = :email) AND id != :id");
-                $checkStmt->execute([':username' => $username, ':email' => $email, ':id' => $userId]);
+                // Получаем текущий логин пользователя
+                $currentUser = $pdo->prepare("SELECT username FROM users WHERE id = :id");
+                $currentUser->execute([':id' => $userId]);
+                $currentUsername = $currentUser->fetchColumn();
+                
+                // Проверка уникальности email (исключая текущего пользователя)
+                $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email AND id != :id");
+                $checkStmt->execute([':email' => $email, ':id' => $userId]);
                 if ($checkStmt->fetch()) {
-                    throw new Exception('Пользователь с таким логином или email уже существует');
+                    throw new Exception('Пользователь с таким email уже существует');
                 }
                 
-                // Обновление пользователя
+                // Обновление пользователя (логин не изменяется)
                 $updateData = [
                     ':full_name' => $fullName,
                     ':email' => $email,
@@ -125,11 +130,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $action = 'list';
             
         } elseif ($postAction === 'delete' && $userId) {
-            // Мягкое удаление - деактивация пользователя
-            $stmt = $pdo->prepare("UPDATE users SET is_active = 0 WHERE id = :id");
+            // Полное удаление пользователя из БД
+            $stmt = $pdo->prepare("DELETE FROM users WHERE id = :id");
             $stmt->execute([':id' => $userId]);
             logActivity($pdo, $_SESSION['user_id'], 'user_delete', 'users', $userId);
-            $message = 'Пользователь деактивирован';
+            $message = 'Пользователь успешно удален';
             $action = 'list';
         }
         
@@ -138,15 +143,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Получение списка пользователей
-try {
-    $stmt = $pdo->prepare("
-        SELECT u.*, r.role_name, r.role_description
+// Получение списка пользователей с фильтром
+$searchQuery = $_GET['search'] ?? '';
+$filterParams = [];
+
+$sql = "SELECT u.*, r.role_name, r.role_description
         FROM users u
-        LEFT JOIN roles r ON u.role_id = r.id
-        ORDER BY u.created_at DESC
-    ");
-    $stmt->execute();
+        LEFT JOIN roles r ON u.role_id = r.id";
+
+if (!empty($searchQuery)) {
+    $sql .= " WHERE (u.username LIKE :search OR u.full_name LIKE :search OR u.email LIKE :search)";
+    $filterParams[':search'] = '%' . $searchQuery . '%';
+}
+
+$sql .= " ORDER BY u.created_at DESC";
+
+try {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($filterParams);
     $users = $stmt->fetchAll();
     
     // Получение списка ролей
@@ -359,11 +373,26 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                 <div class="card">
                     <div class="card-header">
                         <h2 class="card-title">Список пользователей</h2>
-                        <?php if (hasRole(['admin'])): ?>
-                            <button class="btn btn-primary" onclick="openCreateModal()">
-                                <i class="fas fa-plus"></i> Добавить пользователя
-                            </button>
-                        <?php endif; ?>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <form method="GET" action="" style="display: flex; gap: 10px;">
+                                <input type="text" name="search" placeholder="Поиск по логину, ФИО, email..." 
+                                       value="<?php echo htmlspecialchars($searchQuery); ?>" 
+                                       style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; width: 300px;">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> Найти
+                                </button>
+                                <?php if (!empty($searchQuery)): ?>
+                                    <a href="" class="btn btn-secondary">
+                                        <i class="fas fa-times"></i> Сбросить
+                                    </a>
+                                <?php endif; ?>
+                            </form>
+                            <?php if (hasRole(['admin'])): ?>
+                                <button class="btn btn-primary" onclick="openCreateModal()">
+                                    <i class="fas fa-plus"></i> Добавить пользователя
+                                </button>
+                            <?php endif; ?>
+                        </div>
                     </div>
                     
                     <div class="table-responsive">
@@ -376,7 +405,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                     <th>Email</th>
                                     <th>Роль</th>
                                     <th>Отдел/Должность</th>
-                                    <th style="width: 80px;">Статус</th>
                                     <th style="width: 120px;">Последний вход</th>
                                     <th style="width: 100px;">Действия</th>
                                 </tr>
@@ -384,7 +412,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                             <tbody>
                                 <?php if (empty($users)): ?>
                                     <tr>
-                                        <td colspan="9" class="text-center">Пользователи не найдены</td>
+                                        <td colspan="8" class="text-center">Пользователи не найдены</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($users as $user): ?>
@@ -399,11 +427,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                                     <div><?php echo htmlspecialchars($user['department'] ?? '-'); ?></div>
                                                     <div style="color: #666;"><?php echo htmlspecialchars($user['position'] ?? ''); ?></div>
                                                 </div>
-                                            </td>
-                                            <td>
-                                                <span class="status-badge <?php echo $user['is_active'] ? 'status-active' : 'status-inactive'; ?>">
-                                                    <?php echo $user['is_active'] ? 'Активен' : 'Неакт.'; ?>
-                                                </span>
                                             </td>
                                             <td>
                                                 <?php if ($user['last_login']): ?>
@@ -424,7 +447,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                                         <?php if ($user['id'] != $_SESSION['user_id']): ?>
                                                             <button class="btn btn-sm btn-danger btn-icon" 
                                                                     onclick="confirmDelete(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>')" 
-                                                                    title="Деактивировать">
+                                                                    title="Удалить">
                                                                 <i class="fas fa-trash"></i>
                                                             </button>
                                                         <?php endif; ?>
@@ -457,7 +480,8 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                 <div class="form-row">
                     <div class="form-group">
                         <label for="username"><i class="fas fa-user"></i> Логин *</label>
-                        <input type="text" id="username" name="username" required>
+                        <input type="text" id="username" name="username" required disabled>
+                        <small style="color: #666; font-size: 11px;">Логин нельзя изменить</small>
                     </div>
                     
                     <div class="form-group">
@@ -540,6 +564,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             document.getElementById('formAction').value = 'create';
             document.getElementById('userId').value = '';
             document.getElementById('username').value = '';
+            document.getElementById('username').disabled = false;
             document.getElementById('password').value = '';
             document.getElementById('password').required = true;
             document.getElementById('passwordRequired').style.display = 'inline';
@@ -569,6 +594,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                         document.getElementById('formAction').value = 'update';
                         document.getElementById('userId').value = user.id;
                         document.getElementById('username').value = user.username;
+                        document.getElementById('username').disabled = true;
                         document.getElementById('password').value = '';
                         document.getElementById('password').required = false;
                         document.getElementById('passwordRequired').style.display = 'none';
@@ -596,7 +622,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
         
         function confirmDelete(userId, username) {
             console.log('Confirm delete for user ID:', userId, 'username:', username);
-            if (confirm('Вы уверены, что хотите деактивировать пользователя "' + username + '"?')) {
+            if (confirm('Вы уверены, что хотите удалить пользователя "' + username + '"? Это действие нельзя отменить.')) {
                 document.getElementById('deleteUserId').value = userId;
                 document.getElementById('deleteForm').submit();
             }
