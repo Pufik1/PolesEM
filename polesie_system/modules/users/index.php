@@ -155,8 +155,10 @@ $sql = "SELECT u.*, r.role_name, r.role_description
         LEFT JOIN roles r ON u.role_id = r.id";
 
 if (!empty($searchQuery)) {
-    $sql .= " WHERE (u.username LIKE :search OR u.full_name LIKE :search OR u.email LIKE :search)";
-    $filterParams['search'] = '%' . $searchQuery . '%';
+    $sql .= " WHERE (u.username LIKE :search1 OR u.full_name LIKE :search2 OR u.email LIKE :search3)";
+    $filterParams['search1'] = '%' . $searchQuery . '%';
+    $filterParams['search2'] = '%' . $searchQuery . '%';
+    $filterParams['search3'] = '%' . $searchQuery . '%';
 }
 
 $sql .= " ORDER BY u.created_at DESC";
@@ -389,7 +391,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                     <i class="fas fa-search"></i> Найти
                                 </button>
                                 <?php if (!empty($searchQuery)): ?>
-                                    <a href="" class="btn btn-secondary">
+                                    <a href="?action=list" class="btn btn-secondary">
                                         <i class="fas fa-times"></i> Сбросить
                                     </a>
                                 <?php endif; ?>
