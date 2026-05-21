@@ -1,0 +1,213 @@
+-- Database: polesie_electromash
+-- Creating database structure for OAO "Polesieelectromash" ERP System
+
+CREATE DATABASE IF NOT EXISTS polesie_electromash CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE polesie_electromash;
+
+-- Roles table (7 roles as requested)
+CREATE TABLE roles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    role_name VARCHAR(50) NOT NULL UNIQUE,
+    role_description TEXT,
+    permissions JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Users table
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    phone VARCHAR(20),
+    role_id INT NOT NULL,
+    department VARCHAR(100),
+    position VARCHAR(100),
+    is_active TINYINT(1) DEFAULT 1,
+    last_login TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT
+);
+
+-- Product categories
+CREATE TABLE product_categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category_name VARCHAR(100) NOT NULL,
+    parent_id INT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES product_categories(id) ON DELETE SET NULL
+);
+
+-- Products table
+CREATE TABLE products (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_code VARCHAR(50) NOT NULL UNIQUE,
+    product_name VARCHAR(200) NOT NULL,
+    category_id INT,
+    description TEXT,
+    specifications JSON,
+    base_price DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'BYN',
+    stock_quantity INT DEFAULT 0,
+    min_stock_level INT DEFAULT 10,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (category_id) REFERENCES product_categories(id) ON DELETE SET NULL
+);
+
+-- Clients/Customers table
+CREATE TABLE clients (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    client_code VARCHAR(50) NOT NULL UNIQUE,
+    company_name VARCHAR(200),
+    contact_person VARCHAR(100),
+    inn VARCHAR(20),
+    address TEXT,
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    website VARCHAR(200),
+    discount_percent DECIMAL(5,2) DEFAULT 0,
+    payment_terms TEXT,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Orders table
+CREATE TABLE orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_number VARCHAR(50) NOT NULL UNIQUE,
+    client_id INT NOT NULL,
+    user_id INT NOT NULL,
+    order_date DATE NOT NULL,
+    delivery_date DATE,
+    status ENUM('new', 'processing', 'production', 'ready', 'shipped', 'completed', 'cancelled') DEFAULT 'new',
+    total_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    discount_amount DECIMAL(12,2) DEFAULT 0,
+    final_amount DECIMAL(12,2) NOT NULL,
+    payment_status ENUM('unpaid', 'partial', 'paid') DEFAULT 'unpaid',
+    delivery_address TEXT,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+-- Order items table
+CREATE TABLE order_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    discount_percent DECIMAL(5,2) DEFAULT 0,
+    total_price DECIMAL(12,2) NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+);
+
+-- Production orders table
+CREATE TABLE production_orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    production_number VARCHAR(50) NOT NULL UNIQUE,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    planned_start_date DATE,
+    planned_end_date DATE,
+    actual_start_date DATE,
+    actual_end_date DATE,
+    status ENUM('planned', 'in_progress', 'completed', 'cancelled') DEFAULT 'planned',
+    responsible_user_id INT,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
+    FOREIGN KEY (responsible_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Warehouse operations table
+CREATE TABLE warehouse_operations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    operation_type ENUM('income', 'outcome', 'transfer', 'write_off') NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    warehouse_from INT,
+    warehouse_to INT,
+    user_id INT NOT NULL,
+    operation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    document_number VARCHAR(50),
+    notes TEXT,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+-- Employees table (extended HR data)
+CREATE TABLE employees (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    employee_code VARCHAR(50) NOT NULL UNIQUE,
+    hire_date DATE NOT NULL,
+    termination_date DATE,
+    salary DECIMAL(10,2),
+    department VARCHAR(100),
+    position VARCHAR(100),
+    supervisor_id INT,
+    employment_status ENUM('active', 'on_leave', 'terminated') DEFAULT 'active',
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (supervisor_id) REFERENCES employees(id) ON DELETE SET NULL
+);
+
+-- Activity log table
+CREATE TABLE activity_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    action VARCHAR(100) NOT NULL,
+    table_name VARCHAR(50),
+    record_id INT,
+    old_values JSON,
+    new_values JSON,
+    ip_address VARCHAR(45),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Insert default roles
+INSERT INTO roles (role_name, role_description, permissions) VALUES
+('admin', 'Системный администратор - полный доступ ко всем функциям системы', '{"all": true}'),
+('director', 'Директор - просмотр всех отчетов и аналитики, управление сотрудниками', '{"dashboard": true, "reports": true, "hr": true, "analytics": true}'),
+('manager', 'Менеджер по продажам - работа с клиентами, заказами, коммерческими предложениями', '{"clients": true, "orders": true, "products": true, "sales": true}'),
+('production_master', 'Мастер производства - управление производственными заданиями, контроль выпуска продукции', '{"production": true, "warehouse": true, "quality": true}'),
+('warehouse_keeper', 'Кладовщик - учет ТМЦ, приход/расход материалов и готовой продукции', '{"warehouse": true, "inventory": true}'),
+('accountant', 'Бухгалтер - финансовая отчетность, счета, акты, накладные', '{"finance": true, "reports": true, "documents": true}'),
+('hr_manager', 'HR-менеджер - кадры, отпуска, больничные, табель учета рабочего времени', '{"hr": true, "employees": true, "schedule": true}');
+
+-- Insert default admin user (password: admin123)
+INSERT INTO users (username, password, full_name, email, role_id, department, position) VALUES
+('admin', 'admin123', 'Администратор Системы', 'admin@polesieelectromash.by', 1, 'IT отдел', 'Системный администратор');
+
+-- Insert product categories based on company info
+INSERT INTO product_categories (category_name, description) VALUES
+('Электродвигатели асинхронные трехфазные', 'Общепромышленного назначения серии АИР'),
+('Электродвигатели однофазные', 'Бытового и промышленного назначения'),
+('Электродвигатели специального назначения', 'С повышенным скольжением, многоскоростные, взрывозащищенные'),
+('Электроконфорки чугунные', 'Бытового назначения для электроплит'),
+('Электронасосы бытовые', 'Центробежные для воды'),
+('Электронасосы погружные', 'Для загрязненных вод типа ГНОМ'),
+('Чугунное литье', 'Отливки из серого и высокопрочного чугуна'),
+('Цветное литье', 'Отливки из алюминиевых сплавов');
+
+-- Sample products
+INSERT INTO products (product_code, product_name, category_id, description, base_price, stock_quantity) VALUES
+('AIR71A2', 'Электродвигатель АИР71А2', 1, 'Асинхронный трехфазный, 0.75 кВт, 3000 об/мин', 250.00, 50),
+('AIR80A4', 'Электродвигатель АИР80А4', 1, 'Асинхронный трехфазный, 1.1 кВт, 1500 об/мин', 320.00, 45),
+('AIR90L6', 'Электродвигатель АИР90L6', 1, 'Асинхронный трехфазный, 2.2 кВт, 1000 об/мин', 450.00, 30),
+('AIRE80C2', 'Электродвигатель АИРЕ80С2', 2, 'Однофазный с конденсатором, 1.5 кВт', 380.00, 25),
+('EKCH145', 'Электроконфорка ЭКЧ145', 4, 'Чугунная бытовая, 145 мм', 45.00, 100),
+('GNOM10-10', 'Насос ГНОМ 10-10', 6, 'Погружной для загрязненных вод, 10 м³/ч, 10 м', 520.00, 20),
+('CHUGUN_L4', 'Чугун литейный Л4', 7, 'ГОСТ 4832-95, чушки', 85.00, 500),
+('ALU_AV87', 'Алюминий АВ87', 8, 'Вторичный алюминий, чушки', 120.00, 300);
