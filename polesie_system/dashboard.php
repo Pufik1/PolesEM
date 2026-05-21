@@ -339,7 +339,21 @@ $currentMenu = $menuItems[$userRole] ?? $menuItems['manager'];
                                         <tr>
                                             <td><?php echo htmlspecialchars($activity['user_name'] ?? 'Система'); ?></td>
                                             <td><?php echo htmlspecialchars($activity['action']); ?></td>
-                                            <td><?php echo htmlspecialchars($activity['table_name'] ?? '-'); ?></td>
+                                            <td><?php 
+                                                // Перевод имен таблиц на русский язык
+                                                $tableTranslations = [
+                                                    'users' => 'Пользователи',
+                                                    'orders' => 'Заказы',
+                                                    'products' => 'Продукция',
+                                                    'clients' => 'Клиенты',
+                                                    'warehouse' => 'Склад',
+                                                    'production' => 'Производство',
+                                                    'finance' => 'Финансы',
+                                                    'hr' => 'Кадры'
+                                                ];
+                                                $tableName = $activity['table_name'] ?? null;
+                                                echo htmlspecialchars($tableTranslations[$tableName] ?? $tableName ?? '-'); 
+                                            ?></td>
                                             <td><?php echo date('d.m.Y H:i', strtotime($activity['created_at'])); ?></td>
                                         </tr>
                                     <?php endforeach; ?>

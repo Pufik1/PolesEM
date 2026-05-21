@@ -38,7 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $roleId = (int)($_POST['role_id'] ?? 0);
             $department = trim($_POST['department'] ?? '');
             $position = trim($_POST['position'] ?? '');
-            $isActive = isset($_POST['is_active']) ? 1 : 0;
             
             // Валидация
             if (empty($username) || empty($fullName) || empty($email) || $roleId === 0) {
@@ -59,8 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // Создание пользователя
                 $stmt = $pdo->prepare("
-                    INSERT INTO users (username, password, full_name, email, phone, role_id, department, position, is_active)
-                    VALUES (:username, :password, :full_name, :email, :phone, :role_id, :department, :position, :is_active)
+                    INSERT INTO users (username, password, full_name, email, phone, role_id, department, position)
+                    VALUES (:username, :password, :full_name, :email, :phone, :role_id, :department, :position)
                 ");
                 $stmt->execute([
                     ':username' => $username,
@@ -70,12 +69,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':phone' => $phone,
                     ':role_id' => $roleId,
                     ':department' => $department,
-                    ':position' => $position,
-                    ':is_active' => $isActive
+                    ':position' => $position
                 ]);
                 
                 $newUserId = $pdo->lastInsertId();
-                logActivity($pdo, $_SESSION['user_id'], 'user_create', 'users', $newUserId);
+                logActivity($pdo, $_SESSION['user_id'], 'Создание пользователя', 'users', $newUserId);
                 $message = 'Пользователь успешно создан';
                 
             } elseif ($postAction === 'update' && $userId) {
@@ -102,7 +100,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':role_id' => $roleId,
                     ':department' => $department,
                     ':position' => $position,
-                    ':is_active' => $isActive,
                     ':id' => $userId
                 ];
                 
@@ -111,22 +108,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $pdo->prepare("
                         UPDATE users 
                         SET username = :username, full_name = :full_name, email = :email, phone = :phone, 
-                            role_id = :role_id, department = :department, position = :position,
-                            is_active = :is_active, password = :password
+                            role_id = :role_id, department = :department, position = :position, password = :password
                         WHERE id = :id
                     ");
                 } else {
                     $stmt = $pdo->prepare("
                         UPDATE users 
                         SET username = :username, full_name = :full_name, email = :email, phone = :phone, 
-                            role_id = :role_id, department = :department, position = :position,
-                            is_active = :is_active
+                            role_id = :role_id, department = :department, position = :position
                         WHERE id = :id
                     ");
                 }
                 
                 $stmt->execute($updateData);
-                logActivity($pdo, $_SESSION['user_id'], 'user_update', 'users', $userId);
+                logActivity($pdo, $_SESSION['user_id'], 'Редактирование пользователя', 'users', $userId);
                 $message = 'Пользователь успешно обновлен';
             }
             
@@ -136,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Полное удаление пользователя из БД
             $stmt = $pdo->prepare("DELETE FROM users WHERE id = :id");
             $stmt->execute([':id' => $userId]);
-            logActivity($pdo, $_SESSION['user_id'], 'user_delete', 'users', $userId);
+            logActivity($pdo, $_SESSION['user_id'], 'Удаление пользователя', 'users', $userId);
             $message = 'Пользователь успешно удален';
             $action = 'list';
         }
@@ -224,15 +219,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
         }
         .form-row.single {
             grid-template-columns: 1fr;
-        }
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        .checkbox-group input[type="checkbox"] {
-            width: auto;
         }
         .status-badge {
             padding: 4px 12px;
@@ -543,13 +529,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                     </div>
                 </div>
                 
-                <div class="form-row single">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="isActive" name="is_active" checked value="1">
-                        <label for="isActive">Активен</label>
-                    </div>
-                </div>
-                
                 <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
                     <button type="submit" class="btn btn-primary">
@@ -586,7 +565,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             document.getElementById('roleId').value = '';
             document.getElementById('department').value = '';
             document.getElementById('position').value = '';
-            document.getElementById('isActive').checked = true;
             document.getElementById('userModal').classList.add('active');
         }
         
@@ -618,7 +596,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                         document.getElementById('roleId').value = user.role_id;
                         document.getElementById('department').value = user.department || '';
                         document.getElementById('position').value = user.position || '';
-                        document.getElementById('isActive').checked = user.is_active == 1;
                         document.getElementById('userModal').classList.add('active');
                     } else {
                         alert('Ошибка загрузки данных пользователя: ' + (data.message || ''));
