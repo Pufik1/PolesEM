@@ -482,6 +482,28 @@ CREATE TABLE activity_log (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
+-- Warehouse operations table (Операции склада: приход, расход, перемещение, списание)
+CREATE TABLE warehouse_operations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    operation_type ENUM('income', 'outcome', 'transfer', 'write_off') NOT NULL COMMENT 'income=Приход, outcome=Расход, transfer=Перемещение, write_off=Списание',
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    warehouse_from INT,
+    warehouse_to INT,
+    user_id INT NOT NULL,
+    document_number VARCHAR(50),
+    notes TEXT,
+    operation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
+    FOREIGN KEY (warehouse_from) REFERENCES work_centers(id) ON DELETE SET NULL,
+    FOREIGN KEY (warehouse_to) REFERENCES work_centers(id) ON DELETE SET NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+    INDEX idx_operation_type (operation_type),
+    INDEX idx_product_id (product_id),
+    INDEX idx_operation_date (operation_date)
+);
+
 -- Insert default roles
 INSERT INTO roles (role_name, role_description, permissions) VALUES
 ('admin', 'Системный администратор - полный доступ ко всем функциям системы', '{"all": true}'),
