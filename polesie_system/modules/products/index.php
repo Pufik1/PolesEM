@@ -318,8 +318,17 @@ try {
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($products as $product): ?>
+                                        <?php 
+                                        // Декодируем specifications для data-product атрибута
+                                        $specs = json_decode($product['specifications'] ?? '{}', true);
+                                        $productWithSpecs = $product;
+                                        $productWithSpecs['specifications'] = $specs;
+                                        ?>
                                         <tr data-category="<?php echo $product['category_id'] ?? ''; ?>" 
-                                            data-product='<?php echo htmlspecialchars(json_encode($product), ENT_QUOTES); ?>'>
+                                            data-power="<?php echo isset($specs['power_kw']) ? $specs['power_kw'] : ''; ?>"
+                                            data-speed="<?php echo isset($specs['rpm']) ? $specs['rpm'] : ''; ?>"
+                                            data-frame="<?php echo isset($specs['frame_size_mm']) ? $specs['frame_size_mm'] : ''; ?>"
+                                            data-product='<?php echo htmlspecialchars(json_encode($productWithSpecs, JSON_UNESCAPED_UNICODE), ENT_QUOTES); ?>'>
                                             <td><strong><?php echo htmlspecialchars($product['product_code']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($product['product_name']); ?></td>
                                             <td><?php echo htmlspecialchars($product['category_name'] ?? 'Не указана'); ?></td>
@@ -824,12 +833,31 @@ try {
             if (product.specifications && typeof product.specifications === 'object' && Object.keys(product.specifications).length > 0) {
                 specsHtml = '<table style="width: 100%; border-collapse: collapse;">';
                 for (const [key, value] of Object.entries(product.specifications)) {
-                    // Красивое отображение ключей характеристик
+                    // Красивое отображение ключей характеристик на русском языке
                     let displayKey = key;
-                    if (key === 'gost') displayKey = 'ГОСТ';
-                    else if (key === 'size_mm') displayKey = 'Размеры (мм)';
-                    else if (key === 'material') displayKey = 'Материал';
-                    else if (key === 'weight_kg') displayKey = 'Вес (кг)';
+                    const keyMap = {
+                        'gost': 'ГОСТ',
+                        'size_mm': 'Размеры (мм)',
+                        'material': 'Материал',
+                        'weight_kg': 'Вес (кг)',
+                        'power_kw': 'Мощность (кВт)',
+                        'rpm': 'Частота вращения (об/мин)',
+                        'efficiency_pct': 'КПД (%)',
+                        'cos_phi': 'cos φ',
+                        'frame_size_mm': 'Габарит (мм)',
+                        'voltage_v': 'Напряжение (В)',
+                        'capacitor_mkF': 'Конденсатор (мкФ)',
+                        'protection': 'Защита',
+                        'environment': 'Среда',
+                        'grade': 'Марка',
+                        'form': 'Форма',
+                        'application': 'Применение',
+                        'storage_conditions': 'Условия хранения',
+                        'note': 'Примечание',
+                        'stator_d_mm': 'Диаметр статора (мм)',
+                        'stator_l_mm': 'Длина статора (мм)'
+                    };
+                    displayKey = keyMap[key] || key;
                     
                     specsHtml += `<tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 8px; font-weight: bold;">${displayKey}</td>
@@ -904,33 +932,20 @@ try {
             const speedFilter = document.getElementById('speedFilter').value;
             const frameFilter = document.getElementById('frameFilter').value;
             const table = document.getElementById('productsTable');
-            const rows = table.querySelectorAll('tbody tr[data-category]');
+            const rows = table.querySelectorAll('tbody tr');
             
             rows.forEach(row => {
-                const productCode = row.cells[0].textContent.toLowerCase();
-                const productName = row.cells[1].textContent.toLowerCase();
-                const category = row.dataset.category;
-                const productData = row.dataset.product ? JSON.parse(row.dataset.product) : {};
-                const specs = productData.specifications || {};
+                // Пропускаем строки без data-power атрибута (например, строку "Продукция не найдена")
+                if (!row.dataset.power && row.cells.length < 6) return;
                 
-                // Extract power, speed, frame from specs
-                const powerStr = specs['Мощность'] || specs['мощность'] || '';
-                const speedStr = specs['Частота вращения'] || specs['Об/мин'] || specs['частота вращения'] || '';
-                const frameStr = specs['Габарит'] || specs['габарит'] || '';
+                const productCode = row.cells[0] ? row.cells[0].textContent.toLowerCase() : '';
+                const productName = row.cells[1] ? row.cells[1].textContent.toLowerCase() : '';
+                const category = row.dataset.category || '';
                 
-                // Parse power value
-                let powerValue = 0;
-                const powerMatch = powerStr.match(/([\d.]+)\s*кВт/);
-                if (powerMatch) {
-                    powerValue = parseFloat(powerMatch[1]);
-                }
-                
-                // Parse speed value (take first number if multiple)
-                const speedMatch = speedStr.match(/(\d+)/);
-                const speedValue = speedMatch ? parseInt(speedMatch[1]) : 0;
-                
-                // Parse frame value
-                const frameValue = frameStr.trim();
+                // Используем data-атрибуты для быстрого доступа к характеристикам
+                const powerValue = parseFloat(row.dataset.power) || 0;
+                const speedValue = parseInt(row.dataset.speed) || 0;
+                const frameValue = String(row.dataset.frame || '').trim();
                 
                 // Check search match
                 const matchesSearch = productCode.includes(searchInput) || productName.includes(searchInput);
