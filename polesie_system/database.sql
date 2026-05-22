@@ -237,7 +237,36 @@ CREATE TABLE delivery_note_items (
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
 );
 
--- Production orders table
+-- Work centers / production areas
+CREATE TABLE work_centers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    center_code VARCHAR(50) NOT NULL UNIQUE,
+    center_name VARCHAR(200) NOT NULL,
+    center_type ENUM('assembly', 'machining', 'casting', 'painting', 'warehouse', 'quality') DEFAULT 'assembly',
+    description TEXT,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Technological operations
+CREATE TABLE technological_operations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    operation_code VARCHAR(50) NOT NULL UNIQUE,
+    operation_name VARCHAR(200) NOT NULL,
+    product_id INT,
+    work_center_id INT,
+    sequence_order INT DEFAULT 1,
+    standard_time_minutes DECIMAL(10,2) DEFAULT 0 COMMENT 'Нормативное время в минутах',
+    description TEXT,
+    required_tools TEXT COMMENT 'Необходимые инструменты',
+    quality_requirements TEXT,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY (work_center_id) REFERENCES work_centers(id) ON DELETE SET NULL
+);
+
+-- Production orders (План выпуска продукции)
 CREATE TABLE production_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     production_number VARCHAR(50) NOT NULL UNIQUE,
@@ -247,13 +276,141 @@ CREATE TABLE production_orders (
     planned_end_date DATE,
     actual_start_date DATE,
     actual_end_date DATE,
-    status ENUM('planned', 'in_progress', 'completed', 'cancelled') DEFAULT 'planned',
+    status ENUM('planned', 'in_progress', 'completed', 'cancelled', 'on_hold') DEFAULT 'planned',
+    priority ENUM('low', 'normal', 'high', 'urgent') DEFAULT 'normal',
+    order_source ENUM('customer_order', 'stock_replenishment', 'forecast') DEFAULT 'stock_replenishment',
+    source_order_id INT COMMENT 'ID заказа клиента если это заказное производство',
     responsible_user_id INT,
+    work_center_id INT,
     notes TEXT,
+    created_by INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
-    FOREIGN KEY (responsible_user_id) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (responsible_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (work_center_id) REFERENCES work_centers(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Production order operations (маршрутный лист)
+CREATE TABLE production_order_operations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    production_order_id INT NOT NULL,
+    operation_id INT NOT NULL,
+    sequence_order INT DEFAULT 1,
+    planned_start_datetime DATETIME,
+    planned_end_datetime DATETIME,
+    actual_start_datetime DATETIME,
+    actual_end_datetime DATETIME,
+    status ENUM('pending', 'in_progress', 'completed', 'skipped') DEFAULT 'pending',
+    worker_id INT,
+    work_center_id INT,
+    quantity_good INT DEFAULT 0 COMMENT 'Годные изделия',
+    quantity_defect INT DEFAULT 0 COMMENT 'Брак',
+    defect_reason TEXT,
+    notes TEXT,
+    completed_at TIMESTAMP NULL,
+    completed_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (production_order_id) REFERENCES production_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (operation_id) REFERENCES technological_operations(id) ON DELETE RESTRICT,
+    FOREIGN KEY (worker_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (work_center_id) REFERENCES work_centers(id) ON DELETE SET NULL,
+    FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Materials consumption for production (Списание материалов)
+CREATE TABLE production_materials (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    production_order_id INT NOT NULL,
+    material_id INT NOT NULL,
+    planned_quantity DECIMAL(10,3) NOT NULL,
+    actual_quantity DECIMAL(10,3) DEFAULT 0,
+    unit VARCHAR(20) DEFAULT 'шт',
+    warehouse_id INT,
+    issued_date DATE,
+    issued_by INT,
+    status ENUM('planned', 'issued', 'returned', 'written_off') DEFAULT 'planned',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (production_order_id) REFERENCES production_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (material_id) REFERENCES products(id) ON DELETE RESTRICT,
+    FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Quality control / ОТК
+CREATE TABLE quality_control (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    production_order_id INT NOT NULL,
+    operation_id INT,
+    inspection_date DATETIME NOT NULL,
+    inspector_id INT NOT NULL,
+    inspected_quantity INT NOT NULL,
+    passed_quantity INT NOT NULL,
+    rejected_quantity INT NOT NULL,
+    defect_types JSON COMMENT 'Типы дефектов',
+    inspection_result ENUM('passed', 'failed', 'conditional') DEFAULT 'passed',
+    certificate_number VARCHAR(50),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (production_order_id) REFERENCES production_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (operation_id) REFERENCES technological_operations(id) ON DELETE SET NULL,
+    FOREIGN KEY (inspector_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Shift tasks for workers (Сменные задания)
+CREATE TABLE shift_tasks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    task_number VARCHAR(50) NOT NULL UNIQUE,
+    production_order_id INT NOT NULL,
+    worker_id INT NOT NULL,
+    shift_date DATE NOT NULL,
+    shift_type ENUM('day', 'night', 'mixed') DEFAULT 'day',
+    operation_id INT,
+    planned_quantity INT NOT NULL,
+    actual_quantity INT DEFAULT 0,
+    status ENUM('assigned', 'in_progress', 'completed', 'cancelled') DEFAULT 'assigned',
+    started_at DATETIME,
+    completed_at DATETIME,
+    notes TEXT,
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (production_order_id) REFERENCES production_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (worker_id) REFERENCES users(id) ON DELETE RESTRICT,
+    FOREIGN KEY (operation_id) REFERENCES technological_operations(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Production completion acts (Акт сдачи-приемки)
+CREATE TABLE production_completion_acts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    act_number VARCHAR(50) NOT NULL UNIQUE,
+    production_order_id INT NOT NULL,
+    act_date DATE NOT NULL,
+    total_quantity INT NOT NULL,
+    good_quantity INT NOT NULL,
+    defect_quantity INT NOT NULL,
+    warehouse_received_by INT,
+    quality_approved_by INT,
+    status ENUM('draft', 'signed', 'archived') DEFAULT 'draft',
+    notes TEXT,
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (production_order_id) REFERENCES production_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (warehouse_received_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (quality_approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Defect types reference
+CREATE TABLE defect_types (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    defect_code VARCHAR(50) NOT NULL UNIQUE,
+    defect_name VARCHAR(200) NOT NULL,
+    category ENUM('critical', 'major', 'minor') DEFAULT 'minor',
+    description TEXT,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Warehouse operations table
@@ -350,3 +507,59 @@ INSERT INTO clients (client_code, company_name, contact_person, inn, phone, emai
 ('CL008', 'Частное предприятие "ТехноРесурс"', 'Морозова Ольга Леонидовна', '590345678', '+375 (232) 78-90-12', 'morozova@technoresurs.by', 'г. Гомель, ул. Ильича, 120'),
 ('CL009', 'ООО "Бобруйский комбинат стройматериалов"', 'Кузнецов Виктор Павлович', '290456789', '+375 (241) 89-01-23', 'kuznetsov@bobr-stroy.by', 'г. Бобруйск, ул. Минская, 33'),
 ('CL010', 'УП "Мозырский нефтеперерабатывающий завод"', 'Лебедева Татьяна Николаевна', '490567890', '+375 (2351) 90-12-34', 'lebedeva@npz.by', 'г. Мозырь, ул. Молодежная, 1');
+
+-- Sample work centers
+INSERT INTO work_centers (center_code, center_name, center_type, description) VALUES
+('WC001', 'Заготовительный цех', 'machining', 'Раскрой и заготовка материалов'),
+('WC002', 'Токарный участок', 'machining', 'Токарная обработка деталей'),
+('WC003', 'Фрезерный участок', 'machining', 'Фрезерная обработка'),
+('WC004', 'Сборочный участок №1', 'assembly', 'Сборка электродвигателей малой мощности'),
+('WC005', 'Сборочный участок №2', 'assembly', 'Сборка электродвигателей средней мощности'),
+('WC006', 'Окрасочная камера', 'painting', 'Покраска и нанесение покрытий'),
+('WC007', 'Литейный цех', 'casting', 'Чугунное и цветное литье'),
+('WC008', 'Отдел технического контроля', 'quality', 'Входной и выходной контроль качества'),
+('WC009', 'Склад готовой продукции', 'warehouse', 'Хранение готовой продукции'),
+('WC010', 'Склад материалов', 'warehouse', 'Хранение сырья и материалов');
+
+-- Sample technological operations for electric motor
+INSERT INTO technological_operations (operation_code, operation_name, product_id, work_center_id, sequence_order, standard_time_minutes, description) VALUES
+('OP001', 'Заготовка статора', 1, 1, 1, 30, 'Раскрой электротехнической стали для статора'),
+('OP002', 'Штамповка пластин', 1, 1, 2, 60, 'Штамповка пластин статора'),
+('OP003', 'Токарная обработка корпуса', 1, 2, 3, 45, 'Обработка корпуса двигателя'),
+('OP004', 'Намотка обмотки статора', 1, 4, 4, 90, 'Намотка медной проволоки на статор'),
+('OP005', 'Пропитка обмотки', 1, 4, 5, 120, 'Пропитка обмотки лаком и сушка'),
+('OP006', 'Сборка двигателя', 1, 4, 6, 60, 'Final assembly of motor components'),
+('OP007', 'Балансировка ротора', 1, 2, 7, 30, 'Динамическая балансировка ротора'),
+('OP008', 'Покраска корпуса', 1, 6, 8, 20, 'Нанесение защитного покрытия'),
+('OP009', 'Контроль качества', 1, 8, 9, 15, 'Проверка электрических параметров'),
+('OP010', 'Упаковка', 1, 9, 10, 10, 'Упаковка готового изделия');
+
+-- Sample defect types
+INSERT INTO defect_types (defect_code, defect_name, category, description) VALUES
+('DEF001', 'Царапины на корпусе', 'minor', 'Поверхностные дефекты покраски'),
+('DEF002', 'Трещина в корпусе', 'critical', 'Сквозная трещина литой детали'),
+('DEF003', 'Неправильная намотка', 'major', 'Нарушение технологии намотки обмотки'),
+('DEF004', 'Пробой изоляции', 'critical', 'Нарушение изоляции обмотки'),
+('DEF005', 'Дисбаланс ротора', 'major', 'Превышение допустимого дисбаланса'),
+('DEF006', 'Люфт подшипника', 'major', 'Превышение радиального люфта'),
+('DEF007', 'Неправильное подключение', 'major', 'Ошибка схемы подключения обмоток'),
+('DEF008', 'Дефект литья', 'minor', 'Раковины, поры в отливке');
+
+-- Sample production order for demonstration
+INSERT INTO production_orders (production_number, product_id, quantity, planned_start_date, planned_end_date, priority, order_source, status, notes, created_by) VALUES
+('PO-2024-00001', 1, 50, DATE_SUB(CURDATE(), INTERVAL 5 DAY), DATE_ADD(CURDATE(), INTERVAL 5 DAY), 'high', 'stock_replenishment', 'in_progress', 'Плановое производство для пополнения склада', 1),
+('PO-2024-00002', 2, 30, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 10 DAY), 'normal', 'customer_order', 'planned', 'Заказ клиента ООО БелПромСтрой', 1),
+('PO-2024-00003', 5, 100, DATE_ADD(CURDATE(), INTERVAL 2 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'urgent', 'customer_order', 'planned', 'Срочный заказ на электроконфорки', 1);
+
+-- Sample production order operations for first order
+INSERT INTO production_order_operations (production_order_id, operation_id, sequence_order, status, planned_start_datetime, planned_end_datetime, quantity_good, quantity_defect) VALUES
+(1, 1, 1, 'completed', DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 4 DAY), 50, 0),
+(1, 2, 2, 'completed', DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY), 50, 2),
+(1, 3, 3, 'completed', DATE_SUB(NOW(), INTERVAL 3 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY), 48, 0),
+(1, 4, 4, 'in_progress', DATE_SUB(NOW(), INTERVAL 1 DAY), NOW(), 40, 0),
+(1, 5, 5, 'pending', NOW(), DATE_ADD(NOW(), INTERVAL 1 DAY), 0, 0),
+(1, 6, 6, 'pending', DATE_ADD(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 2 DAY), 0, 0),
+(1, 7, 7, 'pending', DATE_ADD(NOW(), INTERVAL 2 DAY), DATE_ADD(NOW(), INTERVAL 2 DAY), 0, 0),
+(1, 8, 8, 'pending', DATE_ADD(NOW(), INTERVAL 3 DAY), DATE_ADD(NOW(), INTERVAL 3 DAY), 0, 0),
+(1, 9, 9, 'pending', DATE_ADD(NOW(), INTERVAL 4 DAY), DATE_ADD(NOW(), INTERVAL 4 DAY), 0, 0),
+(1, 10, 10, 'pending', DATE_ADD(NOW(), INTERVAL 5 DAY), DATE_ADD(NOW(), INTERVAL 5 DAY), 0, 0);
