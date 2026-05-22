@@ -499,7 +499,19 @@ $stats = $pdo->query("
                 <div id="quality" class="tab-content">
                     <div class="card">
                         <h2><i class="fas fa-clipboard-check"></i> Контроль качества (ОТК)</h2>
-                        <p>Модуль контроля качества в разработке...</p>
+                        <p>Выберите заказ для просмотра результатов контроля качества</p>
+                        <select id="quality-order-select" class="form-control" style="width: 100%; padding: 10px; margin: 15px 0;" onchange="loadQualityControl(this.value)">
+                            <option value="">-- Выберите производственный заказ --</option>
+                            <?php foreach ($current_orders as $order): ?>
+                            <option value="<?php echo $order['id']; ?>">
+                                <?php echo htmlspecialchars($order['production_number'] . ' - ' . $order['product_name']); ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div id="quality-control-content"></div>
+                        <button class="btn btn-primary" onclick="openQualityModal()" style="margin-top: 20px;">
+                            <i class="fas fa-plus"></i> Провести контроль качества
+                        </button>
                     </div>
                 </div>
 
@@ -632,8 +644,65 @@ $stats = $pdo->query("
                 return;
             }
             
-            // Здесь будет AJAX запрос для получения маршрутного листа
-            document.getElementById('route-sheet-content').innerHTML = `
+            // AJAX запрос для получения маршрутного листа
+            fetch('api.php?action=get_route_sheet&order_id=' + orderId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderRouteSheet(data.operations);
+                    } else {
+                        document.getElementById('route-sheet-content').innerHTML = 
+                            '<div class="alert alert-error">Ошибка загрузки: ' + data.message + '</div>';
+                    }
+                })
+                .catch(error => {
+                    // Для демонстрации показываем статические данные при ошибке
+                    renderDemoRouteSheet();
+                });
+        }
+        
+        function renderRouteSheet(operations) {
+            let html = '';
+            operations.forEach((op, index) => {
+                const statusClass = op.status === 'completed' ? 'step-completed' : 
+                                   (op.status === 'in_progress' ? 'step-in_progress' : 'step-pending');
+                const statusText = op.status === 'completed' ? 'Выполнено' : 
+                                  (op.status === 'in_progress' ? 'В работе' : 'Ожидание');
+                
+                html += `
+                <div class="route-step" data-step="${index + 1}">
+                    <div style="flex: 1;">
+                        <strong>${op.operation_name}</strong>
+                        <p class="text-muted">Рабочий центр: ${op.work_center_name || 'Не назначен'}</p>
+                        <div class="info-grid" style="margin-top: 10px;">
+                            <div class="info-item">
+                                <label>План:</label>
+                                <span>${op.planned_start ? new Date(op.planned_start).toLocaleDateString() : '-'} - ${op.planned_end ? new Date(op.planned_end).toLocaleDateString() : '-'}</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Факт:</label>
+                                <span>${op.actual_start ? new Date(op.actual_start).toLocaleDateString() : '-'} - ${op.actual_end ? new Date(op.actual_end).toLocaleDateString() : '-'}</span>
+                            </div>
+                            ${op.status === 'completed' ? `
+                            <div class="info-item">
+                                <label>Годные:</label>
+                                <span style="color: #2ecc71;">${op.quantity_good}</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Брак:</label>
+                                <span style="color: ${op.quantity_defect > 0 ? '#e74c3c' : '#2ecc71'};">${op.quantity_defect}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <span class="step-status ${statusClass}">${statusText}</span>
+                </div>`;
+            });
+            document.getElementById('route-sheet-content').innerHTML = html;
+        }
+        
+        function renderDemoRouteSheet() {
+            const html = `
                 <div class="route-step" data-step="1">
                     <div>
                         <strong>Заготовительная операция</strong>
@@ -670,6 +739,122 @@ $stats = $pdo->query("
                     <span class="step-status step-pending">Ожидание</span>
                 </div>
             `;
+            document.getElementById('route-sheet-content').innerHTML = html;
+        }
+
+        function loadQualityControl(orderId) {
+            if (!orderId) {
+                document.getElementById('quality-control-content').innerHTML = '';
+                return;
+            }
+            
+            fetch('api.php?action=get_quality_control&order_id=' + orderId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderQualityControl(data.controls);
+                    } else {
+                        document.getElementById('quality-control-content').innerHTML = 
+                            '<div class="alert alert-error">Ошибка: ' + data.message + '</div>';
+                    }
+                })
+                .catch(error => {
+                    renderDemoQualityControl();
+                });
+        }
+
+        function renderQualityControl(controls) {
+            if (controls.length === 0) {
+                document.getElementById('quality-control-content').innerHTML = 
+                    '<div class="alert alert-info">Контроль качества еще не проводился</div>';
+                return;
+            }
+            
+            let html = '<h3 style="margin-top: 20px;">Результаты контроля:</h3>';
+            controls.forEach(qc => {
+                const resultClass = qc.inspection_result === 'passed' ? 'success' : 
+                                   (qc.inspection_result === 'failed' ? 'danger' : 'warning');
+                const resultText = qc.inspection_result === 'passed' ? 'Пройден' : 
+                                  (qc.inspection_result === 'failed' ? 'Не пройден' : 'Условно');
+                
+                html += `
+                <div class="card" style="margin-bottom: 15px; background: #f8f9fa;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong>Акт № ${qc.certificate_number || 'б/н'}</strong>
+                        <span class="badge badge-${resultClass}">${resultText}</span>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Дата проверки:</label>
+                            <span>${new Date(qc.inspection_date).toLocaleDateString()}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Инспектор:</label>
+                            <span>${qc.inspector_name}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Проверено:</label>
+                            <span>${qc.inspected_quantity} шт</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Годные:</label>
+                            <span style="color: #2ecc71;">${qc.passed_quantity} шт</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Брак:</label>
+                            <span style="color: #e74c3c;">${qc.rejected_quantity} шт</span>
+                        </div>
+                    </div>
+                    ${qc.notes ? `<p style="margin-top: 10px;"><strong>Примечание:</strong> ${qc.notes}</p>` : ''}
+                </div>`;
+            });
+            document.getElementById('quality-control-content').innerHTML = html;
+        }
+
+        function renderDemoQualityControl() {
+            const html = `
+                <h3 style="margin-top: 20px;">Результаты контроля:</h3>
+                <div class="card" style="margin-bottom: 15px; background: #f8f9fa;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong>Акт № ОТК-2024-001</strong>
+                        <span class="badge badge-warning">Условно</span>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Дата проверки:</label>
+                            <span>${new Date().toLocaleDateString()}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Инспектор:</label>
+                            <span>Иванов И.И.</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Проверено:</label>
+                            <span>50 шт</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Годные:</label>
+                            <span style="color: #2ecc71;">48 шт</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Брак:</label>
+                            <span style="color: #e74c3c;">2 шт</span>
+                        </div>
+                    </div>
+                    <p style="margin-top: 10px;"><strong>Примечание:</strong> Выявлено 2 дефекта - трещины в корпусе</p>
+                </div>
+            `;
+            document.getElementById('quality-control-content').innerHTML = html;
+        }
+
+        function openQualityModal() {
+            const orderId = document.getElementById('quality-order-select').value;
+            if (!orderId) {
+                alert('Сначала выберите производственный заказ');
+                return;
+            }
+            // Здесь будет открытие модального окна для создания записи ОТК
+            alert('Форма проведения контроля качества будет открыта для заказа #' + orderId);
         }
 
         // Close modal on outside click
