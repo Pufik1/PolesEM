@@ -537,7 +537,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
     <script src="../../assets/js/main.js"></script>
     <script>
         // Глобальные функции для работы с модальными окнами
-        function openCreateModal() {
+        window.openCreateModal = function() {
             document.getElementById('modalTitle').textContent = 'Добавить пользователя';
             document.getElementById('formAction').value = 'create';
             document.getElementById('userId').value = '';
@@ -557,7 +557,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             document.getElementById('userModal').classList.add('active');
         }
         
-        function openEditModal(userId) {
+        window.openEditModal = function(userId) {
             console.log('Opening edit modal for user ID:', userId);
             // Загружаем данные пользователя через AJAX
             fetch('get_user.php?id=' + userId)
@@ -596,11 +596,11 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                 });
         }
         
-        function closeModal() {
+        window.closeModal = function() {
             document.getElementById('userModal').classList.remove('active');
         }
         
-        function confirmDelete(userId, username) {
+        window.confirmDelete = function(userId, username) {
             console.log('Confirm delete for user ID:', userId, 'username:', username);
             if (confirm('Вы уверены, что хотите удалить пользователя "' + username + '"? Это действие нельзя отменить.')) {
                 document.getElementById('deleteUserId').value = userId;
