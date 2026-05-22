@@ -477,6 +477,16 @@ $initials = strtoupper(substr($userFullName, 0, 1));
     
     <script src="../../assets/js/main.js"></script>
     <script>
+        // Open modal function
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        }
+
+        // Close modal function
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
         // Close modal when clicking on X button
         document.querySelectorAll('.modal-close').forEach(button => {
             button.addEventListener('click', function() {
