@@ -248,12 +248,12 @@ if (!isset($_GET['view'])) {
 }
 
 // Get clients for dropdown
-$stmtClients = $pdo->query("SELECT id, company_name, client_code FROM clients WHERE is_active = 1 ORDER BY company_name");
+$stmtClients = $pdo->query("SELECT id, company_name, client_code FROM clients ORDER BY company_name");
 $clients = $stmtClients->fetchAll();
 
 // Get products for dropdown
 $stmtProducts = $pdo->query("SELECT id, product_code, product_name, base_price, stock_quantity 
-                             FROM products WHERE is_active = 1 ORDER BY product_name");
+                             FROM products ORDER BY product_name");
 $products = $stmtProducts->fetchAll();
 
 // Status translations

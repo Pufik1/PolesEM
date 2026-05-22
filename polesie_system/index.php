@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        r.role_name, r.role_description
                 FROM users u
                 INNER JOIN roles r ON u.role_id = r.id
-                WHERE u.username = :username AND u.is_active = 1
+                WHERE u.username = :username
             ");
             
             $stmt->execute([':username' => $username]);
