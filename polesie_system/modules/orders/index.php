@@ -133,21 +133,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
             $paidAmount = (float)($_POST['paid_amount'] ?? 0);
             $paidDate = $_POST['paid_date'] ?: null;
             
+            // Get order total amount
+            $stmtOrder = $pdo->prepare("SELECT final_amount FROM orders WHERE id = :id");
+            $stmtOrder->execute([':id' => $orderId]);
+            $order = $stmtOrder->fetch();
+            
+            if ($order) {
+                $finalAmount = (float)$order['final_amount'];
+                
+                // Auto-determine payment status based on paid amount
+                if ($paidAmount <= 0) {
+                    $paymentStatus = 'unpaid';
+                } elseif ($paidAmount >= $finalAmount) {
+                    $paymentStatus = 'paid';
+                } else {
+                    $paymentStatus = 'partial';
+                }
+            }
+            
+            // Update order payment status and paid amount
             $stmt = $pdo->prepare("UPDATE orders SET payment_status = :payment_status, 
+                                   paid_amount = :paid_amount, paid_date = :paid_date,
                                    updated_at = CURRENT_TIMESTAMP WHERE id = :id");
-            $stmt->execute([':payment_status' => $paymentStatus, ':id' => $orderId]);
+            $stmt->execute([
+                ':payment_status' => $paymentStatus, 
+                ':paid_amount' => $paidAmount,
+                ':paid_date' => $paidDate,
+                ':id' => $orderId
+            ]);
             
             // Update invoice if exists
-            if ($paidDate) {
-                $stmtInv = $pdo->prepare("UPDATE invoices SET paid_amount = :paid_amount, paid_date = :paid_date, 
-                                          payment_status = :payment_status WHERE order_id = :order_id");
-                $stmtInv->execute([
-                    ':paid_amount' => $paidAmount,
-                    ':paid_date' => $paidDate,
-                    ':payment_status' => $paymentStatus,
-                    ':order_id' => $orderId
-                ]);
-            }
+            $stmtInv = $pdo->prepare("UPDATE invoices SET paid_amount = :paid_amount, paid_date = :paid_date, 
+                                      payment_status = :payment_status WHERE order_id = :order_id");
+            $stmtInv->execute([
+                ':paid_amount' => $paidAmount,
+                ':paid_date' => $paidDate,
+                ':payment_status' => $paymentStatus,
+                ':order_id' => $orderId
+            ]);
             
             logActivity($pdo, $_SESSION['user_id'], 'order_payment_updated', 'orders', $orderId);
             $success = 'Информация об оплате обновлена';
