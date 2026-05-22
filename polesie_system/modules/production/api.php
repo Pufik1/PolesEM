@@ -37,10 +37,10 @@ try {
                     poo.quantity_good,
                     poo.quantity_defect,
                     poo.notes,
-                    to.operation_name,
+                    top.operation_name,
                     wc.center_name as work_center_name
                 FROM production_order_operations poo
-                JOIN technological_operations to ON poo.operation_id = to.id
+                JOIN technological_operations top ON poo.operation_id = top.id
                 LEFT JOIN work_centers wc ON poo.work_center_id = wc.id
                 WHERE poo.production_order_id = ?
                 ORDER BY poo.sequence_order
@@ -142,10 +142,10 @@ try {
                     qc.certificate_number,
                     qc.notes,
                     u.full_name as inspector_name,
-                    to.operation_name
+                    top.operation_name
                 FROM quality_control qc
                 JOIN users u ON qc.inspector_id = u.id
-                LEFT JOIN technological_operations to ON qc.next_operation_id = to.id
+                LEFT JOIN technological_operations top ON qc.next_operation_id = top.id
                 WHERE qc.production_order_id = ?
                 ORDER BY qc.inspection_date DESC
             ");
