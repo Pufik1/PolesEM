@@ -16,12 +16,10 @@
                     <div class="logo-text"><h2>Полесьеэлектромаш</h2><p>Корпоративная система</p></div>
                 </div>
             </div>
-            <nav class="sidebar-menu">
-                <a href="../../dashboard.php" class="menu-item"><i class="fas fa-tachometer-alt"></i><span>Дашборд</span></a>
-                <a href="../production/index.php" class="menu-item active"><i class="fas fa-industry"></i><span>Производство</span></a>
-                <a href="../warehouse/index.php" class="menu-item"><i class="fas fa-warehouse"></i><span>Склад</span></a>
-                <a href="../../logout.php" class="menu-item"><i class="fas fa-sign-out-alt"></i><span>Выход</span></a>
-            </nav>
+            <?php 
+            $basePath = '../../';
+            include '../../includes/sidebar.php'; 
+            ?>
         </aside>
         <div class="main-content">
             <header class="header">

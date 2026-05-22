@@ -25,16 +25,10 @@ if (!isLoggedIn()) redirect('../../index.php');
                     </div>
                 </div>
             </div>
-            <nav class="sidebar-menu">
-                <div class="menu-category">Основное</div>
-                <a href="../../dashboard.php" class="menu-item"><i class="fas fa-tachometer-alt"></i><span>Дашборд</span></a>
-                <div class="menu-category">Операции</div>
-                <a href="../clients/index.php" class="menu-item"><i class="fas fa-handshake"></i><span>Клиенты</span></a>
-                <a href="../orders/index.php" class="menu-item active"><i class="fas fa-shopping-cart"></i><span>Заказы</span></a>
-                <a href="../products/index.php" class="menu-item"><i class="fas fa-box"></i><span>Продукция</span></a>
-                <div class="menu-category">Система</div>
-                <a href="../../logout.php" class="menu-item"><i class="fas fa-sign-out-alt"></i><span>Выход</span></a>
-            </nav>
+            <?php 
+            $basePath = '../../';
+            include '../../includes/sidebar.php'; 
+            ?>
         </aside>
         <div class="main-content">
             <header class="header">

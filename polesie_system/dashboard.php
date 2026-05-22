@@ -186,33 +186,10 @@ $currentMenu = $menuItems[$userRole] ?? $menuItems['manager'];
                 </div>
             </div>
             
-            <nav class="sidebar-menu">
-                <?php if (!empty($currentMenu['main'])): ?>
-                    <div class="menu-category">Основное</div>
-                    <?php foreach ($currentMenu['main'] as $item): ?>
-                        <a href="<?php echo $item['url']; ?>" class="menu-item <?php echo basename($_SERVER['PHP_SELF']) === basename($item['url']) ? 'active' : ''; ?>">
-                            <i class="fas <?php echo $item['icon']; ?>"></i>
-                            <span><?php echo $item['text']; ?></span>
-                        </a>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-                
-                <?php if (!empty($currentMenu['operations'])): ?>
-                    <div class="menu-category">Операции</div>
-                    <?php foreach ($currentMenu['operations'] as $item): ?>
-                        <a href="<?php echo $item['url']; ?>" class="menu-item <?php echo basename($_SERVER['PHP_SELF']) === basename($item['url']) ? 'active' : ''; ?>">
-                            <i class="fas <?php echo $item['icon']; ?>"></i>
-                            <span><?php echo $item['text']; ?></span>
-                        </a>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-                
-                <div class="menu-category" style="margin-top: 20px;">Система</div>
-                <a href="logout.php" class="menu-item">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Выйти</span>
-                </a>
-            </nav>
+            <?php 
+            $basePath = '';
+            include 'includes/sidebar.php'; 
+            ?>
         </aside>
         
         <!-- Main Content -->
