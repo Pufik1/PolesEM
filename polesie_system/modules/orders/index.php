@@ -251,6 +251,123 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 header('Location: ' . $_SERVER['PHP_SELF'] . '?view=' . $orderId . '&success=' . urlencode($success));
                 exit;
             }
+        } elseif ($_POST['action'] === 'create_delivery_note') {
+            if (!hasRole(['admin', 'manager', 'warehouse_keeper'])) {
+                $error = 'Недостаточно прав для создания товарной накладной';
+            } else {
+                $pdo->beginTransaction();
+                
+                $orderId = (int)$_POST['order_id'];
+                $tnNumber = trim($_POST['tn_number']);
+                $tnDate = $_POST['tn_date'];
+                $warehouseFrom = trim($_POST['warehouse_from']);
+                $warehouseTo = trim($_POST['warehouse_to']);
+                $notes = trim($_POST['notes']);
+                
+                // Get order and client info
+                $stmtOrder = $pdo->prepare("SELECT o.*, c.company_name, c.inn, c.address 
+                                            FROM orders o
+                                            LEFT JOIN clients c ON o.client_id = c.id
+                                            WHERE o.id = :id");
+                $stmtOrder->execute([':id' => $orderId]);
+                $order = $stmtOrder->fetch();
+                
+                if (!$order) {
+                    throw new Exception('Заказ не найден');
+                }
+                
+                // Get order items with product details
+                $stmtItems = $pdo->prepare("SELECT oi.*, p.product_name, p.product_code, p.weight 
+                                            FROM order_items oi
+                                            LEFT JOIN products p ON oi.product_id = p.id
+                                            WHERE oi.order_id = :order_id");
+                $stmtItems->execute([':order_id' => $orderId]);
+                $orderItems = $stmtItems->fetchAll();
+                
+                // Create delivery note
+                $stmtDN = $pdo->prepare("INSERT INTO delivery_notes (tn_number, order_id, tn_date, 
+                                           warehouse_from, warehouse_to, shipper_name, consignee_name, 
+                                           shipper_inn, consignee_inn, shipper_address, consignee_address, 
+                                           total_items, total_weight, notes, created_by) 
+                                           VALUES (:tn_number, :order_id, :tn_date, :warehouse_from, 
+                                           :warehouse_to, :shipper_name, :consignee_name, :shipper_inn, 
+                                           :consignee_inn, :shipper_address, :consignee_address, 
+                                           :total_items, :total_weight, :notes, :created_by)");
+                
+                $companyName = defined('APP_COMPANY_NAME') ? APP_COMPANY_NAME : 'ОАО «Полесьеэлектромаш»';
+                $companyInn = defined('APP_INN') ? APP_INN : '';
+                $companyAddress = defined('APP_ADDRESS') ? APP_ADDRESS : '';
+                
+                $totalItems = count($orderItems);
+                $totalWeight = 0;
+                
+                foreach ($orderItems as $item) {
+                    $weightPerUnit = (float)($item['weight'] ?? 0);
+                    $itemTotalWeight = $weightPerUnit * (int)$item['quantity'];
+                    $totalWeight += $itemTotalWeight;
+                }
+                
+                $stmtDN->execute([
+                    ':tn_number' => $tnNumber,
+                    ':order_id' => $orderId,
+                    ':tn_date' => $tnDate,
+                    ':warehouse_from' => $warehouseFrom,
+                    ':warehouse_to' => $warehouseTo,
+                    ':shipper_name' => $companyName,
+                    ':consignee_name' => $order['company_name'],
+                    ':shipper_inn' => $companyInn,
+                    ':consignee_inn' => $order['inn'],
+                    ':shipper_address' => $companyAddress,
+                    ':consignee_address' => $order['address'],
+                    ':total_items' => $totalItems,
+                    ':total_weight' => $totalWeight,
+                    ':notes' => $notes,
+                    ':created_by' => $_SESSION['user_id']
+                ]);
+                
+                $deliveryNoteId = $pdo->lastInsertId();
+                
+                // Create delivery note items
+                $stmtItem = $pdo->prepare("INSERT INTO delivery_note_items (delivery_note_id, product_id, 
+                                           quantity, unit, weight_per_unit, total_weight, price, total_price) 
+                                           VALUES (:delivery_note_id, :product_id, :quantity, :unit, 
+                                           :weight_per_unit, :total_weight, :price, :total_price)");
+                
+                foreach ($orderItems as $item) {
+                    $weightPerUnit = (float)($item['weight'] ?? 0);
+                    $itemTotalWeight = $weightPerUnit * (int)$item['quantity'];
+                    $itemPrice = (float)$item['unit_price'];
+                    $itemTotalPrice = (float)$item['total_price'];
+                    
+                    $stmtItem->execute([
+                        ':delivery_note_id' => $deliveryNoteId,
+                        ':product_id' => (int)$item['product_id'],
+                        ':quantity' => (int)$item['quantity'],
+                        ':unit' => 'шт',
+                        ':weight_per_unit' => $weightPerUnit,
+                        ':total_weight' => $itemTotalWeight,
+                        ':price' => $itemPrice,
+                        ':total_price' => $itemTotalPrice
+                    ]);
+                }
+                
+                // Create document record
+                $stmtDoc = $pdo->prepare("INSERT INTO order_documents (order_id, document_type, document_number, document_date, status) 
+                                          VALUES (:order_id, 'delivery_note', :doc_number, :doc_date, 'draft')");
+                $stmtDoc->execute([
+                    ':order_id' => $orderId,
+                    ':doc_number' => $tnNumber,
+                    ':doc_date' => $tnDate
+                ]);
+                
+                $pdo->commit();
+                
+                logActivity($pdo, $_SESSION['user_id'], 'delivery_note_created', 'orders', $orderId);
+                $success = 'Товарная накладная успешно создана';
+                
+                header('Location: ' . $_SERVER['PHP_SELF'] . '?view=' . $orderId . '&success=' . urlencode($success));
+                exit;
+            }
         }
         
         header('Location: ' . $_SERVER['PHP_SELF'] . '?success=' . urlencode($success));
@@ -300,6 +417,34 @@ if (isset($_GET['print_invoice'])) {
         
         // Include print template
         include 'invoice_print.php';
+        exit;
+    }
+}
+
+// Handle delivery note print view
+if (isset($_GET['print_delivery'])) {
+    $deliveryNoteId = (int)$_GET['print_delivery'];
+    
+    $stmtDN = $pdo->prepare("SELECT dn.*, o.order_number, c.company_name as client_name, c.inn as client_inn, 
+                              c.address as client_address, c.contact_person, c.phone, c.email
+                              FROM delivery_notes dn
+                              LEFT JOIN orders o ON dn.order_id = o.id
+                              LEFT JOIN clients c ON o.client_id = c.id
+                              WHERE dn.id = :id");
+    $stmtDN->execute([':id' => $deliveryNoteId]);
+    $printDeliveryNote = $stmtDN->fetch();
+    
+    if ($printDeliveryNote) {
+        // Get delivery note items
+        $stmtDNItems = $pdo->prepare("SELECT dni.*, p.product_name, p.product_code 
+                                      FROM delivery_note_items dni
+                                      LEFT JOIN products p ON dni.product_id = p.id
+                                      WHERE dni.delivery_note_id = :dn_id");
+        $stmtDNItems->execute([':dn_id' => $deliveryNoteId]);
+        $printDeliveryNoteItems = $stmtDNItems->fetchAll();
+        
+        // Include print template
+        include 'delivery_print.php';
         exit;
     }
 }
@@ -1029,6 +1174,15 @@ $statusColors = [
                         </button>
                         <?php endif; ?>
                         <?php endif; ?>
+                        
+                        <!-- Print Delivery Note Button -->
+                        <?php if ($deliveryNote): ?>
+                        <div class="action-bar" style="margin-top: 20px;">
+                            <button class="btn print-btn" onclick="printDeliveryNote(<?php echo $deliveryNote['id']; ?>)">
+                                <i class="fas fa-print"></i> Печать ТН
+                            </button>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     
                     <!-- Transport Waybill -->
@@ -1501,7 +1655,7 @@ $statusColors = [
                                     <label class="info-label">Ставка НДС (%)</label>
                                     <select name="vat_rate" class="form-control">
                                         <option value="0">Без НДС</option>
-                                        <option value="10" selected>10%</option>
+                                        <option value="10">10%</option>
                                         <option value="20" selected>20%</option>
                                     </select>
                                 </div>
@@ -1536,14 +1690,83 @@ $statusColors = [
             }
         }
         
+        function showCreateDeliveryNoteModal(orderId) {
+            const modalHtml = `
+                <div id="deliveryNoteModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+                    <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 60%; border-radius: 8px; max-height: 90vh; overflow-y: auto;">
+                        <span onclick="closeDeliveryNoteModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+                        <h2>Оформление товарной накладной (ТН)</h2>
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="create_delivery_note">
+                            <input type="hidden" name="order_id" id="dn_order_id" value="${orderId}">
+                            
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label class="info-label">Номер ТН *</label>
+                                    <input type="text" name="tn_number" id="tn_number" class="form-control" required placeholder="Например: ТН-001/2024">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Дата *</label>
+                                    <input type="date" name="tn_date" id="tn_date" class="form-control" required value="${new Date().toISOString().split('T')[0]}">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Склад отправитель *</label>
+                                    <input type="text" name="warehouse_from" class="form-control" required placeholder="Основной склад">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Склад получатель *</label>
+                                    <input type="text" name="warehouse_to" class="form-control" required placeholder="Склад клиента">
+                                </div>
+                            </div>
+                            
+                            <div class="info-item" style="margin-top: 15px;">
+                                <label class="info-label">Примечание</label>
+                                <textarea name="notes" class="form-control" rows="3"></textarea>
+                            </div>
+                            
+                            <div style="margin-top: 20px; text-align: right;">
+                                <button type="button" onclick="closeDeliveryNoteModal()" class="btn btn-secondary" style="margin-right: 10px;">Отмена</button>
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Создать ТН</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            const existingModal = document.getElementById('deliveryNoteModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        function closeDeliveryNoteModal() {
+            const modal = document.getElementById('deliveryNoteModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
         function printInvoice(invoiceId) {
             // Open print view in new window
             const printUrl = window.location.href.split('?')[0] + '?print_invoice=' + invoiceId;
             window.open(printUrl, '_blank', 'width=800,height=600');
         }
         
+        function printDeliveryNote(deliveryNoteId) {
+            // Open print view in new window
+            const printUrl = window.location.href.split('?')[0] + '?print_delivery=' + deliveryNoteId;
+            window.open(printUrl, '_blank', 'width=800,height=600');
+        }
+        
         function createDeliveryNote(orderId) {
-            alert('Функция создания товарной накладной будет реализована в следующем обновлении');
+            const modal = document.getElementById('deliveryNoteModal');
+            if (modal) {
+                document.getElementById('dn_order_id').value = orderId;
+                document.getElementById('tn_number').value = 'ТН-' + Date.now();
+                document.getElementById('tn_date').valueAsDate = new Date();
+                modal.style.display = 'block';
+            }
         }
         
         function createTransportWaybill(orderId) {
