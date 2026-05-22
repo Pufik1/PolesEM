@@ -608,13 +608,26 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             }
         }
         
-        // Close modal on outside click
-        window.onclick = function(event) {
+        // Инициализация модальных окон после загрузки DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            // Close modal when clicking on close button
+            document.querySelectorAll('.modal-close').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    closeModal();
+                });
+            });
+            
+            // Close modal when clicking outside
             const modal = document.getElementById('userModal');
-            if (event.target === modal) {
-                closeModal();
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeModal();
+                    }
+                });
             }
-        };
+        });
     </script>
 </body>
 </html>
