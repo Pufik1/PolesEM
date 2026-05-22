@@ -92,6 +92,8 @@ CREATE TABLE orders (
     payment_status ENUM('unpaid', 'partial', 'paid') DEFAULT 'unpaid',
     delivery_address TEXT,
     notes TEXT,
+    contract_number VARCHAR(50),
+    contract_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
@@ -108,6 +110,108 @@ CREATE TABLE order_items (
     discount_percent DECIMAL(5,2) DEFAULT 0,
     total_price DECIMAL(12,2) NOT NULL,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+);
+
+-- Order documents table (Договор, Счет-фактура, ТН, ТТН)
+CREATE TABLE order_documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    document_type ENUM('contract', 'invoice', 'tn', 'ttn') NOT NULL COMMENT 'contract=Договор, invoice=Счет-фактура, tn=Товарная накладная, ttn=Товарно-транспортная накладная',
+    document_number VARCHAR(50) NOT NULL,
+    document_date DATE NOT NULL,
+    file_path VARCHAR(500),
+    status ENUM('draft', 'signed', 'archived') DEFAULT 'draft',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+
+-- Invoice details (Счет-фактура)
+CREATE TABLE invoices (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    invoice_number VARCHAR(50) NOT NULL UNIQUE,
+    order_id INT NOT NULL,
+    invoice_date DATE NOT NULL,
+    due_date DATE,
+    total_amount DECIMAL(12,2) NOT NULL,
+    vat_amount DECIMAL(12,2) DEFAULT 0,
+    total_with_vat DECIMAL(12,2) NOT NULL,
+    payment_status ENUM('unpaid', 'partial', 'paid', 'overdue') DEFAULT 'unpaid',
+    paid_amount DECIMAL(12,2) DEFAULT 0,
+    paid_date DATE,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+
+-- Delivery Note / Товарная накладная
+CREATE TABLE delivery_notes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tn_number VARCHAR(50) NOT NULL UNIQUE,
+    order_id INT NOT NULL,
+    tn_date DATE NOT NULL,
+    warehouse_from VARCHAR(200),
+    warehouse_to VARCHAR(200),
+    shipper_name VARCHAR(200),
+    consignee_name VARCHAR(200),
+    shipper_inn VARCHAR(20),
+    consignee_inn VARCHAR(20),
+    shipper_address TEXT,
+    consignee_address TEXT,
+    total_items INT DEFAULT 0,
+    total_weight DECIMAL(10,2) DEFAULT 0,
+    notes TEXT,
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Transport Waybill / Товарно-транспортная накладная (ТТН)
+CREATE TABLE transport_waybills (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ttn_number VARCHAR(50) NOT NULL UNIQUE,
+    order_id INT NOT NULL,
+    delivery_note_id INT,
+    ttn_date DATE NOT NULL,
+    vehicle_number VARCHAR(20),
+    driver_name VARCHAR(100),
+    driver_license VARCHAR(20),
+    carrier_name VARCHAR(200),
+    carrier_inn VARCHAR(20),
+    route_from TEXT,
+    route_to TEXT,
+    distance_km DECIMAL(8,2),
+    freight_cost DECIMAL(10,2) DEFAULT 0,
+    loading_point VARCHAR(200),
+    unloading_point VARCHAR(200),
+    loading_time TIME,
+    unloading_time TIME,
+    notes TEXT,
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (delivery_note_id) REFERENCES delivery_notes(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Delivery note items
+CREATE TABLE delivery_note_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    delivery_note_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    unit VARCHAR(20) DEFAULT 'шт',
+    weight_per_unit DECIMAL(8,3) DEFAULT 0,
+    total_weight DECIMAL(10,3) DEFAULT 0,
+    price DECIMAL(10,2),
+    total_price DECIMAL(12,2),
+    FOREIGN KEY (delivery_note_id) REFERENCES delivery_notes(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
 );
 
