@@ -297,6 +297,33 @@ try {
                             <option value="100">100</option>
                             <option value="112">112</option>
                         </select>
+                        <select id="voltageFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                            <option value="">Любое напряжение</option>
+                            <option value="220">220 В</option>
+                            <option value="380">380 В</option>
+                            <option value="400">400 В</option>
+                        </select>
+                        <select id="frequencyFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                            <option value="">Любая частота</option>
+                            <option value="50">50 Гц</option>
+                            <option value="60">60 Гц</option>
+                        </select>
+                        <select id="cosPhiFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                            <option value="">Любой cos φ</option>
+                            <option value="0.75">0.75</option>
+                            <option value="0.80">0.80</option>
+                            <option value="0.85">0.85</option>
+                            <option value="0.89">0.89</option>
+                            <option value="0.90">0.90</option>
+                        </select>
+                        <select id="efficiencyFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                            <option value="">Любой КПД</option>
+                            <option value="75">75%</option>
+                            <option value="80">80%</option>
+                            <option value="85">85%</option>
+                            <option value="87.5">87.5%</option>
+                            <option value="90">90%</option>
+                        </select>
                     </div>
                     
                     <div class="table-responsive">
@@ -328,6 +355,10 @@ try {
                                             data-power="<?php echo isset($specs['power_kw']) ? $specs['power_kw'] : ''; ?>"
                                             data-speed="<?php echo isset($specs['rpm']) ? $specs['rpm'] : ''; ?>"
                                             data-frame="<?php echo isset($specs['frame_size_mm']) ? $specs['frame_size_mm'] : ''; ?>"
+                                            data-voltage="<?php echo isset($specs['voltage_v']) ? $specs['voltage_v'] : ''; ?>"
+                                            data-frequency="<?php echo isset($specs['frequency_hz']) ? $specs['frequency_hz'] : ''; ?>"
+                                            data-cosphi="<?php echo isset($specs['cos_phi']) ? $specs['cos_phi'] : ''; ?>"
+                                            data-efficiency="<?php echo isset($specs['efficiency_pct']) ? $specs['efficiency_pct'] : ''; ?>"
                                             data-product='<?php echo htmlspecialchars(json_encode($productWithSpecs, JSON_UNESCAPED_UNICODE), ENT_QUOTES); ?>'>
                                             <td><strong><?php echo htmlspecialchars($product['product_code']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($product['product_name']); ?></td>
@@ -846,6 +877,7 @@ try {
                         'cos_phi': 'cos φ',
                         'frame_size_mm': 'Габарит (мм)',
                         'voltage_v': 'Напряжение (В)',
+                        'frequency_hz': 'Частота (Гц)',
                         'capacitor_mkF': 'Конденсатор (мкФ)',
                         'protection': 'Защита',
                         'environment': 'Среда',
@@ -931,6 +963,10 @@ try {
             const powerFilter = document.getElementById('powerFilter').value;
             const speedFilter = document.getElementById('speedFilter').value;
             const frameFilter = document.getElementById('frameFilter').value;
+            const voltageFilter = document.getElementById('voltageFilter').value;
+            const frequencyFilter = document.getElementById('frequencyFilter').value;
+            const cosPhiFilter = document.getElementById('cosPhiFilter').value;
+            const efficiencyFilter = document.getElementById('efficiencyFilter').value;
             const table = document.getElementById('productsTable');
             const rows = table.querySelectorAll('tbody tr');
             
@@ -946,6 +982,10 @@ try {
                 const powerValue = parseFloat(row.dataset.power) || 0;
                 const speedValue = parseInt(row.dataset.speed) || 0;
                 const frameValue = String(row.dataset.frame || '').trim();
+                const voltageValue = String(row.dataset.voltage || '').trim();
+                const frequencyValue = String(row.dataset.frequency || '').trim();
+                const cosPhiValue = String(row.dataset.cosphi || '').trim();
+                const efficiencyValue = String(row.dataset.efficiency || '').trim();
                 
                 // Check search match
                 const matchesSearch = productCode.includes(searchInput) || productName.includes(searchInput);
@@ -969,7 +1009,20 @@ try {
                 // Check frame match
                 const matchesFrame = frameFilter === '' || frameValue === frameFilter;
                 
-                if (matchesSearch && matchesCategory && matchesPower && matchesSpeed && matchesFrame) {
+                // Check voltage match
+                const matchesVoltage = voltageFilter === '' || voltageValue === voltageFilter;
+                
+                // Check frequency match
+                const matchesFrequency = frequencyFilter === '' || frequencyValue === frequencyFilter;
+                
+                // Check cos phi match
+                const matchesCosPhi = cosPhiFilter === '' || cosPhiValue === cosPhiFilter;
+                
+                // Check efficiency match
+                const matchesEfficiency = efficiencyFilter === '' || efficiencyValue === efficiencyFilter;
+                
+                if (matchesSearch && matchesCategory && matchesPower && matchesSpeed && matchesFrame && 
+                    matchesVoltage && matchesFrequency && matchesCosPhi && matchesEfficiency) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';
