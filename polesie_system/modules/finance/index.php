@@ -318,13 +318,14 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                     <div style="margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap;">
                         <input 
                             type="text" 
+                            id="invoiceSearch"
                             placeholder="Поиск по номеру счета или клиенту..." 
-                            data-table-search="invoicesTable"
+                            onkeyup="filterInvoices()"
                             style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px; width: 300px;"
                         >
                         <select 
-                            data-table-filter="invoicesTable" 
-                            data-filter-column="5"
+                            id="invoiceStatusFilter"
+                            onchange="filterInvoices()"
                             style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;"
                         >
                             <option value="">Все статусы</option>
@@ -394,11 +395,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                             </td>
                                             <td>
                                                 <div class="action-buttons">
-                                                    <a href="?view=<?php echo $invoice['id']; ?>" 
-                                                       class="btn btn-sm btn-icon btn-primary" 
-                                                       title="Просмотр">
-                                                        <i class="fas fa-eye"></i>
-                                                    </a>
                                                     <?php if (hasRole(['admin', 'manager', 'accountant'])): ?>
                                                         <a href="?edit=<?php echo $invoice['id']; ?>" 
                                                            class="btn btn-sm btn-icon btn-secondary" 
@@ -407,9 +403,9 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                                         </a>
                                                         <?php if ($invoice['payment_status'] !== 'paid'): ?>
                                                             <button class="btn btn-sm btn-icon btn-success" 
-                                                                    onclick="openPaymentModal(<?php echo $invoice['id']; ?>, <?php echo $invoice['total_with_vat']; ?>)"
-                                                                    title="Отметить оплату">
-                                                                <i class="fas fa-check"></i>
+                                                                    onclick="openPaymentModal(<?php echo $invoice['id']; ?>, '<?php echo htmlspecialchars($invoice['invoice_number']); ?>', <?php echo $invoice['total_with_vat']; ?>, <?php echo (float)($invoice['paid_amount'] ?? 0); ?>)"
+                                                                    title="Зарегистрировать платеж">
+                                                                <i class="fas fa-ruble-sign"></i>
                                                             </button>
                                                         <?php endif; ?>
                                                     <?php endif; ?>
@@ -435,11 +431,11 @@ $initials = strtoupper(substr($userFullName, 0, 1));
     </div>
     
     <!-- Add Invoice Modal -->
-    <div id="addInvoiceModal" class="modal">
+    <div id="addInvoiceModal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Создать новый счет</h2>
-                <button class="modal-close">&times;</button>
+                <button class="modal-close" onclick="closeModal('addInvoiceModal')">&times;</button>
             </div>
             <form method="POST" action="">
                 <input type="hidden" name="action" value="add">
@@ -555,11 +551,11 @@ $initials = strtoupper(substr($userFullName, 0, 1));
     <?php endif; ?>
     
     <!-- Payment Modal -->
-    <div id="paymentModal" class="modal">
+    <div id="paymentModal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Регистрация платежа</h2>
-                <button class="modal-close">&times;</button>
+                <button class="modal-close" onclick="closeModal('paymentModal')">&times;</button>
             </div>
             <form method="POST" action="">
                 <input type="hidden" name="action" value="mark_paid">
@@ -585,20 +581,94 @@ $initials = strtoupper(substr($userFullName, 0, 1));
     </div>
     
     <script>
-        function openPaymentModal(invoiceId, totalAmount) {
+        // Open modal by ID
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'flex';
+                setTimeout(function() {
+                    modal.classList.add('active');
+                }, 10);
+            }
+        }
+        
+        // Close modal by ID
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('active');
+                setTimeout(function() {
+                    modal.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        // Filter invoices by search and status
+        function filterInvoices() {
+            const searchTerm = document.getElementById('invoiceSearch').value.toLowerCase();
+            const statusFilter = document.getElementById('invoiceStatusFilter').value;
+            const table = document.getElementById('invoicesTable');
+            const rows = table.querySelectorAll('tbody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const statusCell = row.cells[5]; // Status column index
+                const status = statusCell ? statusCell.querySelector('span') : null;
+                const statusValue = status ? getStatusValue(status.textContent) : '';
+                
+                const matchesSearch = text.includes(searchTerm);
+                const matchesStatus = !statusFilter || statusValue === statusFilter;
+                
+                row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+            });
+        }
+        
+        function getStatusValue(statusText) {
+            if (statusText.includes('Не оплачен')) return 'unpaid';
+            if (statusText.includes('Частично')) return 'partial';
+            if (statusText.includes('Оплачен')) return 'paid';
+            if (statusText.includes('Просрочен')) return 'overdue';
+            return '';
+        }
+        
+        // Open payment modal
+        function openPaymentModal(invoiceId, invoiceNumber, totalAmount, paidAmount) {
             document.getElementById('payment_invoice_id').value = invoiceId;
-            document.getElementById('max_payment_info').textContent = 'Максимальная сумма: ' + totalAmount.toFixed(2) + ' BYN';
-            document.getElementById('paid_amount').max = totalAmount;
+            const remainingAmount = totalAmount - paidAmount;
+            document.getElementById('max_payment_info').textContent = 
+                'Счет: ' + invoiceNumber + '. Остаток к оплате: ' + remainingAmount.toFixed(2) + ' BYN (из ' + totalAmount.toFixed(2) + ' BYN)';
+            document.getElementById('paid_amount').max = remainingAmount;
+            document.getElementById('paid_amount').value = remainingAmount > 0 ? remainingAmount.toFixed(2) : '';
             openModal('paymentModal');
         }
         
-        // Auto-calculate total with VAT
+        // Auto-calculate total with VAT when adding invoice
         document.addEventListener('input', function(e) {
             if (e.target.id === 'total_amount' || e.target.id === 'vat_amount') {
                 const total = parseFloat(document.getElementById('total_amount').value) || 0;
                 const vat = parseFloat(document.getElementById('vat_amount').value) || 0;
                 console.log('Total with VAT: ' + (total + vat).toFixed(2));
             }
+        });
+        
+        // Initialize modals on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Close modal buttons
+            document.querySelectorAll('.modal-close').forEach(button => {
+                button.addEventListener('click', function() {
+                    const modal = this.closest('.modal');
+                    closeModal(modal.id);
+                });
+            });
+            
+            // Close modal when clicking outside
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeModal(this.id);
+                    }
+                });
+            });
         });
     </script>
 </body>
