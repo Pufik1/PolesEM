@@ -32,10 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
             $phone = trim($_POST['phone']);
             $email = trim($_POST['email']);
             $address = trim($_POST['address']);
-            $discountPercent = (float)$_POST['discount_percent'];
             
-            $stmt = $pdo->prepare("INSERT INTO clients (client_code, company_name, contact_person, inn, phone, email, address, discount_percent) 
-                                   VALUES (:client_code, :company_name, :contact_person, :inn, :phone, :email, :address, :discount_percent)");
+            $stmt = $pdo->prepare("INSERT INTO clients (client_code, company_name, contact_person, inn, phone, email, address) 
+                                   VALUES (:client_code, :company_name, :contact_person, :inn, :phone, :email, :address)");
             $stmt->execute([
                 ':client_code' => $clientCode,
                 ':company_name' => $companyName,
@@ -43,8 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 ':inn' => $inn,
                 ':phone' => $phone,
                 ':email' => $email,
-                ':address' => $address,
-                ':discount_percent' => $discountPercent
+                ':address' => $address
             ]);
             
             $newClientId = $pdo->lastInsertId();
@@ -59,10 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
             $phone = trim($_POST['phone']);
             $email = trim($_POST['email']);
             $address = trim($_POST['address']);
-            $discountPercent = (float)$_POST['discount_percent'];
             
             $stmt = $pdo->prepare("UPDATE clients SET company_name = :company_name, contact_person = :contact_person, 
-                                   inn = :inn, phone = :phone, email = :email, address = :address, discount_percent = :discount_percent 
+                                   inn = :inn, phone = :phone, email = :email, address = :address 
                                    WHERE id = :id");
             $stmt->execute([
                 ':id' => $clientId,
@@ -71,8 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 ':inn' => $inn,
                 ':phone' => $phone,
                 ':email' => $email,
-                ':address' => $address,
-                ':discount_percent' => $discountPercent
+                ':address' => $address
             ]);
             
             logActivity($pdo, $_SESSION['user_id'], 'client_updated', 'clients', $clientId);
@@ -98,10 +94,10 @@ if (isset($_GET['success'])) {
 if (isset($_GET['delete']) && hasRole(['admin', 'manager'])) {
     try {
         $clientId = (int)$_GET['delete'];
-        $stmt = $pdo->prepare("UPDATE clients SET is_active = 0 WHERE id = :id");
+        $stmt = $pdo->prepare("DELETE FROM clients WHERE id = :id");
         $stmt->execute([':id' => $clientId]);
-        logActivity($pdo, $_SESSION['user_id'], 'client_deactivated', 'clients', $clientId);
-        $success = 'Клиент успешно деактивирован';
+        logActivity($pdo, $_SESSION['user_id'], 'client_deleted', 'clients', $clientId);
+        $success = 'Клиент успешно удален';
     } catch (PDOException $e) {
         $error = 'Ошибка при удалении клиента';
         error_log($e->getMessage());
@@ -134,9 +130,9 @@ if (isset($_GET['view'])) {
     }
 }
 
-// Get all active clients
+// Get all clients
 try {
-    $stmt = $pdo->query("SELECT * FROM clients WHERE is_active = 1 ORDER BY created_at DESC");
+    $stmt = $pdo->query("SELECT * FROM clients ORDER BY created_at DESC");
     $clients = $stmt->fetchAll();
 } catch (PDOException $e) {
     $error = 'Ошибка загрузки данных';
@@ -245,14 +241,13 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                     <th>Контактное лицо</th>
                                     <th>Телефон</th>
                                     <th>Email</th>
-                                    <th>Скидка</th>
                                     <th>Действия</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($clients)): ?>
                                     <tr>
-                                        <td colspan="7" class="text-center">Клиентов не найдено</td>
+                                        <td colspan="6" class="text-center">Клиентов не найдено</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($clients as $client): ?>
@@ -262,7 +257,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                             <td><?php echo htmlspecialchars($client['contact_person'] ?? 'Не указано'); ?></td>
                                             <td><?php echo htmlspecialchars($client['phone'] ?? 'Не указано'); ?></td>
                                             <td><?php echo htmlspecialchars($client['email'] ?? 'Не указано'); ?></td>
-                                            <td><?php echo $client['discount_percent']; ?>%</td>
                                             <td>
                                                 <div class="action-buttons">
                                                     <a href="?view=<?php echo $client['id']; ?>" 
@@ -278,8 +272,8 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                                         </a>
                                                         <a href="?delete=<?php echo $client['id']; ?>" 
                                                            class="btn btn-sm btn-icon btn-danger"
-                                                           onclick="return confirm('Вы уверены, что хотите деактивировать клиента?')"
-                                                           title="Деактивировать">
+                                                           onclick="return confirm('Вы уверены, что хотите удалить клиента?')"
+                                                           title="Удалить">
                                                             <i class="fas fa-trash"></i>
                                                         </a>
                                                     <?php endif; ?>
@@ -340,11 +334,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                         <label for="address">Адрес</label>
                         <textarea id="address" name="address" rows="3"></textarea>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="discount_percent">Скидка (%)</label>
-                        <input type="number" id="discount_percent" name="discount_percent" min="0" max="100" value="0">
-                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('addClientModal')">Отмена</button>
@@ -401,11 +390,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                         <label for="edit_address">Адрес</label>
                         <textarea id="edit_address" name="address" rows="3"><?php echo htmlspecialchars($editClient['address'] ?? ''); ?></textarea>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="edit_discount_percent">Скидка (%)</label>
-                        <input type="number" id="edit_discount_percent" name="discount_percent" min="0" max="100" value="<?php echo $editClient['discount_percent']; ?>">
-                    </div>
                 </div>
                 <div class="modal-footer">
                     <a href="?view=<?php echo $editClient['id']; ?>" class="btn btn-secondary">Отмена</a>
@@ -449,10 +433,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                     <div>
                         <p><strong>Email:</strong></p>
                         <p><?php echo htmlspecialchars($viewClient['email'] ?? 'Не указано'); ?></p>
-                    </div>
-                    <div>
-                        <p><strong>Скидка:</strong></p>
-                        <p><?php echo $viewClient['discount_percent']; ?>%</p>
                     </div>
                     <div>
                         <p><strong>Дата создания:</strong></p>

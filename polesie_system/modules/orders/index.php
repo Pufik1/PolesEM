@@ -36,12 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
             $contractNumber = trim($_POST['contract_number']);
             $contractDate = $_POST['contract_date'] ?: null;
             
-            // Get client discount
-            $stmt = $pdo->prepare("SELECT discount_percent FROM clients WHERE id = :id");
-            $stmt->execute([':id' => $clientId]);
-            $client = $stmt->fetch();
-            $clientDiscount = $client['discount_percent'] ?? 0;
-            
             // Calculate totals from order items
             $totalAmount = 0;
             $discountAmount = 0;
@@ -57,9 +51,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 $discountAmount += $itemDiscountAmount;
             }
             
-            // Apply client discount
-            $clientDiscountAmount = ($totalAmount - $discountAmount) * ($clientDiscount / 100);
-            $discountAmount += $clientDiscountAmount;
             $finalAmount = $totalAmount - $discountAmount;
             
             // Insert order
@@ -1084,7 +1075,7 @@ $statusColors = [
                                             <select name="client_id" id="clientSelect" required onchange="updateClientInfo()">
                                                 <option value="">Выберите клиента</option>
                                                 <?php foreach ($clients as $client): ?>
-                                                <option value="<?php echo $client['id']; ?>" data-discount="<?php echo $client['discount_percent']; ?>">
+                                                <option value="<?php echo $client['id']; ?>">
                                                     <?php echo htmlspecialchars($client['company_name']); ?>
                                                 </option>
                                                 <?php endforeach; ?>
@@ -1276,14 +1267,6 @@ $statusColors = [
                 discountAmount += itemDiscount;
             });
             
-            // Add client discount
-            const clientSelect = document.getElementById('clientSelect');
-            const selectedOption = clientSelect.options[clientSelect.selectedIndex];
-            const clientDiscount = parseFloat(selectedOption.dataset.discount) || 0;
-            const afterItemDiscount = totalAmount - discountAmount;
-            const clientDiscountAmount = afterItemDiscount * (clientDiscount / 100);
-            discountAmount += clientDiscountAmount;
-            
             const finalAmount = totalAmount - discountAmount;
             
             document.getElementById('totalAmount').textContent = totalAmount.toFixed(2) + ' BYN';
@@ -1292,7 +1275,7 @@ $statusColors = [
         }
         
         function updateClientInfo() {
-            calculateTotals();
+            // Client info update (no discount logic needed)
         }
         
         function createInvoice(orderId) {
