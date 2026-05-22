@@ -368,6 +368,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 header('Location: ' . $_SERVER['PHP_SELF'] . '?view=' . $orderId . '&success=' . urlencode($success));
                 exit;
             }
+        } elseif ($_POST['action'] === 'create_transport_waybill') {
+            if (!hasRole(['admin', 'manager', 'warehouse_keeper'])) {
+                $error = 'Недостаточно прав для создания ТТН';
+            } else {
+                $pdo->beginTransaction();
+                
+                $orderId = (int)$_POST['order_id'];
+                $ttnNumber = trim($_POST['ttn_number']);
+                $ttnDate = $_POST['ttn_date'];
+                $vehicleNumber = trim($_POST['vehicle_number']);
+                $driverName = trim($_POST['driver_name']);
+                $driverLicense = trim($_POST['driver_license']);
+                $carrierName = trim($_POST['carrier_name']);
+                $carrierInn = trim($_POST['carrier_inn']);
+                $freightCost = (float)($_POST['freight_cost'] ?? 0);
+                $loadingPoint = trim($_POST['loading_point']);
+                $unloadingPoint = trim($_POST['unloading_point']);
+                $routeFromTo = trim($_POST['route_from_to']);
+                $notes = trim($_POST['notes']);
+                
+                // Get order and delivery note info
+                $stmtOrder = $pdo->prepare("SELECT o.*, c.company_name, c.inn, c.address 
+                                            FROM orders o
+                                            LEFT JOIN clients c ON o.client_id = c.id
+                                            WHERE o.id = :id");
+                $stmtOrder->execute([':id' => $orderId]);
+                $order = $stmtOrder->fetch();
+                
+                if (!$order) {
+                    throw new Exception('Заказ не найден');
+                }
+                
+                // Get delivery note if exists
+                $stmtDN = $pdo->prepare("SELECT id FROM delivery_notes WHERE order_id = :order_id");
+                $stmtDN->execute([':order_id' => $orderId]);
+                $deliveryNote = $stmtDN->fetch();
+                $deliveryNoteId = $deliveryNote ? $deliveryNote['id'] : null;
+                
+                // Create transport waybill
+                $stmtTW = $pdo->prepare("INSERT INTO transport_waybills (ttn_number, order_id, delivery_note_id, ttn_date, 
+                                           vehicle_number, driver_name, driver_license, carrier_name, carrier_inn, 
+                                           route_from, route_to, loading_point, unloading_point, freight_cost, notes, created_by) 
+                                           VALUES (:ttn_number, :order_id, :delivery_note_id, :ttn_date, 
+                                           :vehicle_number, :driver_name, :driver_license, :carrier_name, :carrier_inn, 
+                                           :route_from, :route_to, :loading_point, :unloading_point, :freight_cost, :notes, :created_by)");
+                
+                $companyName = defined('APP_COMPANY_NAME') ? APP_COMPANY_NAME : 'ОАО «Полесьеэлектромаш»';
+                $companyAddress = defined('APP_ADDRESS') ? APP_ADDRESS : '';
+                
+                $stmtTW->execute([
+                    ':ttn_number' => $ttnNumber,
+                    ':order_id' => $orderId,
+                    ':delivery_note_id' => $deliveryNoteId,
+                    ':ttn_date' => $ttnDate,
+                    ':vehicle_number' => $vehicleNumber,
+                    ':driver_name' => $driverName,
+                    ':driver_license' => $driverLicense,
+                    ':carrier_name' => $carrierName ?: $companyName,
+                    ':carrier_inn' => $carrierInn,
+                    ':route_from' => $routeFromTo,
+                    ':route_to' => $routeFromTo,
+                    ':loading_point' => $loadingPoint ?: $companyAddress,
+                    ':unloading_point' => $unloadingPoint ?: $order['address'],
+                    ':freight_cost' => $freightCost,
+                    ':notes' => $notes,
+                    ':created_by' => $_SESSION['user_id']
+                ]);
+                
+                $transportWaybillId = $pdo->lastInsertId();
+                
+                // Create document record
+                $stmtDoc = $pdo->prepare("INSERT INTO order_documents (order_id, document_type, document_number, document_date, status) 
+                                          VALUES (:order_id, 'transport_waybill', :doc_number, :doc_date, 'draft')");
+                $stmtDoc->execute([
+                    ':order_id' => $orderId,
+                    ':doc_number' => $ttnNumber,
+                    ':doc_date' => $ttnDate
+                ]);
+                
+                $pdo->commit();
+                
+                logActivity($pdo, $_SESSION['user_id'], 'transport_waybill_created', 'orders', $orderId);
+                $success = 'Товарно-транспортная накладная успешно создана';
+                
+                header('Location: ' . $_SERVER['PHP_SELF'] . '?view=' . $orderId . '&success=' . urlencode($success));
+                exit;
+            }
         }
         
         header('Location: ' . $_SERVER['PHP_SELF'] . '?success=' . urlencode($success));
@@ -1760,17 +1847,103 @@ $statusColors = [
         }
         
         function createDeliveryNote(orderId) {
-            const modal = document.getElementById('deliveryNoteModal');
-            if (modal) {
-                document.getElementById('dn_order_id').value = orderId;
-                document.getElementById('tn_number').value = 'ТН-' + Date.now();
-                document.getElementById('tn_date').valueAsDate = new Date();
-                modal.style.display = 'block';
-            }
+            showCreateDeliveryNoteModal(orderId);
         }
         
         function createTransportWaybill(orderId) {
-            alert('Функция создания ТТН будет реализована в следующем обновлении');
+            showCreateTransportWaybillModal(orderId);
+        }
+        
+        function showCreateTransportWaybillModal(orderId) {
+            const modalHtml = `
+                <div id="transportWaybillModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+                    <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 65%; border-radius: 8px; max-height: 90vh; overflow-y: auto;">
+                        <span onclick="closeTransportWaybillModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+                        <h2>Оформление товарно-транспортной накладной (ТТН)</h2>
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="create_transport_waybill">
+                            <input type="hidden" name="order_id" id="ttn_order_id" value="${orderId}">
+                            
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label class="info-label">Номер ТТН *</label>
+                                    <input type="text" name="ttn_number" id="ttn_number" class="form-control" required placeholder="Например: ТТН-001/2024">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Дата *</label>
+                                    <input type="date" name="ttn_date" id="ttn_date" class="form-control" required value="${new Date().toISOString().split('T')[0]}">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Номер автомобиля</label>
+                                    <input type="text" name="vehicle_number" class="form-control" placeholder="Например: AB1234CD7">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Водитель</label>
+                                    <input type="text" name="driver_name" class="form-control" placeholder="ФИО водителя">
+                                </div>
+                            </div>
+                            
+                            <div class="info-grid" style="margin-top: 15px;">
+                                <div class="info-item">
+                                    <label class="info-label">Лицензия водителя</label>
+                                    <input type="text" name="driver_license" class="form-control" placeholder="Номер лицензии">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Перевозчик</label>
+                                    <input type="text" name="carrier_name" class="form-control" placeholder="Наименование перевозчика">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">УНП перевозчика</label>
+                                    <input type="text" name="carrier_inn" class="form-control" placeholder="УНП">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Стоимость перевозки (BYN)</label>
+                                    <input type="number" name="freight_cost" class="form-control" step="0.01" value="0">
+                                </div>
+                            </div>
+                            
+                            <div class="info-grid" style="margin-top: 15px;">
+                                <div class="info-item">
+                                    <label class="info-label">Пункт погрузки</label>
+                                    <input type="text" name="loading_point" class="form-control" placeholder="Адрес погрузки">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Пункт разгрузки</label>
+                                    <input type="text" name="unloading_point" class="form-control" placeholder="Адрес разгрузки">
+                                </div>
+                            </div>
+                            
+                            <div class="info-item" style="margin-top: 15px;">
+                                <label class="info-label">Маршрут (откуда - куда)</label>
+                                <textarea name="route_from_to" class="form-control" rows="2" placeholder="Описание маршрута"></textarea>
+                            </div>
+                            
+                            <div class="info-item" style="margin-top: 15px;">
+                                <label class="info-label">Примечание</label>
+                                <textarea name="notes" class="form-control" rows="2"></textarea>
+                            </div>
+                            
+                            <div style="margin-top: 20px; text-align: right;">
+                                <button type="button" onclick="closeTransportWaybillModal()" class="btn btn-secondary" style="margin-right: 10px;">Отмена</button>
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Создать ТТН</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            const existingModal = document.getElementById('transportWaybillModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        function closeTransportWaybillModal() {
+            const modal = document.getElementById('transportWaybillModal');
+            if (modal) {
+                modal.remove();
+            }
         }
         
         // Initialize calculations on page load
