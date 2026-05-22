@@ -1,13 +1,13 @@
 <?php
 /**
- * Delivery Note (Товарная Накладная) Print Template for OAO "Polesieelectromash" ERP System
- * Формат: ТН - Товарная накладная (согласно законодательству РБ)
+ * Transport Waybill (ТТН) Print Template for OAO "Polesieelectromash" ERP System
+ * Формат: ТТН - Товарно-транспортная накладная (согласно законодательству РБ)
  */
 
 // Include configuration
 require_once __DIR__ . '/../../includes/config.php';
 
-if (!isset($printDeliveryNote)) {
+if (!isset($printTransportWaybill)) {
     die('Direct access not allowed');
 }
 ?>
@@ -15,7 +15,7 @@ if (!isset($printDeliveryNote)) {
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Товарная накладная №<?php echo htmlspecialchars($printDeliveryNote['tn_number']); ?></title>
+    <title>Товарно-транспортная накладная №<?php echo htmlspecialchars($printTransportWaybill['ttn_number']); ?></title>
     <style>
         @page {
             size: A4;
@@ -124,10 +124,37 @@ if (!isset($printDeliveryNote)) {
             font-weight: bold;
         }
         
-        .footer-info {
+        .transport-info {
             margin-top: 20px;
-            padding-top: 15px;
-            border-top: 2px solid #000;
+            padding: 15px;
+            border: 1px solid #000;
+        }
+        
+        .transport-section {
+            margin-bottom: 15px;
+        }
+        
+        .transport-section h4 {
+            margin: 0 0 10px 0;
+            font-size: 12pt;
+            border-bottom: 1px solid #000;
+            padding-bottom: 5px;
+        }
+        
+        .info-row {
+            display: flex;
+            margin-bottom: 8px;
+        }
+        
+        .info-label {
+            min-width: 150px;
+            font-weight: bold;
+        }
+        
+        .info-value {
+            flex: 1;
+            border-bottom: 1px dotted #000;
+            padding-left: 10px;
         }
         
         .signatures-section {
@@ -138,12 +165,13 @@ if (!isset($printDeliveryNote)) {
         }
         
         .signature-block {
-            width: 48%;
+            width: 30%;
         }
         
         .signature-title {
             font-weight: bold;
             margin-bottom: 10px;
+            text-align: center;
         }
         
         .signature-lines {
@@ -156,26 +184,6 @@ if (!isset($printDeliveryNote)) {
             margin-top: 20px;
             border-top: 1px solid #000;
             padding-top: 5px;
-        }
-        
-        .signature-position {
-            margin-bottom: 30px;
-        }
-        
-        .info-row {
-            display: flex;
-            margin-bottom: 8px;
-        }
-        
-        .info-label {
-            min-width: 120px;
-            font-weight: bold;
-        }
-        
-        .info-value {
-            flex: 1;
-            border-bottom: 1px dotted #000;
-            padding-left: 10px;
         }
         
         .notes-section {
@@ -208,18 +216,18 @@ if (!isset($printDeliveryNote)) {
     </div>
     
     <div class="header-section">
-        <div class="doc-title">ТОВАРНАЯ НАКЛАДНАЯ</div>
+        <div class="doc-title">ТОВАРНО-ТРАНСПОРТНАЯ НАКЛАДНАЯ</div>
         
         <div class="doc-number-date">
-            <div class="doc-number">№ <?php echo htmlspecialchars($printDeliveryNote['tn_number']); ?></div>
-            <div class="doc-date">от «<?php echo date('d', strtotime($printDeliveryNote['tn_date'])); ?>» <?php 
+            <div class="doc-number">№ <?php echo htmlspecialchars($printTransportWaybill['ttn_number']); ?></div>
+            <div class="doc-date">от «<?php echo date('d', strtotime($printTransportWaybill['ttn_date'])); ?>» <?php 
                 $months_ru = [
                     1 => 'января', 2 => 'февраля', 3 => 'марта', 4 => 'апреля',
                     5 => 'мая', 6 => 'июня', 7 => 'июля', 8 => 'августа',
                     9 => 'сентября', 10 => 'октября', 11 => 'ноября', 12 => 'декабря'
                 ];
-                $month_num = (int)date('n', strtotime($printDeliveryNote['tn_date']));
-                echo $months_ru[$month_num] . ' ' . date('Y', strtotime($printDeliveryNote['tn_date'])); 
+                $month_num = (int)date('n', strtotime($printTransportWaybill['ttn_date']));
+                echo $months_ru[$month_num] . ' ' . date('Y', strtotime($printTransportWaybill['ttn_date'])); 
             ?> г.</div>
         </div>
         
@@ -229,15 +237,15 @@ if (!isset($printDeliveryNote)) {
                 <div class="party-title">ГРУЗООТПРАВИТЕЛЬ</div>
                 <div class="party-field">
                     <div class="field-label">Наименование:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printDeliveryNote['shipper_name']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['shipper_name'] ?? $printOrder['company_name']); ?></div>
                 </div>
                 <div class="party-field">
                     <div class="field-label">УНП:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printDeliveryNote['shipper_inn']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['shipper_inn'] ?? $printOrder['client_inn']); ?></div>
                 </div>
                 <div class="party-field">
                     <div class="field-label">Адрес:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printDeliveryNote['shipper_address']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['shipper_address'] ?? $printOrder['client_address']); ?></div>
                 </div>
             </div>
             
@@ -246,36 +254,83 @@ if (!isset($printDeliveryNote)) {
                 <div class="party-title">ГРУЗОПОЛУЧАТЕЛЬ</div>
                 <div class="party-field">
                     <div class="field-label">Наименование:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printDeliveryNote['consignee_name']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['consignee_name'] ?? $printOrder['company_name']); ?></div>
                 </div>
                 <div class="party-field">
                     <div class="field-label">УНП:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printDeliveryNote['consignee_inn']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['consignee_inn'] ?? $printOrder['client_inn']); ?></div>
                 </div>
                 <div class="party-field">
                     <div class="field-label">Адрес:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printDeliveryNote['consignee_address']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['consignee_address'] ?? $printOrder['client_address']); ?></div>
                 </div>
             </div>
         </div>
         
         <div class="info-row">
             <div class="info-label">Основание:</div>
-            <div class="info-value">Заказ № <?php echo htmlspecialchars($printDeliveryNote['order_number']); ?> от <?php echo date('d.m.Y', strtotime($printDeliveryNote['created_at'])); ?></div>
-        </div>
-        
-        <div class="info-row">
-            <div class="info-label">Склад отправитель:</div>
-            <div class="info-value"><?php echo htmlspecialchars($printDeliveryNote['warehouse_from']); ?></div>
-        </div>
-        
-        <div class="info-row">
-            <div class="info-label">Склад получатель:</div>
-            <div class="info-value"><?php echo htmlspecialchars($printDeliveryNote['warehouse_to']); ?></div>
+            <div class="info-value">Заказ № <?php echo htmlspecialchars($printOrder['order_number']); ?> от <?php echo date('d.m.Y', strtotime($printOrder['created_at'])); ?></div>
         </div>
     </div>
     
-    <table class="items-table">
+    <div class="transport-info">
+        <div class="transport-section">
+            <h4>Транспортные данные</h4>
+            <div class="info-row">
+                <div class="info-label">Автомобиль:</div>
+                <div class="info-value"><?php echo htmlspecialchars($printTransportWaybill['vehicle_number'] ?? '-'); ?></div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Водитель:</div>
+                <div class="info-value"><?php echo htmlspecialchars($printTransportWaybill['driver_name'] ?? '-'); ?></div>
+            </div>
+            <?php if ($printTransportWaybill['driver_license']): ?>
+            <div class="info-row">
+                <div class="info-label">Лицензия водителя:</div>
+                <div class="info-value"><?php echo htmlspecialchars($printTransportWaybill['driver_license']); ?></div>
+            </div>
+            <?php endif; ?>
+        </div>
+        
+        <div class="transport-section" style="margin-top: 15px;">
+            <h4>Перевозчик</h4>
+            <div class="info-row">
+                <div class="info-label">Наименование:</div>
+                <div class="info-value"><?php echo htmlspecialchars($printTransportWaybill['carrier_name'] ?? '-'); ?></div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">УНП:</div>
+                <div class="info-value"><?php echo htmlspecialchars($printTransportWaybill['carrier_inn'] ?? '-'); ?></div>
+            </div>
+        </div>
+        
+        <div class="transport-section" style="margin-top: 15px;">
+            <h4>Маршрут</h4>
+            <div class="info-row">
+                <div class="info-label">Пункт погрузки:</div>
+                <div class="info-value"><?php echo htmlspecialchars($printTransportWaybill['loading_point'] ?? '-'); ?></div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Пункт разгрузки:</div>
+                <div class="info-value"><?php echo htmlspecialchars($printTransportWaybill['unloading_point'] ?? '-'); ?></div>
+            </div>
+            <?php if ($printTransportWaybill['distance_km']): ?>
+            <div class="info-row">
+                <div class="info-label">Расстояние:</div>
+                <div class="info-value"><?php echo $printTransportWaybill['distance_km']; ?> км</div>
+            </div>
+            <?php endif; ?>
+            <?php if ($printTransportWaybill['freight_cost']): ?>
+            <div class="info-row">
+                <div class="info-label">Стоимость перевозки:</div>
+                <div class="info-value"><?php echo number_format($printTransportWaybill['freight_cost'], 2, ',', ' '); ?> BYN</div>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    
+    <?php if ($printTransportWaybillItems): ?>
+    <table class="items-table" style="margin-top: 20px;">
         <thead>
             <tr>
                 <th style="width: 5%;">№</th>
@@ -291,7 +346,7 @@ if (!isset($printDeliveryNote)) {
             <?php 
             $itemNumber = 0;
             $totalWeight = 0;
-            foreach ($printDeliveryNoteItems as $item): 
+            foreach ($printTransportWaybillItems as $item): 
                 $itemNumber++;
                 $totalWeight += $item['total_weight'];
             ?>
@@ -314,59 +369,55 @@ if (!isset($printDeliveryNote)) {
         </tfoot>
     </table>
     
-    <div class="footer-info">
+    <div class="footer-info" style="margin-top: 20px;">
         <div class="info-row">
             <div class="info-label">Всего позиций:</div>
-            <div class="info-value"><?php echo count($printDeliveryNoteItems); ?></div>
+            <div class="info-value"><?php echo count($printTransportWaybillItems); ?></div>
         </div>
         <div class="info-row">
             <div class="info-label">Общий вес груза:</div>
             <div class="info-value"><?php echo number_format($totalWeight, 3, ',', ' '); ?> кг</div>
         </div>
     </div>
+    <?php endif; ?>
     
-    <?php if ($printDeliveryNote['notes']): ?>
+    <?php if ($printTransportWaybill['notes']): ?>
     <div class="notes-section">
-        <strong>Примечание:</strong> <?php echo nl2br(htmlspecialchars($printDeliveryNote['notes'])); ?>
+        <strong>Примечание:</strong> <?php echo nl2br(htmlspecialchars($printTransportWaybill['notes'])); ?>
     </div>
     <?php endif; ?>
     
     <div class="signatures-section">
         <div class="signature-block">
-            <div class="signature-title">От грузоотправителя:</div>
-            <div class="signature-position">
-                Должность: _____________________
-            </div>
-            <div class="signature-position">
-                ФИО: _____________________
-            </div>
-            <div class="signature-lines">
-                <div class="signature-line">
-                    <span>(подпись)</span>
-                    <span>М.П.</span>
-                </div>
+            <div class="signature-title">Грузоотправитель</div>
+            <div style="margin-top: 30px;">_____________________</div>
+            <div class="signature-line">
+                <span>(подпись)</span>
+                <span>М.П.</span>
             </div>
         </div>
         
         <div class="signature-block">
-            <div class="signature-title">От грузополучателя:</div>
-            <div class="signature-position">
-                Должность: _____________________
+            <div class="signature-title">Водитель</div>
+            <div style="margin-top: 30px;">_____________________</div>
+            <div class="signature-line">
+                <span>(подпись)</span>
+                <span></span>
             </div>
-            <div class="signature-position">
-                ФИО: _____________________
-            </div>
-            <div class="signature-lines">
-                <div class="signature-line">
-                    <span>(подпись)</span>
-                    <span>М.П.</span>
-                </div>
+        </div>
+        
+        <div class="signature-block">
+            <div class="signature-title">Грузополучатель</div>
+            <div style="margin-top: 30px;">_____________________</div>
+            <div class="signature-line">
+                <span>(подпись)</span>
+                <span>М.П.</span>
             </div>
         </div>
     </div>
     
     <div style="margin-top: 30px; font-size: 9pt; color: #666; text-align: center; border-top: 1px solid #ccc; padding-top: 10px;">
-        <p>Товарная накладная составлена в двух экземплярах: один - грузоотправителю, второй - грузополучателю.</p>
+        <p>Товарно-транспортная накладная составлена в четырех экземплярах: грузоотправителю, грузополучателю, водителю, бухгалтерии.</p>
         <p>Документ действителен без подписей и печатей сторон.</p>
     </div>
     

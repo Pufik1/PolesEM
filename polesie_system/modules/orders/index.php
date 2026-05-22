@@ -536,6 +536,48 @@ if (isset($_GET['print_delivery'])) {
     }
 }
 
+// Handle transport waybill (TTN) print view
+if (isset($_GET['print_ttn'])) {
+    $ttnId = (int)$_GET['print_ttn'];
+    
+    $stmtTW = $pdo->prepare("SELECT tw.*, 
+                              c.company_name, c.inn as client_inn, c.address as client_address,
+                              o.order_number, o.created_at
+                              FROM transport_waybills tw
+                              LEFT JOIN orders o ON tw.order_id = o.id
+                              LEFT JOIN clients c ON o.client_id = c.id
+                              WHERE tw.id = :id");
+    $stmtTW->execute([':id' => $ttnId]);
+    $printTransportWaybill = $stmtTW->fetch();
+    
+    if ($printTransportWaybill) {
+        // Get order info
+        $printOrder = [
+            'order_number' => $printTransportWaybill['order_number'],
+            'created_at' => $printTransportWaybill['created_at'],
+            'company_name' => $printTransportWaybill['company_name'],
+            'client_inn' => $printTransportWaybill['client_inn'],
+            'client_address' => $printTransportWaybill['client_address']
+        ];
+        
+        // Get TTN items from delivery note
+        if ($printTransportWaybill['delivery_note_id']) {
+            $stmtTWItems = $pdo->prepare("SELECT dni.*, p.product_name, p.product_code 
+                                          FROM delivery_note_items dni
+                                          LEFT JOIN products p ON dni.product_id = p.id
+                                          WHERE dni.delivery_note_id = :dn_id");
+            $stmtTWItems->execute([':dn_id' => $printTransportWaybill['delivery_note_id']]);
+            $printTransportWaybillItems = $stmtTWItems->fetchAll();
+        } else {
+            $printTransportWaybillItems = [];
+        }
+        
+        // Include print template
+        include 'ttn_print.php';
+        exit;
+    }
+}
+
 // Get order for viewing
 $viewOrder = null;
 $orderItems = [];
@@ -1346,6 +1388,15 @@ $statusColors = [
                         </button>
                         <?php endif; ?>
                         <?php endif; ?>
+                        
+                        <!-- Print TTN Button -->
+                        <?php if ($transportWaybill): ?>
+                        <div class="action-bar" style="margin-top: 20px;">
+                            <button class="btn print-btn" onclick="printTTN(<?php echo $transportWaybill['id']; ?>)">
+                                <i class="fas fa-print"></i> Печать ТТН
+                            </button>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     
                     <!-- Notes -->
@@ -1843,6 +1894,12 @@ $statusColors = [
         function printDeliveryNote(deliveryNoteId) {
             // Open print view in new window
             const printUrl = window.location.href.split('?')[0] + '?print_delivery=' + deliveryNoteId;
+            window.open(printUrl, '_blank', 'width=800,height=600');
+        }
+        
+        function printTTN(ttnId) {
+            // Open print view in new window
+            const printUrl = window.location.href.split('?')[0] + '?print_ttn=' + ttnId;
             window.open(printUrl, '_blank', 'width=800,height=600');
         }
         
