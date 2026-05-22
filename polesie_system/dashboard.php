@@ -20,11 +20,11 @@ $stats = [];
 
 try {
     // Total products
-    $stmt = $pdo->query("SELECT COUNT(*) as count FROM products WHERE is_active = 1");
+    $stmt = $pdo->query("SELECT COUNT(*) as count FROM products");
     $stats['products'] = $stmt->fetch()['count'];
     
     // Total clients
-    $stmt = $pdo->query("SELECT COUNT(*) as count FROM clients WHERE is_active = 1");
+    $stmt = $pdo->query("SELECT COUNT(*) as count FROM clients");
     $stats['clients'] = $stmt->fetch()['count'];
     
     // Orders this month
@@ -42,7 +42,7 @@ try {
     // Low stock products
     $stmt = $pdo->query("
         SELECT COUNT(*) as count FROM products 
-        WHERE stock_quantity <= min_stock_level AND is_active = 1
+        WHERE stock_quantity <= min_stock_level
     ");
     $stats['low_stock'] = $stmt->fetch()['count'];
     
@@ -151,7 +151,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                             <i class="fas fa-handshake"></i>
                         </div>
                         <div class="stat-info">
-                            <h3><?php echo $stats['clients']; ?></h3>
+                            <h3><?php echo isset($stats['clients']) ? (int)$stats['clients'] : 0; ?></h3>
                             <p>Активные клиенты</p>
                         </div>
                     </div>
@@ -161,7 +161,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                             <i class="fas fa-shopping-cart"></i>
                         </div>
                         <div class="stat-info">
-                            <h3><?php echo $stats['orders_month']; ?></h3>
+                            <h3><?php echo isset($stats['orders_month']) ? (int)$stats['orders_month'] : 0; ?></h3>
                             <p>Заказов за месяц</p>
                         </div>
                     </div>
@@ -171,7 +171,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                             <i class="fas fa-exclamation-triangle"></i>
                         </div>
                         <div class="stat-info">
-                            <h3><?php echo $stats['low_stock']; ?></h3>
+                            <h3><?php echo isset($stats['low_stock']) ? (int)$stats['low_stock'] : 0; ?></h3>
                             <p>Товаров с низким запасом</p>
                         </div>
                     </div>
