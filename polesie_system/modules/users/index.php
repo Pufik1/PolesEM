@@ -1,10 +1,10 @@
 <?php
 /**
- * Модуль "Пользователи" для OAO "Polesieelectromash" ERP System
- * Управление пользователями системы: просмотр, добавление, редактирование, удаление
+ * Модуль "Пользователи" - Управление пользователями системы
+ * Функционал: просмотр, добавление, редактирование, удаление, поиск
  */
 
-// Запускаем сессию перед подключением config
+// Запускаем сессию ПЕРЕД подключением config.php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -25,15 +25,17 @@ if (!hasRole(['admin', 'manager'])) {
 $pdo = getDBConnection();
 $message = '';
 $error = '';
+
+// Определяем действие
 $action = $_GET['action'] ?? 'list';
-// Получаем ID пользователя из GET или POST (для обработки форм)
 $userId = $_GET['id'] ?? $_POST['id'] ?? null;
 
-// Обработка действий
+// Обработка POST запросов
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $postAction = $_POST['action'] ?? '';
     
     try {
+        // Создание или обновление пользователя
         if ($postAction === 'create' || $postAction === 'update') {
             $username = trim($_POST['username'] ?? '');
             $password = $_POST['password'] ?? '';
@@ -44,31 +46,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $department = trim($_POST['department'] ?? '');
             $position = trim($_POST['position'] ?? '');
             
-            // Валидация
+            // Валидация обязательных полей
             if (empty($username) || empty($fullName) || empty($email) || $roleId === 0) {
-                throw new Exception('Заполните все обязательные поля');
+                throw new Exception('Заполните все обязательные поля (логин, ФИО, email, роль)');
             }
             
+            // Для нового пользователя пароль обязателен
             if ($postAction === 'create' && empty($password)) {
                 throw new Exception('Укажите пароль для нового пользователя');
             }
             
             if ($postAction === 'create') {
-                // Проверка уникальности username и email
-                $checkStmt = $pdo->prepare("SELECT id FROM users WHERE username = :username OR email = :email");
-                $checkStmt->execute([':username' => $username, ':email' => $email]);
+                // Проверка уникальности username
+                $checkStmt = $pdo->prepare("SELECT id FROM users WHERE username = :username");
+                $checkStmt->execute([':username' => $username]);
                 if ($checkStmt->fetch()) {
-                    throw new Exception('Пользователь с таким логином или email уже существует');
+                    throw new Exception('Пользователь с таким логином уже существует');
                 }
                 
-                // Создание пользователя
+                // Проверка уникальности email
+                $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
+                $checkStmt->execute([':email' => $email]);
+                if ($checkStmt->fetch()) {
+                    throw new Exception('Пользователь с таким email уже существует');
+                }
+                
+                // Вставка нового пользователя
                 $stmt = $pdo->prepare("
                     INSERT INTO users (username, password, full_name, email, phone, role_id, department, position)
                     VALUES (:username, :password, :full_name, :email, :phone, :role_id, :department, :position)
                 ");
                 $stmt->execute([
                     ':username' => $username,
-                    ':password' => $password, // Plain text как в ТЗ
+                    ':password' => $password,
                     ':full_name' => $fullName,
                     ':email' => $email,
                     ':phone' => $phone,
@@ -82,21 +92,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = 'Пользователь успешно создан';
                 
             } elseif ($postAction === 'update' && $userId) {
-                // Проверка уникальности username (исключая текущего пользователя)
+                // Проверка уникальности username (исключая текущего)
                 $checkStmt = $pdo->prepare("SELECT id FROM users WHERE username = :username AND id != :id");
                 $checkStmt->execute([':username' => $username, ':id' => $userId]);
                 if ($checkStmt->fetch()) {
                     throw new Exception('Пользователь с таким логином уже существует');
                 }
                 
-                // Проверка уникальности email (исключая текущего пользователя)
+                // Проверка уникальности email (исключая текущего)
                 $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email AND id != :id");
                 $checkStmt->execute([':email' => $email, ':id' => $userId]);
                 if ($checkStmt->fetch()) {
                     throw new Exception('Пользователь с таким email уже существует');
                 }
                 
-                // Обновление пользователя (логин можно изменить)
+                // Обновление данных
                 $updateData = [
                     ':username' => $username,
                     ':full_name' => $fullName,
@@ -132,8 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $action = 'list';
             
+        // Удаление пользователя
         } elseif ($postAction === 'delete' && $userId) {
-            // Полное удаление пользователя из БД
             $stmt = $pdo->prepare("DELETE FROM users WHERE id = :id");
             $stmt->execute([':id' => $userId]);
             logActivity($pdo, $_SESSION['user_id'], 'Удаление пользователя', 'users', $userId);
@@ -146,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Получение списка пользователей с фильтром
+// Поиск пользователей
 $searchQuery = $_GET['search'] ?? '';
 $filterParams = [];
 
@@ -165,18 +175,14 @@ $sql .= " ORDER BY u.created_at DESC";
 
 try {
     $stmt = $pdo->prepare($sql);
-    if (!empty($filterParams)) {
-        $stmt->execute($filterParams);
-    } else {
-        $stmt->execute();
-    }
+    $stmt->execute($filterParams);
     $users = $stmt->fetchAll();
     
-    // Получение списка ролей
+    // Получаем список ролей
     $stmt = $pdo->query("SELECT id, role_name, role_description FROM roles ORDER BY id");
     $roles = $stmt->fetchAll();
     
-    // Получение данных пользователя для редактирования
+    // Получаем данные пользователя для редактирования
     $editUser = null;
     if ($action === 'edit' && $userId) {
         $stmt = $pdo->prepare("SELECT * FROM users WHERE id = :id");
@@ -193,7 +199,7 @@ try {
     error_log($e->getMessage());
 }
 
-// Получение информации о текущем пользователе
+// Данные текущего пользователя
 $userFullName = $_SESSION['full_name'];
 $initials = strtoupper(substr($userFullName, 0, 1));
 ?>
