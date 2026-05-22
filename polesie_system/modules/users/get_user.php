@@ -14,7 +14,7 @@ if (!isLoggedIn()) {
 }
 
 // Проверка прав доступа
-if (!hasRole(['admin', 'director'])) {
+if (!hasRole(['admin', 'manager'])) {
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => 'Нет доступа']);
     exit;
