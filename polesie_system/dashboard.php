@@ -78,58 +78,84 @@ $userFullName = $_SESSION['full_name'];
 $userEmail = $_SESSION['email'];
 $initials = strtoupper(substr($userFullName, 0, 1));
 
-// Menu items based on roles
+// Menu items based on roles - organized by categories
 $menuItems = [
     'admin' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-        ['icon' => 'fa-users', 'text' => 'Пользователи', 'url' => 'modules/users/index.php'],
-        ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
-        ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
-        ['icon' => 'fa-shopping-cart', 'text' => 'Заказы', 'url' => 'modules/orders/index.php'],
-        ['icon' => 'fa-industry', 'text' => 'Производство', 'url' => 'modules/production/index.php'],
-        ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
-        ['icon' => 'fa-file-invoice-dollar', 'text' => 'Финансы', 'url' => 'modules/finance/index.php'],
-        ['icon' => 'fa-user-tie', 'text'   => 'Кадры', 'url' => 'modules/hr/index.php'],
-        ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
+        'main' => [
+            ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
+            ['icon' => 'fa-users', 'text' => 'Пользователи', 'url' => 'modules/users/index.php'],
+            ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
+        ],
+        'operations' => [
+            ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
+            ['icon' => 'fa-shopping-cart', 'text' => 'Заказы', 'url' => 'modules/orders/index.php'],
+            ['icon' => 'fa-industry', 'text' => 'Производство', 'url' => 'modules/production/index.php'],
+            ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
+            ['icon' => 'fa-file-invoice-dollar', 'text' => 'Финансы', 'url' => 'modules/finance/index.php'],
+            ['icon' => 'fa-user-tie', 'text' => 'Кадры', 'url' => 'modules/hr/index.php'],
+            ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
+        ],
     ],
     'director' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-        ['icon' => 'fa-chart-line', 'text' => 'Аналитика', 'url' => 'modules/analytics/index.php'],
-        ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
-        ['icon' => 'fa-shopping-cart', 'text' => 'Заказы', 'url' => 'modules/orders/index.php'],
-        ['icon' => 'fa-industry', 'text' => 'Производство', 'url' => 'modules/production/index.php'],
-        ['icon' => 'fa-user-tie', 'text' => 'Кадры', 'url' => 'modules/hr/index.php'],
-        ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
+        'main' => [
+            ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
+            ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
+        ],
+        'operations' => [
+            ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
+            ['icon' => 'fa-shopping-cart', 'text' => 'Заказы', 'url' => 'modules/orders/index.php'],
+            ['icon' => 'fa-industry', 'text' => 'Производство', 'url' => 'modules/production/index.php'],
+            ['icon' => 'fa-user-tie', 'text' => 'Кадры', 'url' => 'modules/hr/index.php'],
+            ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
+        ],
     ],
     'manager' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-        ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
-        ['icon' => 'fa-shopping-cart', 'text' => 'Заказы', 'url' => 'modules/orders/index.php'],
-        ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
-        ['icon' => 'fa-file-invoice', 'text' => 'Документы', 'url' => 'modules/documents/index.php'],
+        'main' => [
+            ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
+            ['icon' => 'fa-users', 'text' => 'Пользователи', 'url' => 'modules/users/index.php'],
+            ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
+        ],
+        'operations' => [
+            ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
+            ['icon' => 'fa-shopping-cart', 'text' => 'Заказы', 'url' => 'modules/orders/index.php'],
+            ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
+        ],
     ],
     'production_master' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-        ['icon' => 'fa-industry', 'text' => 'Производство', 'url' => 'modules/production/index.php'],
-        ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
-        ['icon' => 'fa-clipboard-check', 'text' => 'Контроль качества', 'url' => 'modules/quality/index.php'],
+        'main' => [
+            ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
+            ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
+        ],
+        'operations' => [
+            ['icon' => 'fa-industry', 'text' => 'Производство', 'url' => 'modules/production/index.php'],
+            ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
+        ],
     ],
     'warehouse_keeper' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-        ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
-        ['icon' => 'fa-boxes', 'text' => 'Инвентаризация', 'url' => 'modules/inventory/index.php'],
+        'main' => [
+            ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
+            ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
+        ],
+        'operations' => [
+            ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
+        ],
     ],
     'accountant' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-        ['icon' => 'fa-file-invoice-dollar', 'text' => 'Финансы', 'url' => 'modules/finance/index.php'],
-        ['icon' => 'fa-file-invoice', 'text' => 'Документы', 'url' => 'modules/documents/index.php'],
-        ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
+        'main' => [
+            ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
+        ],
+        'operations' => [
+            ['icon' => 'fa-file-invoice-dollar', 'text' => 'Финансы', 'url' => 'modules/finance/index.php'],
+            ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
+        ],
     ],
     'hr_manager' => [
-        ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-        ['icon' => 'fa-user-tie', 'text' => 'Кадры', 'url' => 'modules/hr/index.php'],
-        ['icon' => 'fa-users', 'text' => 'Сотрудники', 'url' => 'modules/employees/index.php'],
-        ['icon' => 'fa-calendar-alt', 'text' => 'График', 'url' => 'modules/schedule/index.php'],
+        'main' => [
+            ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
+        ],
+        'operations' => [
+            ['icon' => 'fa-user-tie', 'text' => 'Кадры', 'url' => 'modules/hr/index.php'],
+        ],
     ],
 ];
 
@@ -161,23 +187,30 @@ $currentMenu = $menuItems[$userRole] ?? $menuItems['manager'];
             </div>
             
             <nav class="sidebar-menu">
-                <?php foreach ($currentMenu as $index => $item): ?>
-                    <?php if ($index === 0): ?>
-                        <div class="menu-category">Основное</div>
-                    <?php elseif ($index === 3): ?>
-                        <div class="menu-category">Операции</div>
-                    <?php endif; ?>
-                    
-                    <a href="<?php echo $item['url']; ?>" class="menu-item <?php echo basename($_SERVER['PHP_SELF']) === basename($item['url']) ? 'active' : ''; ?>">
-                        <i class="fas <?php echo $item['icon']; ?>"></i>
-                        <span><?php echo $item['text']; ?></span>
-                    </a>
-                <?php endforeach; ?>
+                <?php if (!empty($currentMenu['main'])): ?>
+                    <div class="menu-category">Основное</div>
+                    <?php foreach ($currentMenu['main'] as $item): ?>
+                        <a href="<?php echo $item['url']; ?>" class="menu-item <?php echo basename($_SERVER['PHP_SELF']) === basename($item['url']) ? 'active' : ''; ?>">
+                            <i class="fas <?php echo $item['icon']; ?>"></i>
+                            <span><?php echo $item['text']; ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                
+                <?php if (!empty($currentMenu['operations'])): ?>
+                    <div class="menu-category">Операции</div>
+                    <?php foreach ($currentMenu['operations'] as $item): ?>
+                        <a href="<?php echo $item['url']; ?>" class="menu-item <?php echo basename($_SERVER['PHP_SELF']) === basename($item['url']) ? 'active' : ''; ?>">
+                            <i class="fas <?php echo $item['icon']; ?>"></i>
+                            <span><?php echo $item['text']; ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                <?php endif; ?>
                 
                 <div class="menu-category" style="margin-top: 20px;">Система</div>
                 <a href="logout.php" class="menu-item">
                     <i class="fas fa-sign-out-alt"></i>
-                    <span>Выход</span>
+                    <span>Выйти</span>
                 </a>
             </nav>
         </aside>
