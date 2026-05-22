@@ -1,1 +1,12 @@
-Nothing should be ignored based on the provided file changes. The only modified file is a PHP source file (`polesie_system/modules/production/api.php`), which is legitimate source code that should not be ignored.
+```
+# Dependencies
+node_modules/
+
+# Editors
+.vscode/
+
+# Environment
+.env
+.env.local
+*.env.*
+```
