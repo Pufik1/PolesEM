@@ -605,18 +605,35 @@ try {
                 decoding.push('Тип продукции не определен');
             }
             
-            // Для чугунных изделий
+            // Для чугунных изделий - расшифровка из products.json
             if (sku.startsWith('CI-GR')) {
                 const modelMatch = sku.match(/CI-GR-(RU\d|RD\dK?|57L|001|ANIM)/);
                 if (modelMatch) {
-                    decoding.push('Модель: ' + modelMatch[1]);
+                    const model = modelMatch[1];
+                    const models = {
+                        'RU2': 'Колосниковая решетка РУ-2 (200x300 мм, 3.5 кг, ГОСТ СТБ 726-2006)',
+                        'RU3': 'Колосниковая решетка РУ-3 (200x350 мм, 5.5 кг, ГОСТ СТБ 726-2006)',
+                        'RU4': 'Колосниковая решетка РУ-4 (400x200 мм, 6.0 кг, ГОСТ СТБ 726-2006)',
+                        'RD3': 'Колосниковая решетка РД-3 (170x240 мм, 2.2 кг, ГОСТ СТБ 726-2006)',
+                        'RD6K': 'Колосниковая решетка РД-6К (250x380 мм, 5.2 кг, ГОСТ СТБ 726-2006)',
+                        '57L': 'Колосниковая решетка 57Л (240x415 мм, 6.5 кг, ГОСТ СТБ 726-2006)',
+                        '001': 'Решетка 001 (496x300x34 мм, 14.2 кг)',
+                        'ANIM': 'Решетка животноводческая (420x310x60 мм, 20.0 кг)'
+                    };
+                    decoding.push(models[model] || 'Модель: ' + model);
                 }
             } else if (sku.startsWith('CI-DR')) {
                 if (sku.includes('ASSY')) {
-                    decoding.push('Дождеприемник в сборе');
+                    decoding.push('Дождеприемник в сборе (500x1000 мм, 105 кг, ГОСТ СТБ 3634-99)');
                 } else {
-                    decoding.push('Решетка дождеприемника');
+                    decoding.push('Решетка дождеприемника (400x800x40 мм, ГОСТ СТБ 3634-99)');
                 }
+            } else if (sku.startsWith('CI-MH')) {
+                if (sku.includes('L') && sku.includes('V15')) {
+                    decoding.push('Люк легкий типа Л, класс нагрузки В15 (71.9 кг, ГОСТ 3634-99)');
+                }
+            } else if (sku.startsWith('CI-FL')) {
+                decoding.push('Плита половая (300x420x27 мм)');
             } else if (sku.startsWith('MAT-AL')) {
                 if (sku.includes('AB87')) {
                     decoding.push('Марка: АВ87 (ГОСТ 295-98)');
@@ -633,7 +650,7 @@ try {
                     decoding.push('Марка чугуна: Л5 (ГОСТ 4832-95)');
                 }
             }
-            
+
             // Для электродвигателей
             if (sku.startsWith('AIR') || sku.startsWith('2AIR')) {
                 // Извлечение габарита
@@ -690,7 +707,11 @@ try {
         }
         
         function viewProduct(productId) {
-            window.location.href = `index.php?action=view&product_id=${productId}`;
+            openModal('viewProductModal');
+            // Redirect after a short delay to show the modal first
+            setTimeout(function() {
+            window.location.href = `index.php?action=view=&product_id=${productId}`;
+            }, 300);
         }
         
         function deleteProduct(productId, productName) {
