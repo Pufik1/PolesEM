@@ -99,7 +99,13 @@ $currentMenu = $menuItems[$userRole] ?? $menuItems['manager'];
 // Function to check if URL is current page
 function isCurrentPage($url) {
     $currentPath = $_SERVER['PHP_SELF'];
-    return strpos($currentPath, $url) !== false;
+    // Normalize paths for comparison
+    $normalizedUrl = ltrim($url, '/');
+    $normalizedPath = ltrim($currentPath, '/');
+    
+    // Check if the URL matches the end of the current path
+    return strpos($normalizedPath, $normalizedUrl) !== false || 
+           strpos($currentPath, $normalizedUrl) !== false;
 }
 
 // Render sidebar menu

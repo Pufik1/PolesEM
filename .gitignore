@@ -1,31 +1,27 @@
 ```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+
 # Dependencies
 vendor/
-node_modules/
 composer.lock
 
-# Logs
+# Logs and temp files
 *.log
-error_log
-access_log
+*.tmp
+*.swp
 
-# Environment specific
+# Environment
 .env
 .env.local
-.env.*
-!.env.example
+*.env.*
 
-# IDE files
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# OS files
+# OS generated files
 .DS_Store
 Thumbs.db
-
-# Cache
-.cache/
-*.cache
 ```
