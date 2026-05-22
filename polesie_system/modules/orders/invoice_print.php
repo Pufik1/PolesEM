@@ -3,6 +3,9 @@
  * Invoice Print Template for OAO "Polesieelectromash" ERP System
  */
 
+// Include configuration
+require_once __DIR__ . '/../../includes/config.php';
+
 if (!isset($printInvoice)) {
     die('Direct access not allowed');
 }
