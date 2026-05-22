@@ -4,6 +4,11 @@
  * Используется модулем пользователей для редактирования
  */
 
+// Запускаем сессию перед подключением config
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once '../../includes/config.php';
 
 // Проверка авторизации
