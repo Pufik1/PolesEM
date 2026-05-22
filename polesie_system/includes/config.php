@@ -15,8 +15,9 @@ define('DB_CHARSET', 'utf8mb4');
 define('APP_NAME', 'Полесьеэлектромаш - Корпоративная Система');
 define('APP_VERSION', '1.0.0');
 define('APP_URL', 'http://localhost:8888/polesie_system/');
+define('APP_COMPANY_NAME', 'ОАО «Полесьеэлектромаш»');
 define('APP_INN', '123456789');
-define('APP_ADDRESS', 'г. Гомель, ул. Примерная, 1');
+define('APP_ADDRESS', 'г. Лунинец, ул. Красная 179');
 define('APP_PHONE', '+375 (232) 00-00-00');
 define('APP_EMAIL', 'info@polesie.by');
 

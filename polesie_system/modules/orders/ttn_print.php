@@ -237,15 +237,15 @@ if (!isset($printTransportWaybill)) {
                 <div class="party-title">ГРУЗООТПРАВИТЕЛЬ</div>
                 <div class="party-field">
                     <div class="field-label">Наименование:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['shipper_name'] ?? $printOrder['company_name']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['shipper_name']); ?></div>
                 </div>
                 <div class="party-field">
                     <div class="field-label">УНП:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['shipper_inn'] ?? $printOrder['client_inn']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['shipper_inn']); ?></div>
                 </div>
                 <div class="party-field">
                     <div class="field-label">Адрес:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['shipper_address'] ?? $printOrder['client_address']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['shipper_address']); ?></div>
                 </div>
             </div>
             
@@ -254,15 +254,15 @@ if (!isset($printTransportWaybill)) {
                 <div class="party-title">ГРУЗОПОЛУЧАТЕЛЬ</div>
                 <div class="party-field">
                     <div class="field-label">Наименование:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['consignee_name'] ?? $printOrder['company_name']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['consignee_name']); ?></div>
                 </div>
                 <div class="party-field">
                     <div class="field-label">УНП:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['consignee_inn'] ?? $printOrder['client_inn']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['consignee_inn']); ?></div>
                 </div>
                 <div class="party-field">
                     <div class="field-label">Адрес:</div>
-                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['consignee_address'] ?? $printOrder['client_address']); ?></div>
+                    <div class="field-value"><?php echo htmlspecialchars($printTransportWaybill['consignee_address']); ?></div>
                 </div>
             </div>
         </div>

@@ -409,12 +409,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 // Create transport waybill
                 $stmtTW = $pdo->prepare("INSERT INTO transport_waybills (ttn_number, order_id, delivery_note_id, ttn_date, 
                                            vehicle_number, driver_name, driver_license, carrier_name, carrier_inn, 
-                                           route_from, route_to, loading_point, unloading_point, freight_cost, notes, created_by) 
+                                           route_from, route_to, loading_point, unloading_point, 
+                                           shipper_name, shipper_inn, shipper_address, 
+                                           consignee_name, consignee_inn, consignee_address,
+                                           freight_cost, notes, created_by) 
                                            VALUES (:ttn_number, :order_id, :delivery_note_id, :ttn_date, 
                                            :vehicle_number, :driver_name, :driver_license, :carrier_name, :carrier_inn, 
-                                           :route_from, :route_to, :loading_point, :unloading_point, :freight_cost, :notes, :created_by)");
+                                           :route_from, :route_to, :loading_point, :unloading_point, 
+                                           :shipper_name, :shipper_inn, :shipper_address, 
+                                           :consignee_name, :consignee_inn, :consignee_address,
+                                           :freight_cost, :notes, :created_by)");
                 
                 $companyName = defined('APP_COMPANY_NAME') ? APP_COMPANY_NAME : 'ОАО «Полесьеэлектромаш»';
+                $companyInn = defined('APP_INN') ? APP_INN : '';
                 $companyAddress = defined('APP_ADDRESS') ? APP_ADDRESS : '';
                 
                 $stmtTW->execute([
@@ -431,6 +438,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                     ':route_to' => $routeFromTo,
                     ':loading_point' => $loadingPoint ?: $companyAddress,
                     ':unloading_point' => $unloadingPoint ?: $order['address'],
+                    ':shipper_name' => $companyName,
+                    ':shipper_inn' => $companyInn,
+                    ':shipper_address' => $companyAddress,
+                    ':consignee_name' => $order['company_name'],
+                    ':consignee_inn' => $order['inn'],
+                    ':consignee_address' => $order['address'],
                     ':freight_cost' => $freightCost,
                     ':notes' => $notes,
                     ':created_by' => $_SESSION['user_id']
@@ -541,11 +554,9 @@ if (isset($_GET['print_ttn'])) {
     $ttnId = (int)$_GET['print_ttn'];
     
     $stmtTW = $pdo->prepare("SELECT tw.*, 
-                              c.company_name, c.inn as client_inn, c.address as client_address,
                               o.order_number, o.created_at
                               FROM transport_waybills tw
                               LEFT JOIN orders o ON tw.order_id = o.id
-                              LEFT JOIN clients c ON o.client_id = c.id
                               WHERE tw.id = :id");
     $stmtTW->execute([':id' => $ttnId]);
     $printTransportWaybill = $stmtTW->fetch();
@@ -554,10 +565,7 @@ if (isset($_GET['print_ttn'])) {
         // Get order info
         $printOrder = [
             'order_number' => $printTransportWaybill['order_number'],
-            'created_at' => $printTransportWaybill['created_at'],
-            'company_name' => $printTransportWaybill['company_name'],
-            'client_inn' => $printTransportWaybill['client_inn'],
-            'client_address' => $printTransportWaybill['client_address']
+            'created_at' => $printTransportWaybill['created_at']
         ];
         
         // Get TTN items from delivery note
