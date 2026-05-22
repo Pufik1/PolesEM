@@ -137,6 +137,23 @@ if ($viewAction === 'view' && $viewProductId) {
         $stmt = $pdo->prepare("SELECT p.*, pc.category_name FROM products p LEFT JOIN product_categories pc ON p.category_id = pc.id WHERE p.id = :id");
         $stmt->execute([':id' => (int)$viewProductId]);
         $viewProduct = $stmt->fetch();
+        
+        // Если это AJAX запрос, возвращаем JSON
+        if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
+            header('Content-Type: application/json');
+            if ($viewProduct) {
+                echo json_encode([
+                    'success' => true,
+                    'product' => $viewProduct
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Продукт не найден'
+                ]);
+            }
+            exit;
+        }
     } catch (PDOException $e) {
         // Error handling
     }
@@ -298,7 +315,7 @@ try {
                                 <?php else: ?>
                                     <?php foreach ($products as $product): ?>
                                         <tr data-category="<?php echo $product['category_id'] ?? ''; ?>" 
-                                            data-specs='<?php echo htmlspecialchars(json_encode($product['specifications'] ?? '{}'), ENT_QUOTES); ?>'>
+                                            data-product='<?php echo htmlspecialchars(json_encode($product), ENT_QUOTES); ?>'>
                                             <td><strong><?php echo htmlspecialchars($product['product_code']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($product['product_name']); ?></td>
                                             <td><?php echo htmlspecialchars($product['category_name'] ?? 'Не указана'); ?></td>
@@ -548,6 +565,7 @@ try {
                 'CI-DR': 'Дождеприемник (чугун)',
                 'CI-MH': 'Люк манhole (чугун)',
                 'CI-FL': 'Плита половая (чугун)',
+                'CI-BALLS': 'Цильпебсы, шары мелющие',
                 'AIR': 'Электродвигатель асинхронный общего назначения',
                 'AIRS': 'Электродвигатель с повышенным скольжением',
                 'AIRE': 'Электродвигатель однофазный (220В)',
@@ -634,6 +652,8 @@ try {
                 }
             } else if (sku.startsWith('CI-FL')) {
                 decoding.push('Плита половая (300x420x27 мм)');
+            } else if (sku.startsWith('CI-BALLS')) {
+                decoding.push('Цильпебсы, шары мелющие (⌀20–100 мм, ТУ предприятия)');
             } else if (sku.startsWith('MAT-AL')) {
                 if (sku.includes('AB87')) {
                     decoding.push('Марка: АВ87 (ГОСТ 295-98)');
@@ -651,40 +671,140 @@ try {
                 }
             }
 
-            // Для электродвигателей
-            if (sku.startsWith('AIR') || sku.startsWith('2AIR')) {
-                // Извлечение габарита
-                const frameMatch = sku.match(/(\d{2,3})([A-D]?)([2468]|6_4|8_4)/);
-                if (frameMatch) {
-                    const frameSize = frameMatch[1];
-                    const lengthCode = frameMatch[2] || '';
-                    const polesCode = frameMatch[3];
+            // Для электродвигателей - полная расшифровка по данным products.json
+            if (sku.startsWith('AIR') && !sku.startsWith('AIRV') && !sku.startsWith('AIRVS')) {
+                // Базовые электродвигатели общего назначения
+                if (!sku.startsWith('AIRS') && !sku.startsWith('AIRE') && !sku.startsWith('AIRP') && !sku.startsWith('2AIR') && !sku.startsWith('AIRCH')) {
+                    const motorMatch = sku.match(/AIR(\d{2,3})([A-D]?)([2468])/);
+                    if (motorMatch) {
+                        const frameSize = motorMatch[1];
+                        const lengthCode = motorMatch[2] || '';
+                        const polesCode = motorMatch[3];
+                        
+                        if (frameSizes[frameSize]) {
+                            decoding.push(frameSizes[frameSize]);
+                        }
+                        if (lengthCode && suffixes[lengthCode]) {
+                            decoding.push(suffixes[lengthCode]);
+                        }
+                        if (poles[polesCode]) {
+                            decoding.push(poles[polesCode]);
+                        }
+                    }
+                }
+            } else if (sku.startsWith('AIRS')) {
+                decoding[0] = 'Электродвигатель с повышенным скольжением';
+                const motorMatch = sku.match(/AIRS(\d{2,3})([A-D]?)([2468])|AIRS(\d{2,3})([A-D]?)C?_S6/);
+                if (motorMatch) {
+                    const frameSize = motorMatch[1] || motorMatch[4];
+                    const lengthCode = motorMatch[2] || motorMatch[5] || '';
+                    const polesCode = motorMatch[3] || '6';
                     
                     if (frameSizes[frameSize]) {
                         decoding.push(frameSizes[frameSize]);
                     }
-                    
                     if (lengthCode && suffixes[lengthCode]) {
                         decoding.push(suffixes[lengthCode]);
                     }
-                    
-                    // Для двухскоростных
-                    if (polesCode.includes('_')) {
-                        const [pole1, pole2] = polesCode.split('_');
-                        if (poles[pole1] && poles[pole2]) {
-                            decoding.push(poles[pole1] + ' / ' + poles[pole2]);
-                        }
-                    } else if (poles[polesCode]) {
+                    if (poles[polesCode]) {
                         decoding.push(poles[polesCode]);
                     }
                 }
-                
-                // Специсполнения
-                if (sku.includes('_ZH')) {
-                    decoding.push('Исполнение: для моноблочных насосов');
+            } else if (sku.startsWith('AIRE')) {
+                decoding[0] = 'Электродвигатель однофазный (220В, 50Гц)';
+                const motorMatch = sku.match(/AIRE(\d{2,3})([A-D]?)([2468])/);
+                if (motorMatch) {
+                    const frameSize = motorMatch[1];
+                    const lengthCode = motorMatch[2] || '';
+                    const polesCode = motorMatch[3];
+                    
+                    if (frameSizes[frameSize]) {
+                        decoding.push(frameSizes[frameSize]);
+                    }
+                    if (lengthCode && suffixes[lengthCode]) {
+                        decoding.push(suffixes[lengthCode]);
+                    }
+                    if (poles[polesCode]) {
+                        decoding.push(poles[polesCode]);
+                    }
                 }
-                if (sku.includes('_RZ')) {
-                    decoding.push('Исполнение: спецвал/фланец под редуктор');
+            } else if (sku.startsWith('AIRP')) {
+                decoding[0] = 'Электродвигатель для птицеводства (защищенный IP55, NH₃/H₂S/SO₂/HCl)';
+                const motorMatch = sku.match(/AIRP(\d{2,3})([A-C]?)(\d)/);
+                if (motorMatch) {
+                    const frameSize = motorMatch[1];
+                    const lengthCode = motorMatch[2] || '';
+                    const polesCode = motorMatch[3];
+                    
+                    if (frameSizes[frameSize]) {
+                        decoding.push(frameSizes[frameSize]);
+                    }
+                    if (lengthCode && suffixes[lengthCode]) {
+                        decoding.push(suffixes[lengthCode]);
+                    }
+                    if (poles[polesCode]) {
+                        decoding.push(poles[polesCode]);
+                    }
+                }
+            } else if (sku.startsWith('2AIR')) {
+                decoding[0] = 'Электродвигатель двухскоростной';
+                const motorMatch = sku.match(/2AIR(\d{2,3})([A-L]?)(\d)/);
+                if (motorMatch) {
+                    const frameSize = motorMatch[1];
+                    const lengthCode = motorMatch[2] || '';
+                    const polesCode = motorMatch[3];
+                    
+                    if (frameSizes[frameSize]) {
+                        decoding.push(frameSizes[frameSize]);
+                    }
+                    if (lengthCode && suffixes[lengthCode]) {
+                        decoding.push(suffixes[lengthCode]);
+                    }
+                    // Двухскоростные имеют две скорости
+                    if (poles[polesCode]) {
+                        const secondPole = polesCode == '2' ? '4' : (polesCode == '4' ? '8' : (polesCode == '6' ? '8' : '4'));
+                        if (poles[secondPole]) {
+                            decoding.push(poles[polesCode] + ' / ' + poles[secondPole]);
+                        }
+                    }
+                }
+            } else if (sku.startsWith('AIRCH')) {
+                decoding[0] = 'Электродвигатель железнодорожный виброустойчивый';
+                const motorMatch = sku.match(/AIRCH(\d{2,3})([A-B]?)(\d)/);
+                if (motorMatch) {
+                    const frameSize = motorMatch[1];
+                    const lengthCode = motorMatch[2] || '';
+                    const polesCode = motorMatch[3];
+                    
+                    if (frameSizes[frameSize]) {
+                        decoding.push(frameSizes[frameSize]);
+                    }
+                    if (lengthCode && suffixes[lengthCode]) {
+                        decoding.push(suffixes[lengthCode]);
+                    }
+                    if (poles[polesCode]) {
+                        decoding.push(poles[polesCode]);
+                    }
+                }
+            } else if (sku.startsWith('AIRV') || sku.startsWith('AIRVS')) {
+                if (sku.startsWith('AIRVS')) {
+                    decoding[0] = 'Электродвигатель встроенный с повышенным скольжением (для встройки)';
+                } else {
+                    decoding[0] = 'Электродвигатель встроенный (для встройки)';
+                }
+                const motorMatch = sku.match(/AIRVS?(\d{3})([A-B]?)(\d)/);
+                if (motorMatch) {
+                    const frameSize = motorMatch[1];
+                    const lengthCode = motorMatch[2] || '';
+                    const polesCode = motorMatch[3];
+                    
+                    decoding.push(`Габарит ${frameSize} мм`);
+                    if (lengthCode && suffixes[lengthCode]) {
+                        decoding.push(suffixes[lengthCode]);
+                    }
+                    if (poles[polesCode]) {
+                        decoding.push(poles[polesCode]);
+                    }
                 }
             }
             
@@ -707,11 +827,66 @@ try {
         }
         
         function viewProduct(productId) {
+            // Показываем модальное окно с индикатором загрузки
             openModal('viewProductModal');
-            // Redirect after a short delay to show the modal first
-            setTimeout(function() {
-            window.location.href = `index.php?action=view=&product_id=${productId}`;
-            }, 300);
+            document.querySelector('#viewProductModal .modal-body').innerHTML = '<p class="text-muted" style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> Загрузка информации о продукте...</p>';
+            
+            // Загружаем данные через AJAX
+            fetch(`index.php?action=view&product_id=${productId}&ajax=1`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderProductModal(data.product);
+                    } else {
+                        document.querySelector('#viewProductModal .modal-body').innerHTML = '<p class="text-muted" style="text-align: center; padding: 40px; color: var(--error-color);">Ошибка загрузки данных</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.querySelector('#viewProductModal .modal-body').innerHTML = '<p class="text-muted" style="text-align: center; padding: 40px; color: var(--error-color);">Ошибка загрузки данных</p>';
+                });
+        }
+        
+        function renderProductModal(product) {
+            const skuDecoding = decodeSKU(product.product_code);
+            
+            let specsHtml = '';
+            if (product.specifications && Object.keys(product.specifications).length > 0) {
+                specsHtml = '<table style="width: 100%; border-collapse: collapse;">';
+                for (const [key, value] of Object.entries(product.specifications)) {
+                    specsHtml += `<tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 8px; font-weight: bold;">${key}</td>
+                        <td style="padding: 8px;">${value}</td>
+                    </tr>`;
+                }
+                specsHtml += '</table>';
+            } else {
+                specsHtml = '<p class="text-muted">Характеристики не указаны</p>';
+            }
+            
+            const html = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h3>${product.product_name}</h3>
+                        <p><strong>Артикул:</strong> ${product.product_code}</p>
+                        <p><strong>Расшифровка артикула:</strong> <span style="color: var(--primary-color); font-weight: bold;">${skuDecoding}</span></p>
+                        <p><strong>Категория:</strong> ${product.category_name || 'Не указана'}</p>
+                        <p><strong>Цена:</strong> ${parseFloat(product.base_price).toFixed(2)} BYN</p>
+                        <p><strong>Остаток на складе:</strong> ${product.stock_quantity} шт.</p>
+                        <p><strong>Вес:</strong> ${product.weight || 'Н/Д'} кг</p>
+                    </div>
+                    <div>
+                        <h4>Характеристики</h4>
+                        ${specsHtml}
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h4>Описание</h4>
+                    <p>${product.description ? product.description.replace(/\\n/g, '<br>') : 'Описание отсутствует'}</p>
+                </div>
+            `;
+            
+            document.querySelector('#viewProductModal .modal-body').innerHTML = html;
         }
         
         function deleteProduct(productId, productName) {
@@ -768,7 +943,8 @@ try {
                 const productCode = row.cells[0].textContent.toLowerCase();
                 const productName = row.cells[1].textContent.toLowerCase();
                 const category = row.dataset.category;
-                const specs = row.dataset.specs ? JSON.parse(row.dataset.specs) : {};
+                const productData = row.dataset.product ? JSON.parse(row.dataset.product) : {};
+                const specs = productData.specifications || {};
                 
                 // Extract power, speed, frame from specs
                 const powerStr = specs['Мощность'] || specs['мощность'] || '';
