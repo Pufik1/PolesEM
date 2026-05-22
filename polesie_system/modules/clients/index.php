@@ -19,6 +19,80 @@ if (!hasRole(['admin', 'director', 'manager'])) {
 $pdo = getDBConnection();
 $error = '';
 $success = '';
+$editClient = null;
+
+// Handle client addition
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(['admin', 'manager'])) {
+    try {
+        if ($_POST['action'] === 'add') {
+            $clientCode = trim($_POST['client_code']);
+            $companyName = trim($_POST['company_name']);
+            $contactPerson = trim($_POST['contact_person']);
+            $inn = trim($_POST['inn']);
+            $phone = trim($_POST['phone']);
+            $email = trim($_POST['email']);
+            $address = trim($_POST['address']);
+            $discountPercent = (float)$_POST['discount_percent'];
+            
+            $stmt = $pdo->prepare("INSERT INTO clients (client_code, company_name, contact_person, inn, phone, email, address, discount_percent) 
+                                   VALUES (:client_code, :company_name, :contact_person, :inn, :phone, :email, :address, :discount_percent)");
+            $stmt->execute([
+                ':client_code' => $clientCode,
+                ':company_name' => $companyName,
+                ':contact_person' => $contactPerson,
+                ':inn' => $inn,
+                ':phone' => $phone,
+                ':email' => $email,
+                ':address' => $address,
+                ':discount_percent' => $discountPercent
+            ]);
+            
+            $newClientId = $pdo->lastInsertId();
+            logActivity($pdo, $_SESSION['user_id'], 'client_created', 'clients', $newClientId);
+            $success = 'Клиент успешно добавлен';
+            
+        } elseif ($_POST['action'] === 'edit') {
+            $clientId = (int)$_POST['client_id'];
+            $companyName = trim($_POST['company_name']);
+            $contactPerson = trim($_POST['contact_person']);
+            $inn = trim($_POST['inn']);
+            $phone = trim($_POST['phone']);
+            $email = trim($_POST['email']);
+            $address = trim($_POST['address']);
+            $discountPercent = (float)$_POST['discount_percent'];
+            
+            $stmt = $pdo->prepare("UPDATE clients SET company_name = :company_name, contact_person = :contact_person, 
+                                   inn = :inn, phone = :phone, email = :email, address = :address, discount_percent = :discount_percent 
+                                   WHERE id = :id");
+            $stmt->execute([
+                ':id' => $clientId,
+                ':company_name' => $companyName,
+                ':contact_person' => $contactPerson,
+                ':inn' => $inn,
+                ':phone' => $phone,
+                ':email' => $email,
+                ':address' => $address,
+                ':discount_percent' => $discountPercent
+            ]);
+            
+            logActivity($pdo, $_SESSION['user_id'], 'client_updated', 'clients', $clientId);
+            $success = 'Данные клиента успешно обновлены';
+        }
+        
+        // Refresh the page to avoid form resubmission
+        header('Location: ' . $_SERVER['PHP_SELF'] . '?success=' . urlencode($success));
+        exit;
+        
+    } catch (PDOException $e) {
+        $error = 'Ошибка при сохранении данных клиента';
+        error_log($e->getMessage());
+    }
+}
+
+// Handle success message from redirect
+if (isset($_GET['success'])) {
+    $success = $_GET['success'];
+}
 
 // Handle client deletion
 if (isset($_GET['delete']) && hasRole(['admin', 'manager'])) {
@@ -30,6 +104,32 @@ if (isset($_GET['delete']) && hasRole(['admin', 'manager'])) {
         $success = 'Клиент успешно деактивирован';
     } catch (PDOException $e) {
         $error = 'Ошибка при удалении клиента';
+        error_log($e->getMessage());
+    }
+}
+
+// Handle edit mode - load client data
+if (isset($_GET['edit']) && hasRole(['admin', 'manager'])) {
+    try {
+        $clientId = (int)$_GET['edit'];
+        $stmt = $pdo->prepare("SELECT * FROM clients WHERE id = :id");
+        $stmt->execute([':id' => $clientId]);
+        $editClient = $stmt->fetch();
+    } catch (PDOException $e) {
+        $error = 'Ошибка загрузки данных клиента';
+        error_log($e->getMessage());
+    }
+}
+
+// Handle view mode - load client data
+if (isset($_GET['view'])) {
+    try {
+        $clientId = (int)$_GET['view'];
+        $stmt = $pdo->prepare("SELECT * FROM clients WHERE id = :id");
+        $stmt->execute([':id' => $clientId]);
+        $viewClient = $stmt->fetch();
+    } catch (PDOException $e) {
+        $error = 'Ошибка загрузки данных клиента';
         error_log($e->getMessage());
     }
 }
@@ -165,16 +265,20 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                             <td><?php echo $client['discount_percent']; ?>%</td>
                                             <td>
                                                 <div class="action-buttons">
-                                                    <button class="btn btn-sm btn-icon btn-primary" title="Просмотр">
+                                                    <a href="?view=<?php echo $client['id']; ?>" 
+                                                       class="btn btn-sm btn-icon btn-primary" 
+                                                       title="Просмотр">
                                                         <i class="fas fa-eye"></i>
-                                                    </button>
+                                                    </a>
                                                     <?php if (hasRole(['admin', 'manager'])): ?>
-                                                        <button class="btn btn-sm btn-icon btn-secondary" title="Редактировать">
+                                                        <a href="?edit=<?php echo $client['id']; ?>" 
+                                                           class="btn btn-sm btn-icon btn-secondary" 
+                                                           title="Редактировать">
                                                             <i class="fas fa-edit"></i>
-                                                        </button>
+                                                        </a>
                                                         <a href="?delete=<?php echo $client['id']; ?>" 
                                                            class="btn btn-sm btn-icon btn-danger"
-                                                           onclick="return confirm('Вы уверены?')"
+                                                           onclick="return confirm('Вы уверены, что хотите деактивировать клиента?')"
                                                            title="Деактивировать">
                                                             <i class="fas fa-trash"></i>
                                                         </a>
@@ -200,6 +304,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                 <button class="modal-close">&times;</button>
             </div>
             <form method="POST" action="">
+                <input type="hidden" name="action" value="add">
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="client_code">Код клиента *</label>
@@ -249,6 +354,151 @@ $initials = strtoupper(substr($userFullName, 0, 1));
         </div>
     </div>
     
+    <!-- Edit Client Modal -->
+    <?php if ($editClient): ?>
+    <div id="editClientModal" class="modal" style="display: block;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Редактировать клиента</h2>
+                <a href="index.php" class="modal-close">&times;</a>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" name="client_id" value="<?php echo $editClient['id']; ?>">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="edit_client_code">Код клиента</label>
+                        <input type="text" id="edit_client_code" value="<?php echo htmlspecialchars($editClient['client_code']); ?>" disabled>
+                        <small style="color: var(--text-light);">Код клиента нельзя изменить</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_company_name">Название компании</label>
+                        <input type="text" id="edit_company_name" name="company_name" value="<?php echo htmlspecialchars($editClient['company_name'] ?? ''); ?>">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_contact_person">Контактное лицо</label>
+                        <input type="text" id="edit_contact_person" name="contact_person" value="<?php echo htmlspecialchars($editClient['contact_person'] ?? ''); ?>">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_inn">УНП/ИНН</label>
+                        <input type="text" id="edit_inn" name="inn" value="<?php echo htmlspecialchars($editClient['inn'] ?? ''); ?>">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_phone">Телефон</label>
+                        <input type="text" id="edit_phone" name="phone" value="<?php echo htmlspecialchars($editClient['phone'] ?? ''); ?>">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_email">Email</label>
+                        <input type="email" id="edit_email" name="email" value="<?php echo htmlspecialchars($editClient['email'] ?? ''); ?>">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_address">Адрес</label>
+                        <textarea id="edit_address" name="address" rows="3"><?php echo htmlspecialchars($editClient['address'] ?? ''); ?></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit_discount_percent">Скидка (%)</label>
+                        <input type="number" id="edit_discount_percent" name="discount_percent" min="0" max="100" value="<?php echo $editClient['discount_percent']; ?>">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="?view=<?php echo $editClient['id']; ?>" class="btn btn-secondary">Отмена</a>
+                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+    
+    <!-- View Client Modal -->
+    <?php if (isset($viewClient) && $viewClient): ?>
+    <div id="viewClientModal" class="modal" style="display: block;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Информация о клиенте</h2>
+                <a href="index.php" class="modal-close">&times;</a>
+            </div>
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <p><strong>Код клиента:</strong></p>
+                        <p><?php echo htmlspecialchars($viewClient['client_code']); ?></p>
+                    </div>
+                    <div>
+                        <p><strong>Компания:</strong></p>
+                        <p><?php echo htmlspecialchars($viewClient['company_name'] ?? 'Не указано'); ?></p>
+                    </div>
+                    <div>
+                        <p><strong>Контактное лицо:</strong></p>
+                        <p><?php echo htmlspecialchars($viewClient['contact_person'] ?? 'Не указано'); ?></p>
+                    </div>
+                    <div>
+                        <p><strong>УНП/ИНН:</strong></p>
+                        <p><?php echo htmlspecialchars($viewClient['inn'] ?? 'Не указано'); ?></p>
+                    </div>
+                    <div>
+                        <p><strong>Телефон:</strong></p>
+                        <p><?php echo htmlspecialchars($viewClient['phone'] ?? 'Не указано'); ?></p>
+                    </div>
+                    <div>
+                        <p><strong>Email:</strong></p>
+                        <p><?php echo htmlspecialchars($viewClient['email'] ?? 'Не указано'); ?></p>
+                    </div>
+                    <div>
+                        <p><strong>Скидка:</strong></p>
+                        <p><?php echo $viewClient['discount_percent']; ?>%</p>
+                    </div>
+                    <div>
+                        <p><strong>Дата создания:</strong></p>
+                        <p><?php echo date('d.m.Y H:i', strtotime($viewClient['created_at'])); ?></p>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <p><strong>Адрес:</strong></p>
+                    <p><?php echo htmlspecialchars($viewClient['address'] ?? 'Не указано'); ?></p>
+                </div>
+                <?php if (hasRole(['admin', 'manager'])): ?>
+                <div style="margin-top: 30px; text-align: right;">
+                    <a href="?edit=<?php echo $viewClient['id']; ?>" class="btn btn-primary">
+                        <i class="fas fa-edit"></i> Редактировать
+                    </a>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+    
     <script src="../../assets/js/main.js"></script>
+    <script>
+        // Close modal when clicking on X button
+        document.querySelectorAll('.modal-close').forEach(button => {
+            button.addEventListener('click', function() {
+                const modal = this.closest('.modal');
+                if (modal.id === 'editClientModal' || modal.id === 'viewClientModal') {
+                    window.location.href = 'index.php';
+                } else {
+                    modal.style.display = 'none';
+                }
+            });
+        });
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                if (event.target.id === 'editClientModal' || event.target.id === 'viewClientModal') {
+                    window.location.href = 'index.php';
+                } else {
+                    event.target.style.display = 'none';
+                }
+            }
+        }
+    </script>
 </body>
 </html>
