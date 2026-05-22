@@ -486,8 +486,16 @@ INSERT INTO roles (role_name, role_description, permissions) VALUES
 ('hr_manager', 'HR-менеджер - кадры, отпуска, больничные, табель учета рабочего времени', '{"hr": true, "employees": true, "schedule": true}');
 
 -- Insert default admin user (password: admin123)
+-- Insert users with different roles for demonstration
 INSERT INTO users (username, password, full_name, email, role_id, department, position) VALUES
-('admin', 'admin123', 'Администратор Системы', 'admin@polesieelectromash.by', 1, 'IT отдел', 'Системный администратор');
+('admin', 'admin123', 'Администратор Системы', 'admin@polesieelectromash.by', 1, 'IT отдел', 'Системный администратор'),
+('petrov', 'petrov123', 'Петров Иван Сергеевич', 'petrov@polesieelectromash.by', 2, 'Производство', 'Начальник производства'),
+('sidorov', 'sidorov123', 'Сидоров Петр Александрович', 'sidorov@polesieelectromash.by', 3, 'Плановый отдел', 'Плановик'),
+('ivanov', 'ivanov123', 'Иванов Дмитрий Николаевич', 'ivanov@polesieelectromash.by', 5, 'ОТК', 'Инспектор ОТК'),
+('smirnova', 'smirnova123', 'Смирнова Елена Владимировна', 'smirnova@polesieelectromash.by', 5, 'ОТК', 'Старший инспектор ОТК'),
+('kozlov', 'kozlov123', 'Козлов Андрей Михайлович', 'kozlov@polesieelectromash.by', 4, 'Склад', 'Заведующий складом'),
+('novikov', 'novikov123', 'Новиков Сергей Павлович', 'novikov@polesieelectromash.by', 6, 'Производство', 'Мастер участка №1'),
+('morozov', 'morozov123', 'Морозов Владимир Иванович', 'morozov@polesieelectromash.by', 7, 'Производство', 'Рабочий-станочник 5 разряда');
 
 -- Insert product categories based on company info
 INSERT INTO product_categories (category_name, description) VALUES
@@ -582,9 +590,9 @@ INSERT INTO production_order_operations (production_order_id, operation_id, sequ
 
 -- Sample quality control records for demonstration
 INSERT INTO quality_control (production_order_id, route_sheet_id, inspection_date, inspector_id, inspected_quantity, passed_quantity, rejected_quantity, inspection_result, certificate_number, notes) VALUES
-(1, 2, DATE_SUB(NOW(), INTERVAL 3 DAY), 2, 50, 48, 2, 'conditional', 'ОТК-2024-001', 'Выявлено 2 дефекта - трещины в корпусе'),
-(1, 4, NOW(), 2, 40, 40, 0, 'passed', NULL, 'Промежуточный контроль - замечаний нет');
+(1, 2, DATE_SUB(NOW(), INTERVAL 3 DAY), 4, 50, 48, 2, 'conditional', 'ОТК-2024-001', 'Выявлено 2 дефекта - трещины в корпусе'),
+(1, 4, NOW(), 5, 40, 40, 0, 'passed', NULL, 'Промежуточный контроль - замечаний нет');
 
 -- Sample defect log entries
 INSERT INTO defect_log (quality_control_id, defect_type_id, quantity, description, created_by) VALUES
-(1, 2, 2, 'Обнаружены сквозные трещины в литых корпусах при визуальном контроле', 2);
+(1, 2, 2, 'Обнаружены сквозные трещины в литых корпусах при визуальном контроле', 4);
