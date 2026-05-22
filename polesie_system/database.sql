@@ -339,10 +339,10 @@ CREATE TABLE production_materials (
 );
 
 -- Quality control / ОТК
-CREATE TABLE quality_control (
+CREATE TABLE IF NOT EXISTS quality_control (
     id INT AUTO_INCREMENT PRIMARY KEY,
     production_order_id INT NOT NULL,
-    operation_id INT,
+    route_sheet_id INT,
     inspection_date DATETIME NOT NULL,
     inspector_id INT NOT NULL,
     inspected_quantity INT NOT NULL,
@@ -351,11 +351,13 @@ CREATE TABLE quality_control (
     defect_types JSON COMMENT 'Типы дефектов',
     inspection_result ENUM('passed', 'failed', 'conditional') DEFAULT 'passed',
     certificate_number VARCHAR(50),
+    next_operation_id INT,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (production_order_id) REFERENCES production_orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (operation_id) REFERENCES technological_operations(id) ON DELETE SET NULL,
-    FOREIGN KEY (inspector_id) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (route_sheet_id) REFERENCES production_order_operations(id) ON DELETE SET NULL,
+    FOREIGN KEY (inspector_id) REFERENCES users(id) ON DELETE RESTRICT,
+    FOREIGN KEY (next_operation_id) REFERENCES technological_operations(id) ON DELETE SET NULL
 );
 
 -- Shift tasks for workers (Сменные задания)
@@ -403,7 +405,7 @@ CREATE TABLE production_completion_acts (
 );
 
 -- Defect types reference
-CREATE TABLE defect_types (
+CREATE TABLE IF NOT EXISTS defect_types (
     id INT AUTO_INCREMENT PRIMARY KEY,
     defect_code VARCHAR(50) NOT NULL UNIQUE,
     defect_name VARCHAR(200) NOT NULL,
@@ -411,6 +413,20 @@ CREATE TABLE defect_types (
     description TEXT,
     is_active TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Defect log - журнал дефектов по результатам ОТК
+CREATE TABLE IF NOT EXISTS defect_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    quality_control_id INT NOT NULL,
+    defect_type_id INT NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    description TEXT,
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (quality_control_id) REFERENCES quality_control(id) ON DELETE CASCADE,
+    FOREIGN KEY (defect_type_id) REFERENCES defect_types(id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Warehouse operations table
@@ -563,3 +579,12 @@ INSERT INTO production_order_operations (production_order_id, operation_id, sequ
 (1, 8, 8, 'pending', DATE_ADD(NOW(), INTERVAL 3 DAY), DATE_ADD(NOW(), INTERVAL 3 DAY), 0, 0),
 (1, 9, 9, 'pending', DATE_ADD(NOW(), INTERVAL 4 DAY), DATE_ADD(NOW(), INTERVAL 4 DAY), 0, 0),
 (1, 10, 10, 'pending', DATE_ADD(NOW(), INTERVAL 5 DAY), DATE_ADD(NOW(), INTERVAL 5 DAY), 0, 0);
+
+-- Sample quality control records for demonstration
+INSERT INTO quality_control (production_order_id, route_sheet_id, inspection_date, inspector_id, inspected_quantity, passed_quantity, rejected_quantity, inspection_result, certificate_number, notes) VALUES
+(1, 2, DATE_SUB(NOW(), INTERVAL 3 DAY), 2, 50, 48, 2, 'conditional', 'ОТК-2024-001', 'Выявлено 2 дефекта - трещины в корпусе'),
+(1, 4, NOW(), 2, 40, 40, 0, 'passed', NULL, 'Промежуточный контроль - замечаний нет');
+
+-- Sample defect log entries
+INSERT INTO defect_log (quality_control_id, defect_type_id, quantity, description, created_by) VALUES
+(1, 2, 2, 'Обнаружены сквозные трещины в литых корпусах при визуальном контроле', 2);
