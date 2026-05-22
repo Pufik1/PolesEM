@@ -129,22 +129,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
             
         } elseif ($_POST['action'] === 'update_payment') {
             $orderId = (int)$_POST['order_id'];
-            $paymentStatus = $_POST['payment_status'];
             $paidAmount = (float)($_POST['paid_amount'] ?? 0);
             $paidDate = $_POST['paid_date'] ?: null;
             
-            // Get order total amount
-            $stmtOrder = $pdo->prepare("SELECT final_amount FROM orders WHERE id = :id");
+            // Get order total amount and check if invoice exists
+            $stmtOrder = $pdo->prepare("SELECT o.final_amount, 
+                                               (SELECT i.total_with_vat FROM invoices i WHERE i.order_id = o.id LIMIT 1) as total_with_vat
+                                        FROM orders o WHERE o.id = :id");
             $stmtOrder->execute([':id' => $orderId]);
             $order = $stmtOrder->fetch();
             
             if ($order) {
                 $finalAmount = (float)$order['final_amount'];
+                $totalWithVat = $order['total_with_vat'] ? (float)$order['total_with_vat'] : null;
+                
+                // Use total_with_vat if invoice exists, otherwise use final_amount
+                $compareAmount = $totalWithVat !== null ? $totalWithVat : $finalAmount;
                 
                 // Auto-determine payment status based on paid amount
                 if ($paidAmount <= 0) {
                     $paymentStatus = 'unpaid';
-                } elseif ($paidAmount >= $finalAmount) {
+                } elseif ($paidAmount >= $compareAmount) {
                     $paymentStatus = 'paid';
                 } else {
                     $paymentStatus = 'partial';
@@ -162,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 ':id' => $orderId
             ]);
             
-            // Update invoice if exists
+            // Update invoice if exists (use total_with_vat for comparison)
             $stmtInv = $pdo->prepare("UPDATE invoices SET paid_amount = :paid_amount, paid_date = :paid_date, 
                                       payment_status = :payment_status WHERE order_id = :order_id");
             $stmtInv->execute([
@@ -173,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
             ]);
             
             logActivity($pdo, $_SESSION['user_id'], 'order_payment_updated', 'orders', $orderId);
-            $success = 'Информация об оплате обновлена';
+            $success = 'Информация об оплате обновлена. Статус: ' . $paymentStatusLabels[$paymentStatus];
             
         } elseif ($_POST['action'] === 'create_invoice') {
             if (!hasRole(['admin', 'manager', 'accountant'])) {
@@ -1483,21 +1488,26 @@ $statusColors = [
                                 <input type="hidden" name="action" value="update_payment">
                                 <input type="hidden" name="order_id" value="<?php echo $orderId; ?>">
                                 <div class="modal-body">
-                                    <div class="form-group">
-                                        <label>Статус оплаты</label>
-                                        <select name="payment_status" class="form-control" required>
-                                            <option value="unpaid" <?php echo $viewOrder['payment_status'] == 'unpaid' ? 'selected' : ''; ?>>Не оплачен</option>
-                                            <option value="partial" <?php echo $viewOrder['payment_status'] == 'partial' ? 'selected' : ''; ?>>Частично оплачен</option>
-                                            <option value="paid" <?php echo $viewOrder['payment_status'] == 'paid' ? 'selected' : ''; ?>>Оплачен</option>
-                                        </select>
+                                    <?php if ($invoice): ?>
+                                    <div class="alert alert-info" style="margin-bottom: 15px; padding: 10px; background: #e7f3ff; border-left: 4px solid #2196F3;">
+                                        <strong>Сумма к оплате (с НДС):</strong> <?php echo number_format($invoice['total_with_vat'], 2, ',', ' '); ?> BYN<br>
+                                        <small>В том числе НДС 20%: <?php echo number_format($invoice['vat_amount'], 2, ',', ' '); ?> BYN</small>
                                     </div>
+                                    <?php else: ?>
+                                    <div class="alert alert-warning" style="margin-bottom: 15px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107;">
+                                        Счет-фактура еще не выставлен. Оплата регистрируется по сумме заказа: <?php echo number_format($viewOrder['final_amount'], 2, ',', ' '); ?> BYN
+                                    </div>
+                                    <?php endif; ?>
                                     <div class="form-group">
-                                        <label>Сумма оплаты</label>
-                                        <input type="number" step="0.01" name="paid_amount" class="form-control" value="<?php echo $invoice['paid_amount'] ?? 0; ?>">
+                                        <label>Сумма оплаты (BYN)</label>
+                                        <input type="number" step="0.01" name="paid_amount" class="form-control" 
+                                               value="<?php echo $invoice['paid_amount'] ?? $viewOrder['paid_amount'] ?? 0; ?>" 
+                                               placeholder="Введите сумму оплаты" required>
+                                        <small style="color: #666;">Статус будет определен автоматически</small>
                                     </div>
                                     <div class="form-group">
                                         <label>Дата оплаты</label>
-                                        <input type="date" name="paid_date" class="form-control" value="<?php echo $invoice['paid_date'] ?? date('Y-m-d'); ?>">
+                                        <input type="date" name="paid_date" class="form-control" value="<?php echo $invoice['paid_date'] ?? $viewOrder['paid_date'] ?? date('Y-m-d'); ?>">
                                     </div>
                                 </div>
                                 <div class="modal-footer">
