@@ -405,7 +405,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                                             <button class="btn btn-sm btn-icon btn-success" 
                                                                     onclick="openPaymentModal(<?php echo $invoice['id']; ?>, '<?php echo htmlspecialchars($invoice['invoice_number']); ?>', <?php echo $invoice['total_with_vat']; ?>, <?php echo (float)($invoice['paid_amount'] ?? 0); ?>)"
                                                                     title="Зарегистрировать платеж">
-                                                                <i class="fas fa-ruble-sign"></i>
+                                                                <i class="fas fa-check"></i>
                                                             </button>
                                                         <?php endif; ?>
                                                     <?php endif; ?>
