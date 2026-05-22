@@ -1,0 +1,179 @@
+{
+  "metadata": {
+    "source_file": "Katalog-PEM.pdf",
+    "manufacturer": "ОАО «Полесьеэлектромаш»",
+    "generated_at": "2026-05-23",
+    "notes": [
+      "Все параметры взяты строго из предоставленного каталога.",
+      "Напряжение питания для трёхфазных двигателей: 380 В, частота: 50 Гц.",
+      "Класс защиты: IP55 (базовое), климатическое исполнение: У2 (по умолчанию).",
+      "Гарантия на электродвигатели: 24 месяца с ввода в эксплуатацию.",
+      "Перед загрузкой в учётную систему рекомендуется сверить допуски с отделом ОТК предприятия."
+    ]
+  },
+  "catalog": {
+    "raw_materials": [
+      {
+        "sku": "MAT-AL-AB87",
+        "name": "Алюминий вторичный в чушках",
+        "grade": "АВ87",
+        "gost": "ГОСТ 295-98",
+        "form": "чушка",
+        "application": "Раскисление стали, производство ферросплавов, алюминотермические процессы",
+        "storage_conditions": "Сухое помещение, защита от влаги, отдельно от агрессивных сред"
+      },
+      {
+        "sku": "MAT-AL-AB87F",
+        "name": "Алюминий вторичный гранулированный",
+        "grade": "АВ87Ф",
+        "gost": "ГОСТ 295-98",
+        "form": "гранула",
+        "application": "Алюминотермическое восстановление редкоземельных металлов, производство лигатур",
+        "storage_conditions": "Герметичная тара, влажность ≤60%"
+      },
+      {
+        "sku": "MAT-CI-L4",
+        "name": "Чугун литейный передельный",
+        "grade": "Л4",
+        "gost": "ГОСТ 4832-95",
+        "application": "Литьё корпусов, решёток, промышленных изделий",
+        "storage_conditions": "Открытая площадка под навесом, защита от коррозии"
+      },
+      {
+        "sku": "MAT-CI-L5",
+        "name": "Чугун литейный передельный",
+        "grade": "Л5",
+        "gost": "ГОСТ 4832-95",
+        "application": "Литьё корпусов, решёток, промышленных изделий",
+        "storage_conditions": "Аналогично Л4"
+      }
+    ],
+    "cast_iron_products": [
+      {"sku": "CI-GR-RU2", "name": "Колосниковая решетка РУ-2", "gost": "СТБ 726-2006", "size_mm": "200x300", "material": "серый чугун", "weight_kg": 3.5},
+      {"sku": "CI-GR-RU3", "name": "Колосниковая решетка РУ-3", "gost": "СТБ 726-2006", "size_mm": "200x350", "material": "серый чугун", "weight_kg": 5.5},
+      {"sku": "CI-GR-RU4", "name": "Колосниковая решетка РУ-4", "gost": "СТБ 726-2006", "size_mm": "400x200", "material": "серый чугун", "weight_kg": 6.0},
+      {"sku": "CI-GR-RD3", "name": "Колосниковая решетка РД-3", "gost": "СТБ 726-2006", "size_mm": "170x240", "material": "серый чугун", "weight_kg": 2.2},
+      {"sku": "CI-GR-RD6K", "name": "Колосниковая решетка РД-6К", "gost": "СТБ 726-2006", "size_mm": "250x380", "material": "серый чугун", "weight_kg": 5.2},
+      {"sku": "CI-GR-57L", "name": "Колосниковая решетка 57Л", "gost": "СТБ 726-2006", "size_mm": "240x415", "material": "серый чугун", "weight_kg": 6.5},
+      {"sku": "CI-GR-001", "name": "Решетка 001", "gost": "-", "size_mm": "496x300x34", "material": "серый чугун", "weight_kg": 14.2},
+      {"sku": "CI-GR-ANIM", "name": "Решетка животноводческая", "gost": "-", "size_mm": "420x310x60", "material": "серый чугун", "weight_kg": 20.0},
+      {"sku": "CI-DR-GRILL", "name": "Решетка дождеприемника", "gost": "СТБ 3634-99", "size_mm": "400x800x40", "material": "серый чугун", "weight_kg": null},
+      {"sku": "CI-DR-ASSY", "name": "Дождеприемник в сборе", "gost": "СТБ 3634-99", "size_mm": "500x1000", "material": "серый чугун", "weight_kg": 105.0},
+      {"sku": "CI-MH-L-V15", "name": "Люк легкий типа Л (В15)", "gost": "ГОСТ 3634-99", "size_mm": "-", "material": "серый чугун", "weight_kg": 71.9},
+      {"sku": "CI-FL-PLATE", "name": "Плита половая", "gost": "-", "size_mm": "300x420x27", "material": "серый чугун", "weight_kg": null},
+      {"sku": "CI-BALLS", "name": "Цильпебсы, шары мелющие", "gost": "ТУ предприятия", "size_mm": "⌀20–100", "material": "серый чугун", "weight_kg": null}
+    ],
+    "electric_motors": {
+      "general_purpose_AIR": [
+        {"sku": "AIR71A2", "power_kw": 0.55, "rpm": 3000, "efficiency_pct": 74.0, "cos_phi": 0.78, "weight_kg": 10.2, "frame_size_mm": 71},
+        {"sku": "AIR71B2", "power_kw": 0.75, "rpm": 3000, "efficiency_pct": 75.0, "cos_phi": 0.80, "weight_kg": 10.5, "frame_size_mm": 71},
+        {"sku": "AIR71A4", "power_kw": 0.37, "rpm": 1500, "efficiency_pct": 69.0, "cos_phi": 0.63, "weight_kg": 9.7, "frame_size_mm": 71},
+        {"sku": "AIR71B4", "power_kw": 0.55, "rpm": 1500, "efficiency_pct": 71.0, "cos_phi": 0.71, "weight_kg": 10.2, "frame_size_mm": 71},
+        {"sku": "AIR71A6", "power_kw": 0.25, "rpm": 1000, "efficiency_pct": 64.0, "cos_phi": 0.55, "weight_kg": 9.2, "frame_size_mm": 71},
+        {"sku": "AIR71B6", "power_kw": 0.55, "rpm": 1000, "efficiency_pct": 69.0, "cos_phi": 0.68, "weight_kg": 10.8, "frame_size_mm": 71},
+        {"sku": "AIR80A2", "power_kw": 1.5, "rpm": 3000, "efficiency_pct": 81.3, "cos_phi": 0.84, "weight_kg": 13.3, "frame_size_mm": 80},
+        {"sku": "AIR80B2", "power_kw": 2.2, "rpm": 3000, "efficiency_pct": 83.2, "cos_phi": 0.85, "weight_kg": 15.9, "frame_size_mm": 80},
+        {"sku": "AIR80A4", "power_kw": 1.1, "rpm": 1500, "efficiency_pct": 75.9, "cos_phi": 0.74, "weight_kg": 12.8, "frame_size_mm": 80},
+        {"sku": "AIR80B4", "power_kw": 1.5, "rpm": 1500, "efficiency_pct": 78.1, "cos_phi": 0.76, "weight_kg": 14.7, "frame_size_mm": 80},
+        {"sku": "AIR80A6", "power_kw": 0.75, "rpm": 1000, "efficiency_pct": 71.0, "cos_phi": 0.63, "weight_kg": 12.5, "frame_size_mm": 80},
+        {"sku": "AIR80B6", "power_kw": 1.1, "rpm": 1000, "efficiency_pct": 75.0, "cos_phi": 0.66, "weight_kg": 16.2, "frame_size_mm": 80},
+        {"sku": "AIR90L2", "power_kw": 3.0, "rpm": 3000, "efficiency_pct": 84.5, "cos_phi": 0.85, "weight_kg": 20.6, "frame_size_mm": 90},
+        {"sku": "AIR90LB2", "power_kw": 4.0, "rpm": 3000, "efficiency_pct": 86.5, "cos_phi": 0.86, "weight_kg": 23.4, "frame_size_mm": 90},
+        {"sku": "AIR90L4", "power_kw": 2.2, "rpm": 1500, "efficiency_pct": 80.3, "cos_phi": 0.81, "weight_kg": 19.7, "frame_size_mm": 90},
+        {"sku": "AIR90LB4", "power_kw": 3.0, "rpm": 1500, "efficiency_pct": 87.0, "cos_phi": 0.82, "weight_kg": 24.1, "frame_size_mm": 90},
+        {"sku": "AIR90L6", "power_kw": 1.5, "rpm": 1000, "efficiency_pct": 76.0, "cos_phi": 0.71, "weight_kg": 20.6, "frame_size_mm": 90},
+        {"sku": "AIR90LA8", "power_kw": 0.75, "rpm": 750, "efficiency_pct": 72.5, "cos_phi": 0.63, "weight_kg": 19.5, "frame_size_mm": 90},
+        {"sku": "AIR90LB8", "power_kw": 1.1, "rpm": 750, "efficiency_pct": 76.0, "cos_phi": 0.66, "weight_kg": 22.3, "frame_size_mm": 90},
+        {"sku": "AIR100S2", "power_kw": 4.0, "rpm": 3000, "efficiency_pct": 86.5, "cos_phi": 0.86, "weight_kg": 23.6, "frame_size_mm": 100},
+        {"sku": "AIR100S4", "power_kw": 3.0, "rpm": 1500, "efficiency_pct": 81.5, "cos_phi": 0.81, "weight_kg": 25.8, "frame_size_mm": 100},
+        {"sku": "AIR100L4", "power_kw": 4.0, "rpm": 1500, "efficiency_pct": 83.1, "cos_phi": 0.80, "weight_kg": 26.1, "frame_size_mm": 100},
+        {"sku": "AIR100L6", "power_kw": 2.2, "rpm": 1000, "efficiency_pct": 78.0, "cos_phi": 0.74, "weight_kg": 25.1, "frame_size_mm": 100},
+        {"sku": "AIR100L2", "power_kw": 5.5, "rpm": 3000, "efficiency_pct": 87.5, "cos_phi": 0.88, "weight_kg": 31.0, "frame_size_mm": 100},
+        {"sku": "AIR112M2", "power_kw": 7.5, "rpm": 3000, "efficiency_pct": 87.5, "cos_phi": 0.89, "weight_kg": 37.0, "frame_size_mm": 112},
+        {"sku": "AIR112M4", "power_kw": 5.5, "rpm": 1500, "efficiency_pct": 85.0, "cos_phi": 0.86, "weight_kg": 38.5, "frame_size_mm": 112},
+        {"sku": "AIR112MA6", "power_kw": 3.0, "rpm": 1000, "efficiency_pct": 83.0, "cos_phi": 0.72, "weight_kg": 35.9, "frame_size_mm": 112},
+        {"sku": "AIR112MB6", "power_kw": 4.0, "rpm": 1000, "efficiency_pct": 84.5, "cos_phi": 0.75, "weight_kg": 41.0, "frame_size_mm": 112},
+        {"sku": "AIR112MA8", "power_kw": 2.2, "rpm": 750, "efficiency_pct": 77.2, "cos_phi": 0.63, "weight_kg": 35.3, "frame_size_mm": 112},
+        {"sku": "AIR112MB8", "power_kw": 3.0, "rpm": 750, "efficiency_pct": 76.5, "cos_phi": 0.66, "weight_kg": 40.0, "frame_size_mm": 112}
+      ],
+      "high_slip_AIRS": [
+        {"sku": "AIRS80A2", "power_kw": 1.5, "rpm": 3000, "efficiency_pct": 74.0, "cos_phi": 0.78, "weight_kg": 13.1, "frame_size_mm": 80, "note": "Тяжелый пуск, высокое скольжение"},
+        {"sku": "AIRS80B2", "power_kw": 2.2, "rpm": 3000, "efficiency_pct": 73.0, "cos_phi": 0.85, "weight_kg": 15.9, "frame_size_mm": 80},
+        {"sku": "AIRS80A4", "power_kw": 1.1, "rpm": 1500, "efficiency_pct": 79.0, "cos_phi": 0.83, "weight_kg": 12.8, "frame_size_mm": 80},
+        {"sku": "AIRS80B4", "power_kw": 1.5, "rpm": 1500, "efficiency_pct": 78.0, "cos_phi": 0.86, "weight_kg": 14.7, "frame_size_mm": 80},
+        {"sku": "AIRS80A6", "power_kw": 0.75, "rpm": 1000, "efficiency_pct": 74.0, "cos_phi": 0.68, "weight_kg": 12.5, "frame_size_mm": 80},
+        {"sku": "AIRS80B6", "power_kw": 1.1, "rpm": 1000, "efficiency_pct": 74.0, "cos_phi": 0.85, "weight_kg": 16.2, "frame_size_mm": 80},
+        {"sku": "AIRS90L2", "power_kw": 3.0, "rpm": 3000, "efficiency_pct": 84.6, "cos_phi": 0.88, "weight_kg": 21.3, "frame_size_mm": 90},
+        {"sku": "AIRS90LB2", "power_kw": 4.0, "rpm": 3000, "efficiency_pct": 84.5, "cos_phi": 0.89, "weight_kg": 24.5, "frame_size_mm": 90},
+        {"sku": "AIRS90L4", "power_kw": 2.2, "rpm": 1500, "efficiency_pct": 80.3, "cos_phi": 0.81, "weight_kg": 20.4, "frame_size_mm": 90},
+        {"sku": "AIRS90LB4", "power_kw": 3.0, "rpm": 1500, "efficiency_pct": 87.0, "cos_phi": 0.82, "weight_kg": 23.8, "frame_size_mm": 90},
+        {"sku": "AIRS90L6", "power_kw": 1.5, "rpm": 1000, "efficiency_pct": 76.0, "cos_phi": 0.71, "weight_kg": 20.6, "frame_size_mm": 90},
+        {"sku": "AIRS90LA8", "power_kw": 0.75, "rpm": 750, "efficiency_pct": 72.5, "cos_phi": 0.63, "weight_kg": 19.5, "frame_size_mm": 90},
+        {"sku": "AIRS90LB8", "power_kw": 1.1, "rpm": 750, "efficiency_pct": 76.0, "cos_phi": 0.66, "weight_kg": 21.5, "frame_size_mm": 90},
+        {"sku": "AIRS100S2", "power_kw": 4.0, "rpm": 3000, "efficiency_pct": 86.5, "cos_phi": 0.86, "weight_kg": 25.0, "frame_size_mm": 100},
+        {"sku": "AIRS100S4", "power_kw": 3.0, "rpm": 1500, "efficiency_pct": 81.5, "cos_phi": 0.81, "weight_kg": 26.0, "frame_size_mm": 100}
+      ],
+      "single_phase_AIRE": [
+        {"sku": "AIRE71A2", "power_kw": 0.37, "rpm": 3000, "voltage_v": 220, "efficiency_pct": 75.0, "cos_phi": 0.90, "capacitor_mkF": 12, "weight_kg": 10.2, "frame_size_mm": 71},
+        {"sku": "AIRE71B2", "power_kw": 0.55, "rpm": 3000, "voltage_v": 220, "efficiency_pct": 71.0, "cos_phi": 0.90, "capacitor_mkF": 16, "weight_kg": 10.5, "frame_size_mm": 71},
+        {"sku": "AIRE71C2", "power_kw": 0.75, "rpm": 3000, "voltage_v": 220, "efficiency_pct": 70.0, "cos_phi": 0.90, "capacitor_mkF": 18, "weight_kg": 10.8, "frame_size_mm": 71},
+        {"sku": "AIRE71A4", "power_kw": 0.25, "rpm": 1500, "voltage_v": 220, "efficiency_pct": 64.0, "cos_phi": 0.90, "capacitor_mkF": 8, "weight_kg": 9.7, "frame_size_mm": 71},
+        {"sku": "AIRE71B4", "power_kw": 0.37, "rpm": 1500, "voltage_v": 220, "efficiency_pct": 69.0, "cos_phi": 0.90, "capacitor_mkF": 12, "weight_kg": 10.2, "frame_size_mm": 71},
+        {"sku": "AIRE71C4", "power_kw": 0.55, "rpm": 1500, "voltage_v": 220, "efficiency_pct": 65.0, "cos_phi": 0.90, "capacitor_mkF": 16, "weight_kg": 10.6, "frame_size_mm": 71},
+        {"sku": "AIRE80A2", "power_kw": 0.75, "rpm": 3000, "voltage_v": 220, "efficiency_pct": 70.0, "cos_phi": 0.90, "capacitor_mkF": 25, "weight_kg": 13.3, "frame_size_mm": 80},
+        {"sku": "AIRE80B2", "power_kw": 1.1, "rpm": 3000, "voltage_v": 220, "efficiency_pct": 76.0, "cos_phi": 0.95, "capacitor_mkF": 30, "weight_kg": 15.9, "frame_size_mm": 80},
+        {"sku": "AIRE80C2", "power_kw": 1.5, "rpm": 3000, "voltage_v": 220, "efficiency_pct": 75.0, "cos_phi": 0.95, "capacitor_mkF": 40, "weight_kg": 16.5, "frame_size_mm": 80},
+        {"sku": "AIRE80C2_S6", "power_kw": 1.1, "rpm": 1000, "voltage_v": 220, "efficiency_pct": 74.0, "cos_phi": 0.95, "capacitor_mkF": 40, "weight_kg": 18.0, "frame_size_mm": 80},
+        {"sku": "AIRE80D2", "power_kw": 2.2, "rpm": 3000, "voltage_v": 220, "efficiency_pct": 74.0, "cos_phi": 0.95, "capacitor_mkF": 50, "weight_kg": 18.0, "frame_size_mm": 80},
+        {"sku": "AIRE80A4", "power_kw": 0.55, "rpm": 1500, "voltage_v": 220, "efficiency_pct": 64.0, "cos_phi": 0.88, "capacitor_mkF": 20, "weight_kg": 12.8, "frame_size_mm": 80},
+        {"sku": "AIRE80B4", "power_kw": 0.75, "rpm": 1500, "voltage_v": 220, "efficiency_pct": 71.0, "cos_phi": 0.95, "capacitor_mkF": 25, "weight_kg": 14.7, "frame_size_mm": 80},
+        {"sku": "AIRE80C4", "power_kw": 1.1, "rpm": 1500, "voltage_v": 220, "efficiency_pct": 71.0, "cos_phi": 0.95, "capacitor_mkF": 30, "weight_kg": 16.7, "frame_size_mm": 80},
+        {"sku": "AIRE90L2", "power_kw": 1.5, "rpm": 3000, "voltage_v": 220, "efficiency_pct": 76.0, "cos_phi": 0.92, "capacitor_mkF": 40, "weight_kg": 20.6, "frame_size_mm": 90}
+      ],
+      "poultry_AIRP": [
+        {"sku": "AIRP80A6", "power_kw": 0.37, "rpm": 1000, "efficiency_pct": 71.0, "cos_phi": 0.63, "weight_kg": 12.2, "frame_size_mm": 80, "protection": "IP55", "environment": "NH₃, H₂S, SO₂, HCl"},
+        {"sku": "AIRP80B6", "power_kw": 0.75, "rpm": 1000, "efficiency_pct": 75.0, "cos_phi": 0.74, "weight_kg": 14.0, "frame_size_mm": 80, "protection": "IP55", "environment": "NH₃, H₂S, SO₂, HCl"},
+        {"sku": "AIRP80C6", "power_kw": 1.1, "rpm": 1000, "efficiency_pct": 76.0, "cos_phi": 0.74, "weight_kg": 16.8, "frame_size_mm": 80, "protection": "IP55", "environment": "NH₃, H₂S, SO₂, HCl"}
+      ],
+      "two_speed_2AIR": [
+        {"sku": "2AIR80A2", "power_kw": "1.5/0.37", "rpm": "3000/1500", "efficiency_pct": "81.3/67.5", "cos_phi": "0.89/0.67", "weight_kg": 13.1, "frame_size_mm": 80},
+        {"sku": "2AIR80B2", "power_kw": "2.2/0.55", "rpm": "3000/1500", "efficiency_pct": "83.2/71.0", "cos_phi": "0.90/0.71", "weight_kg": 15.9, "frame_size_mm": 80},
+        {"sku": "2AIR80A6", "power_kw": "0.75/0.25", "rpm": "1000/750", "efficiency_pct": "71.0/62.0", "cos_phi": "0.67/0.53", "weight_kg": 12.5, "frame_size_mm": 80},
+        {"sku": "2AIR80B6", "power_kw": "1.1/0.37", "rpm": "1000/750", "efficiency_pct": "75.0/64.0", "cos_phi": "0.69/0.55", "weight_kg": 16.2, "frame_size_mm": 80},
+        {"sku": "2AIR90L2", "power_kw": "3.0/0.75", "rpm": "3000/1500", "efficiency_pct": "84.6/75.0", "cos_phi": "0.90/0.63", "weight_kg": 21.3, "frame_size_mm": 90},
+        {"sku": "2AIR90L4", "power_kw": "2.2/0.55", "rpm": "1500/750", "efficiency_pct": "84.5/74.0", "cos_phi": "0.84/0.64", "weight_kg": 20.9, "frame_size_mm": 90},
+        {"sku": "2AIR90L6", "power_kw": "1.5/0.37", "rpm": "1000/750", "efficiency_pct": "76.0/64.0", "cos_phi": "0.76/0.53", "weight_kg": 22.0, "frame_size_mm": 90},
+        {"sku": "2AIR100L2", "power_kw": "5.5/1.5", "rpm": "3000/1500", "efficiency_pct": "87.5/80.3", "cos_phi": "0.94/0.79", "weight_kg": 31.0, "frame_size_mm": 100},
+        {"sku": "2AIR100L4", "power_kw": "4.0/1.1", "rpm": "1500/750", "efficiency_pct": "86.9/78.0", "cos_phi": "0.79/0.53", "weight_kg": 25.1, "frame_size_mm": 100},
+        {"sku": "2AIR100L6", "power_kw": "2.2/0.55", "rpm": "1000/750", "efficiency_pct": "82.2/71.0", "cos_phi": "0.80/0.55", "weight_kg": 22.8, "frame_size_mm": 100}
+      ],
+      "railway_AIRCH": [
+        {"sku": "AIRCH80B4", "power_kw": 0.55, "rpm": 1500, "efficiency_pct": 67.5, "cos_phi": 0.78, "weight_kg": 13.3, "frame_size_mm": 80, "note": "Виброустойчивое, для ж/д транспорта"},
+        {"sku": "AIRCH80B6", "power_kw": 0.30, "rpm": 1000, "efficiency_pct": 71.0, "cos_phi": 0.71, "weight_kg": 14.0, "frame_size_mm": 80, "note": "Виброустойчивое, для ж/д транспорта"}
+      ],
+      "built_in_AIRV": [
+        {"sku": "AIRV100A2", "power_kw": 1.5, "rpm": 3000, "stator_d_mm": 160, "stator_l_mm": 130, "weight_kg": 16.4},
+        {"sku": "AIRVS100A2", "power_kw": 2.2, "rpm": 3000, "stator_d_mm": 160, "stator_l_mm": 130, "weight_kg": 16.4},
+        {"sku": "AIRV100A4", "power_kw": 1.1, "rpm": 1500, "stator_d_mm": 160, "stator_l_mm": 130, "weight_kg": 16.2},
+        {"sku": "AIRVS100A4", "power_kw": 1.5, "rpm": 1500, "stator_d_mm": 160, "stator_l_mm": 130, "weight_kg": 16.2},
+        {"sku": "AIRV100B4", "power_kw": 2.2, "rpm": 1500, "stator_d_mm": 176, "stator_l_mm": 150, "weight_kg": 19.2},
+        {"sku": "AIRV100B6", "power_kw": 1.5, "rpm": 1000, "stator_d_mm": 176, "stator_l_mm": 150, "weight_kg": 17.8},
+        {"sku": "AIRV100A8_4", "power_kw": "0.37/0.55", "rpm": "750/1500", "stator_d_mm": 160, "stator_l_mm": 130, "weight_kg": 15.5},
+        {"sku": "AIRV100A6_4", "power_kw": "0.75/1.1", "rpm": "1000/1500", "stator_d_mm": 160, "stator_l_mm": 130, "weight_kg": 15.9},
+        {"sku": "AIRV100B2", "power_kw": 3.0, "rpm": 3000, "stator_d_mm": 176, "stator_l_mm": 150, "weight_kg": 20.3}
+      ],
+      "special_mounts": [
+        {"sku": "AIR80A2_ZH", "power_kw": 1.5, "rpm": 3000, "weight_kg": 13.3, "note": "Вал из нерж. стали, торцевое уплотнение, для моноблочных насосов"},
+        {"sku": "AIR80B2_ZH", "power_kw": 2.2, "rpm": 3000, "weight_kg": 15.9, "note": "Защита от брызг, спецклеммник"},
+        {"sku": "AIR80B4_ZH", "power_kw": 1.5, "rpm": 1500, "weight_kg": 14.7, "note": "Уплотнение вала, коррозионностойкое покрытие"},
+        {"sku": "AIR90L2_ZH", "power_kw": 3.0, "rpm": 3000, "weight_kg": 20.6, "note": "Исполнение для насосов типа «моноблок»"},
+        {"sku": "AIR90L4_ZH", "power_kw": 2.2, "rpm": 1500, "weight_kg": 19.7, "note": "Спецфланец под насосный узел"},
+        {"sku": "AIR90L2_RZ", "power_kw": 3.0, "rpm": 3000, "weight_kg": 20.6, "note": "Спецвал, фланец под редуктор"},
+        {"sku": "AIR90L4_RZ", "power_kw": 2.2, "rpm": 1500, "weight_kg": 19.7, "note": "Укороченный вал (опция)"},
+        {"sku": "AIR90L6_RZ", "power_kw": 1.5, "rpm": 1000, "weight_kg": 20.6, "note": "Усиленный подшипниковый узел"},
+        {"sku": "AIR90LA8_RZ", "power_kw": 0.75, "rpm": 750, "weight_kg": 19.5, "note": "Фланец по чертежу заказчика"},
+        {"sku": "AIR90LB8_RZ", "power_kw": 1.1, "rpm": 750, "weight_kg": 22.3, "note": "Специсполнение вала"}
+      ]
+    }
+  }
+}
