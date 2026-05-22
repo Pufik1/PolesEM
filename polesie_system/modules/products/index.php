@@ -276,32 +276,49 @@ try {
                         </select>
                         <select id="powerFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
                             <option value="">Любая мощность</option>
-                            <option value="0-1">до 1 кВт</option>
-                            <option value="1-3">1-3 кВт</option>
-                            <option value="3-5">3-5 кВт</option>
-                            <option value="5-10">5-10 кВт</option>
-                            <option value="10+">более 10 кВт</option>
+                            <option value="0-0.5">до 0.5 кВт</option>
+                            <option value="0.5-1">0.5 - 1 кВт</option>
+                            <option value="1-3">1 - 3 кВт</option>
+                            <option value="3-5">3 - 5 кВт</option>
+                            <option value="5-10">5 - 10 кВт</option>
+                            <option value="10-20">10 - 20 кВт</option>
+                            <option value="20-50">20 - 50 кВт</option>
+                            <option value="50-100">50 - 100 кВт</option>
+                            <option value="100+">более 100 кВт</option>
                         </select>
                         <select id="speedFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
                             <option value="">Любая скорость</option>
-                            <option value="3000">3000 об/мин</option>
-                            <option value="1500">1500 об/мин</option>
-                            <option value="1000">1000 об/мин</option>
                             <option value="750">750 об/мин</option>
+                            <option value="1000">1000 об/мин</option>
+                            <option value="1500">1500 об/мин</option>
+                            <option value="3000">3000 об/мин</option>
                         </select>
                         <select id="frameFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
                             <option value="">Любой габарит</option>
+                            <option value="63">63</option>
                             <option value="71">71</option>
                             <option value="80">80</option>
                             <option value="90">90</option>
                             <option value="100">100</option>
                             <option value="112">112</option>
+                            <option value="132">132</option>
+                            <option value="160">160</option>
+                            <option value="180">180</option>
+                            <option value="200">200</option>
+                            <option value="225">225</option>
+                            <option value="250">250</option>
+                            <option value="280">280</option>
+                            <option value="315">315</option>
                         </select>
                         <select id="voltageFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
                             <option value="">Любое напряжение</option>
                             <option value="220">220 В</option>
                             <option value="380">380 В</option>
                             <option value="400">400 В</option>
+                            <option value="660">660 В</option>
+                            <option value="3000">3000 В</option>
+                            <option value="6000">6000 В</option>
+                            <option value="10000">10000 В</option>
                         </select>
                         <select id="frequencyFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
                             <option value="">Любая частота</option>
@@ -310,19 +327,22 @@ try {
                         </select>
                         <select id="cosPhiFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
                             <option value="">Любой cos φ</option>
-                            <option value="0.75">0.75</option>
-                            <option value="0.80">0.80</option>
-                            <option value="0.85">0.85</option>
-                            <option value="0.89">0.89</option>
-                            <option value="0.90">0.90</option>
+                            <option value="0.50-0.60">0.50 - 0.60</option>
+                            <option value="0.60-0.70">0.60 - 0.70</option>
+                            <option value="0.70-0.75">0.70 - 0.75</option>
+                            <option value="0.75-0.80">0.75 - 0.80</option>
+                            <option value="0.80-0.85">0.80 - 0.85</option>
+                            <option value="0.85-0.90">0.85 - 0.90</option>
+                            <option value="0.90+">более 0.90</option>
                         </select>
                         <select id="efficiencyFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
                             <option value="">Любой КПД</option>
-                            <option value="75">75%</option>
-                            <option value="80">80%</option>
-                            <option value="85">85%</option>
-                            <option value="87.5">87.5%</option>
-                            <option value="90">90%</option>
+                            <option value="60-70">60% - 70%</option>
+                            <option value="70-75">70% - 75%</option>
+                            <option value="75-80">75% - 80%</option>
+                            <option value="80-85">80% - 85%</option>
+                            <option value="85-90">85% - 90%</option>
+                            <option value="90+">более 90%</option>
                         </select>
                     </div>
                     
@@ -993,33 +1013,56 @@ try {
                 // Check category match
                 const matchesCategory = categoryFilter === '' || category === categoryFilter;
                 
-                // Check power match
+                // Check power match - диапазоны значений
                 let matchesPower = true;
                 if (powerFilter !== '') {
-                    if (powerFilter === '0-1') matchesPower = powerValue >= 0 && powerValue <= 1;
-                    else if (powerFilter === '1-3') matchesPower = powerValue > 1 && powerValue <= 3;
-                    else if (powerFilter === '3-5') matchesPower = powerValue > 3 && powerValue <= 5;
-                    else if (powerFilter === '5-10') matchesPower = powerValue > 5 && powerValue <= 10;
-                    else if (powerFilter === '10+') matchesPower = powerValue > 10;
+                    if (powerFilter === '0-0.5') matchesPower = powerValue >= 0 && powerValue < 0.5;
+                    else if (powerFilter === '0.5-1') matchesPower = powerValue >= 0.5 && powerValue < 1;
+                    else if (powerFilter === '1-3') matchesPower = powerValue >= 1 && powerValue < 3;
+                    else if (powerFilter === '3-5') matchesPower = powerValue >= 3 && powerValue < 5;
+                    else if (powerFilter === '5-10') matchesPower = powerValue >= 5 && powerValue < 10;
+                    else if (powerFilter === '10-20') matchesPower = powerValue >= 10 && powerValue < 20;
+                    else if (powerFilter === '20-50') matchesPower = powerValue >= 20 && powerValue < 50;
+                    else if (powerFilter === '50-100') matchesPower = powerValue >= 50 && powerValue < 100;
+                    else if (powerFilter === '100+') matchesPower = powerValue >= 100;
                 }
                 
-                // Check speed match
+                // Check speed match - точное совпадение
                 const matchesSpeed = speedFilter === '' || speedValue === parseInt(speedFilter);
                 
-                // Check frame match
+                // Check frame match - точное совпадение
                 const matchesFrame = frameFilter === '' || frameValue === frameFilter;
                 
-                // Check voltage match
+                // Check voltage match - точное совпадение
                 const matchesVoltage = voltageFilter === '' || voltageValue === voltageFilter;
                 
-                // Check frequency match
+                // Check frequency match - точное совпадение
                 const matchesFrequency = frequencyFilter === '' || frequencyValue === frequencyFilter;
                 
-                // Check cos phi match
-                const matchesCosPhi = cosPhiFilter === '' || cosPhiValue === cosPhiFilter;
+                // Check cos phi match - диапазоны значений
+                let matchesCosPhi = true;
+                if (cosPhiFilter !== '') {
+                    const productCosPhi = parseFloat(cosPhiValue);
+                    if (cosPhiFilter === '0.50-0.60') matchesCosPhi = productCosPhi >= 0.50 && productCosPhi < 0.60;
+                    else if (cosPhiFilter === '0.60-0.70') matchesCosPhi = productCosPhi >= 0.60 && productCosPhi < 0.70;
+                    else if (cosPhiFilter === '0.70-0.75') matchesCosPhi = productCosPhi >= 0.70 && productCosPhi < 0.75;
+                    else if (cosPhiFilter === '0.75-0.80') matchesCosPhi = productCosPhi >= 0.75 && productCosPhi < 0.80;
+                    else if (cosPhiFilter === '0.80-0.85') matchesCosPhi = productCosPhi >= 0.80 && productCosPhi < 0.85;
+                    else if (cosPhiFilter === '0.85-0.90') matchesCosPhi = productCosPhi >= 0.85 && productCosPhi < 0.90;
+                    else if (cosPhiFilter === '0.90+') matchesCosPhi = productCosPhi >= 0.90;
+                }
                 
-                // Check efficiency match
-                const matchesEfficiency = efficiencyFilter === '' || efficiencyValue === efficiencyFilter;
+                // Check efficiency match - диапазоны значений
+                let matchesEfficiency = true;
+                if (efficiencyFilter !== '') {
+                    const productEfficiency = parseFloat(efficiencyValue);
+                    if (efficiencyFilter === '60-70') matchesEfficiency = productEfficiency >= 60 && productEfficiency < 70;
+                    else if (efficiencyFilter === '70-75') matchesEfficiency = productEfficiency >= 70 && productEfficiency < 75;
+                    else if (efficiencyFilter === '75-80') matchesEfficiency = productEfficiency >= 75 && productEfficiency < 80;
+                    else if (efficiencyFilter === '80-85') matchesEfficiency = productEfficiency >= 80 && productEfficiency < 85;
+                    else if (efficiencyFilter === '85-90') matchesEfficiency = productEfficiency >= 85 && productEfficiency < 90;
+                    else if (efficiencyFilter === '90+') matchesEfficiency = productEfficiency >= 90;
+                }
                 
                 if (matchesSearch && matchesCategory && matchesPower && matchesSpeed && matchesFrame && 
                     matchesVoltage && matchesFrequency && matchesCosPhi && matchesEfficiency) {
