@@ -1,4 +1,1 @@
-```
-# Database files
-*.sql
-```
+Nothing should be ignored based on the provided file changes. The only modified file is a PHP source file (`polesie_system/modules/products/index.php`), which is a legitimate source code file that should not be ignored.

@@ -459,7 +459,6 @@ try {
         </div>
     </div>
     
-    <!-- Delete Confirmation Modal -->
     <!-- View Product Modal -->
     <div id="viewProductModal" class="modal">
         <div class="modal-content modal-large">
@@ -473,6 +472,7 @@ try {
                     <div>
                         <h3><?php echo htmlspecialchars($viewProduct['product_name']); ?></h3>
                         <p><strong>Артикул:</strong> <?php echo htmlspecialchars($viewProduct['product_code']); ?></p>
+                        <p><strong>Расшифровка артикула:</strong> <span id="skuDecoding" style="color: var(--primary-color); font-weight: bold;">-</span></p>
                         <p><strong>Категория:</strong> <?php echo htmlspecialchars($viewProduct['category_name'] ?? 'Не указана'); ?></p>
                         <p><strong>Цена:</strong> <?php echo number_format($viewProduct['base_price'], 2); ?> BYN</p>
                         <p><strong>Остаток на складе:</strong> <?php echo $viewProduct['stock_quantity']; ?> шт.</p>
@@ -481,7 +481,7 @@ try {
                     <div>
                         <h4>Характеристики</h4>
                         <?php 
-                        $specs = json_decode($viewProduct['specifications'] ?? '[]', true);
+                        $specs = json_decode($viewProduct['specifications'] ?? '{}', true);
                         if (!empty($specs) && is_array($specs)):
                         ?>
                         <table style="width: 100%; border-collapse: collapse;">
@@ -534,6 +534,146 @@ try {
     
     <script src="../../assets/js/main.js"></script>
     <script>
+        // Расшифровка артикулов продукции ОАО "Полесьеэлектромаш"
+        function decodeSKU(sku) {
+            if (!sku) return 'Артикул не указан';
+            
+            sku = sku.toUpperCase().trim();
+            
+            // Префиксы и их значения
+            const prefixes = {
+                'MAT-AL': 'Алюминий вторичный',
+                'MAT-CI': 'Чугун литейный',
+                'CI-GR': 'Решетка колосниковая (чугун)',
+                'CI-DR': 'Дождеприемник (чугун)',
+                'CI-MH': 'Люк манhole (чугун)',
+                'CI-FL': 'Плита половая (чугун)',
+                'AIR': 'Электродвигатель асинхронный общего назначения',
+                'AIRS': 'Электродвигатель с повышенным скольжением',
+                'AIRE': 'Электродвигатель однофазный (220В)',
+                'AIRP': 'Электродвигатель для птицеводства (защищенный)',
+                '2AIR': 'Электродвигатель двухскоростной',
+                'AIRCH': 'Электродвигатель железнодорожный виброустойчивый',
+                'AIRV': 'Электродвигатель встроенный (для встройки)',
+                'AIRVS': 'Электродвигатель встроенный с повышенным скольжением'
+            };
+            
+            // Габариты
+            const frameSizes = {
+                '71': 'Габарит 71 мм',
+                '80': 'Габарит 80 мм',
+                '90': 'Габарит 90 мм',
+                '100': 'Габарит 100 мм',
+                '112': 'Габарит 112 мм'
+            };
+            
+            // Число полюсов / скорость
+            const poles = {
+                '2': '2 полюса (3000 об/мин)',
+                '4': '4 полюса (1500 об/мин)',
+                '6': '6 полюсов (1000 об/мин)',
+                '8': '8 полюсов (750 об/мин)'
+            };
+            
+            // Специальные суффиксы
+            const suffixes = {
+                '_ZH': 'Для насосов (нерж. вал, уплотнение)',
+                '_RZ': 'Специсполнение вала/фланца',
+                '_S6': '6 полюсов (1000 об/мин)',
+                'A': 'Первая длина корпуса',
+                'B': 'Вторая длина корпуса',
+                'C': 'Третья длина корпуса',
+                'D': 'Четвертая длина корпуса',
+                'L': 'Длинная версия',
+                'M': 'Средняя версия',
+                'S': 'Короткая версия'
+            };
+            
+            let decoding = [];
+            let matchedPrefix = false;
+            
+            // Поиск префикса
+            for (const prefix in prefixes) {
+                if (sku.startsWith(prefix)) {
+                    decoding.push(prefixes[prefix]);
+                    matchedPrefix = true;
+                    break;
+                }
+            }
+            
+            if (!matchedPrefix) {
+                decoding.push('Тип продукции не определен');
+            }
+            
+            // Для чугунных изделий
+            if (sku.startsWith('CI-GR')) {
+                const modelMatch = sku.match(/CI-GR-(RU\d|RD\dK?|57L|001|ANIM)/);
+                if (modelMatch) {
+                    decoding.push('Модель: ' + modelMatch[1]);
+                }
+            } else if (sku.startsWith('CI-DR')) {
+                if (sku.includes('ASSY')) {
+                    decoding.push('Дождеприемник в сборе');
+                } else {
+                    decoding.push('Решетка дождеприемника');
+                }
+            } else if (sku.startsWith('MAT-AL')) {
+                if (sku.includes('AB87')) {
+                    decoding.push('Марка: АВ87 (ГОСТ 295-98)');
+                }
+                if (sku.includes('F')) {
+                    decoding.push('Форма: гранулированный');
+                } else {
+                    decoding.push('Форма: чушка');
+                }
+            } else if (sku.startsWith('MAT-CI')) {
+                if (sku.includes('L4')) {
+                    decoding.push('Марка чугуна: Л4 (ГОСТ 4832-95)');
+                } else if (sku.includes('L5')) {
+                    decoding.push('Марка чугуна: Л5 (ГОСТ 4832-95)');
+                }
+            }
+            
+            // Для электродвигателей
+            if (sku.startsWith('AIR') || sku.startsWith('2AIR')) {
+                // Извлечение габарита
+                const frameMatch = sku.match(/(\d{2,3})([A-D]?)([2468]|6_4|8_4)/);
+                if (frameMatch) {
+                    const frameSize = frameMatch[1];
+                    const lengthCode = frameMatch[2] || '';
+                    const polesCode = frameMatch[3];
+                    
+                    if (frameSizes[frameSize]) {
+                        decoding.push(frameSizes[frameSize]);
+                    }
+                    
+                    if (lengthCode && suffixes[lengthCode]) {
+                        decoding.push(suffixes[lengthCode]);
+                    }
+                    
+                    // Для двухскоростных
+                    if (polesCode.includes('_')) {
+                        const [pole1, pole2] = polesCode.split('_');
+                        if (poles[pole1] && poles[pole2]) {
+                            decoding.push(poles[pole1] + ' / ' + poles[pole2]);
+                        }
+                    } else if (poles[polesCode]) {
+                        decoding.push(poles[polesCode]);
+                    }
+                }
+                
+                // Специсполнения
+                if (sku.includes('_ZH')) {
+                    decoding.push('Исполнение: для моноблочных насосов');
+                }
+                if (sku.includes('_RZ')) {
+                    decoding.push('Исполнение: спецвал/фланец под редуктор');
+                }
+            }
+            
+            return decoding.join('; ');
+        }
+        
         // Product management functions
         function editProduct(productId) {
             // Fetch product data and populate edit modal
@@ -559,6 +699,15 @@ try {
             openModal('deleteProductModal');
         }
         
+        // Функция для отображения расшифровки артикула в модальном окне
+        function showSKUDecoding(sku) {
+            const decoding = decodeSKU(sku);
+            const element = document.getElementById('skuDecoding');
+            if (element) {
+                element.textContent = decoding;
+            }
+        }
+        
         // Populate edit modal if editing
         <?php if ($editProduct): ?>
         document.addEventListener('DOMContentLoaded', function() {
@@ -571,6 +720,16 @@ try {
             document.getElementById('edit_stock_quantity').value = '<?php echo $editProduct['stock_quantity']; ?>';
             document.getElementById('edit_min_stock_level').value = '<?php echo $editProduct['min_stock_level']; ?>';
             openModal('editProductModal');
+            
+            // Показать расшифровку артикула при редактировании
+            showSKUDecoding('<?php echo htmlspecialchars($editProduct['product_code']); ?>');
+        });
+        <?php endif; ?>
+        
+        // Показать расшифровку артикула при просмотре
+        <?php if ($viewProduct): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            showSKUDecoding('<?php echo htmlspecialchars($viewProduct['product_code']); ?>');
         });
         <?php endif; ?>
         
