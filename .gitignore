@@ -1,1 +1,31 @@
-Nothing should be ignored in this case, as the changes only include PHP source files (.php) which are core project files and not build artifacts, dependencies, or temporary files.
+```
+# Dependencies
+vendor/
+node_modules/
+composer.lock
+
+# Logs
+*.log
+error_log
+access_log
+
+# Environment specific
+.env
+.env.local
+.env.*
+!.env.example
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+*.cache
+```

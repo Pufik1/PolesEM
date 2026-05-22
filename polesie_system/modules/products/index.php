@@ -153,59 +153,10 @@ try {
                 </div>
             </div>
             
-            <nav class="sidebar-menu">
-                <div class="menu-category">Основное</div>
-                <a href="../../dashboard.php" class="menu-item">
-                    <i class="fas fa-tachometer-alt"></i>
-                    <span>Дашборд</span>
-                </a>
-                
-                <div class="menu-category">Операции</div>
-                <a href="../clients/index.php" class="menu-item">
-                    <i class="fas fa-handshake"></i>
-                    <span>Клиенты</span>
-                </a>
-                <a href="../orders/index.php" class="menu-item">
-                    <i class="fas fa-shopping-cart"></i>
-                    <span>Заказы</span>
-                </a>
-                <a href="../products/index.php" class="menu-item active">
-                    <i class="fas fa-box"></i>
-                    <span>Продукция</span>
-                </a>
-                <a href="../warehouse/index.php" class="menu-item">
-                    <i class="fas fa-warehouse"></i>
-                    <span>Склад</span>
-                </a>
-                <a href="../production/index.php" class="menu-item">
-                    <i class="fas fa-industry"></i>
-                    <span>Производство</span>
-                </a>
-                
-                <div class="menu-category">Управление</div>
-                <a href="../hr/index.php" class="menu-item">
-                    <i class="fas fa-user-tie"></i>
-                    <span>Кадры</span>
-                </a>
-                <a href="../reports/index.php" class="menu-item">
-                    <i class="fas fa-chart-bar"></i>
-                    <span>Отчеты</span>
-                </a>
-                
-                <?php if ($userRole === 'admin'): ?>
-                <div class="menu-category">Администрирование</div>
-                <a href="../users/index.php" class="menu-item">
-                    <i class="fas fa-users"></i>
-                    <span>Пользователи</span>
-                </a>
-                <?php endif; ?>
-                
-                <div class="menu-category">Система</div>
-                <a href="../../logout.php" class="menu-item">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Выход</span>
-                </a>
-            </nav>
+            <?php 
+            $basePath = '../../';
+            include '../../includes/sidebar.php'; 
+            ?>
         </aside>
         
         <!-- Main Content -->

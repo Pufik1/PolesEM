@@ -307,21 +307,10 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                 </div>
             </div>
             
-            <nav class="sidebar-menu">
-                <a href="../../dashboard.php" class="menu-item">
-                    <i class="fas fa-tachometer-alt"></i>
-                    <span>Главная</span>
-                </a>
-                <a href="" class="menu-item active">
-                    <i class="fas fa-users"></i>
-                    <span>Пользователи</span>
-                </a>
-                <div class="menu-category" style="margin-top: 20px;">Система</div>
-                <a href="../../logout.php" class="menu-item">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Выход</span>
-                </a>
-            </nav>
+            <?php 
+            $basePath = '../../';
+            include '../../includes/sidebar.php'; 
+            ?>
         </aside>
         
         <!-- Main Content -->
