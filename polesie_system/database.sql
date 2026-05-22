@@ -89,6 +89,8 @@ CREATE TABLE orders (
     discount_amount DECIMAL(12,2) DEFAULT 0,
     final_amount DECIMAL(12,2) NOT NULL,
     payment_status ENUM('unpaid', 'partial', 'paid') DEFAULT 'unpaid',
+    paid_amount DECIMAL(12,2) DEFAULT 0,
+    paid_date DATE,
     delivery_address TEXT,
     notes TEXT,
     contract_number VARCHAR(50),
