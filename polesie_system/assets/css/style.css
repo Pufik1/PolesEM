@@ -741,7 +741,7 @@ body {
 
 /* Danger Button */
 .btn-danger {
-    background: var(--error-color);
+    background: var(--danger-color);
     color: white;
 }
 
@@ -751,6 +751,6 @@ body {
 
 /* Badge Danger */
 .badge-danger {
-    background: var(--error-color);
-    color: white;
+    background: #fdedec;
+    color: var(--danger-color);
 }

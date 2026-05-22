@@ -173,6 +173,32 @@ try {
                     <i class="fas fa-box"></i>
                     <span>Продукция</span>
                 </a>
+                <a href="../warehouse/index.php" class="menu-item">
+                    <i class="fas fa-warehouse"></i>
+                    <span>Склад</span>
+                </a>
+                <a href="../production/index.php" class="menu-item">
+                    <i class="fas fa-industry"></i>
+                    <span>Производство</span>
+                </a>
+                
+                <div class="menu-category">Управление</div>
+                <a href="../hr/index.php" class="menu-item">
+                    <i class="fas fa-user-tie"></i>
+                    <span>Кадры</span>
+                </a>
+                <a href="../reports/index.php" class="menu-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Отчеты</span>
+                </a>
+                
+                <?php if ($userRole === 'admin'): ?>
+                <div class="menu-category">Администрирование</div>
+                <a href="../users/index.php" class="menu-item">
+                    <i class="fas fa-users"></i>
+                    <span>Пользователи</span>
+                </a>
+                <?php endif; ?>
                 
                 <div class="menu-category">Система</div>
                 <a href="../../logout.php" class="menu-item">
