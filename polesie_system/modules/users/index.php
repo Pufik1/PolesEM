@@ -11,8 +11,8 @@ if (!isLoggedIn()) {
     redirect('../../index.php');
 }
 
-// Проверка прав доступа (только admin и director)
-if (!hasRole(['admin', 'director'])) {
+// Проверка прав доступа (только admin и manager)
+if (!hasRole(['admin', 'manager'])) {
     $_SESSION['error_message'] = 'У вас нет доступа к этому модулю';
     redirect('../../dashboard.php');
 }
