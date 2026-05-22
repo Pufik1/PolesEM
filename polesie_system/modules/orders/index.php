@@ -151,14 +151,122 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
             
             logActivity($pdo, $_SESSION['user_id'], 'order_payment_updated', 'orders', $orderId);
             $success = 'Информация об оплате обновлена';
+            
+        } elseif ($_POST['action'] === 'create_invoice') {
+            if (!hasRole(['admin', 'manager', 'accountant'])) {
+                $error = 'Недостаточно прав для создания счета';
+            } else {
+                $pdo->beginTransaction();
+                
+                $orderId = (int)$_POST['order_id'];
+                $invoiceNumber = trim($_POST['invoice_number']);
+                $invoiceDate = $_POST['invoice_date'];
+                $dueDate = $_POST['due_date'] ?: null;
+                $vatRate = (float)($_POST['vat_rate'] ?? 20);
+                $notes = trim($_POST['notes']);
+                
+                // Get order and items
+                $stmtOrder = $pdo->prepare("SELECT * FROM orders WHERE id = :id");
+                $stmtOrder->execute([':id' => $orderId]);
+                $order = $stmtOrder->fetch();
+                
+                if (!$order) {
+                    throw new Exception('Заказ не найден');
+                }
+                
+                $stmtItems = $pdo->prepare("SELECT oi.*, p.product_name, p.product_code 
+                                            FROM order_items oi
+                                            LEFT JOIN products p ON oi.product_id = p.id
+                                            WHERE oi.order_id = :order_id");
+                $stmtItems->execute([':order_id' => $orderId]);
+                $orderItems = $stmtItems->fetchAll();
+                
+                // Calculate totals
+                $totalAmount = 0;
+                $vatAmount = 0;
+                
+                foreach ($orderItems as $item) {
+                    $itemTotal = (float)$item['total_price'];
+                    $itemVat = $itemTotal * ($vatRate / 100);
+                    $totalAmount += $itemTotal;
+                    $vatAmount += $itemVat;
+                }
+                
+                $totalWithVat = $totalAmount + $vatAmount;
+                
+                // Create invoice
+                $stmtInv = $pdo->prepare("INSERT INTO invoices (invoice_number, order_id, invoice_date, due_date, 
+                                          total_amount, vat_amount, total_with_vat, payment_status, notes) 
+                                          VALUES (:invoice_number, :order_id, :invoice_date, :due_date, 
+                                          :total_amount, :vat_amount, :total_with_vat, 'unpaid', :notes)");
+                $stmtInv->execute([
+                    ':invoice_number' => $invoiceNumber,
+                    ':order_id' => $orderId,
+                    ':invoice_date' => $invoiceDate,
+                    ':due_date' => $dueDate,
+                    ':total_amount' => $totalAmount,
+                    ':vat_amount' => $vatAmount,
+                    ':total_with_vat' => $totalWithVat,
+                    ':notes' => $notes
+                ]);
+                
+                $invoiceId = $pdo->lastInsertId();
+                
+                // Create invoice items
+                $stmtItem = $pdo->prepare("INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, 
+                                           discount_percent, total_price, vat_rate, vat_amount) 
+                                           VALUES (:invoice_id, :product_id, :quantity, :unit_price, 
+                                           :discount_percent, :total_price, :vat_rate, :vat_amount)");
+                
+                foreach ($orderItems as $item) {
+                    $itemTotal = (float)$item['total_price'];
+                    $itemVat = $itemTotal * ($vatRate / 100);
+                    
+                    $stmtItem->execute([
+                        ':invoice_id' => $invoiceId,
+                        ':product_id' => (int)$item['product_id'],
+                        ':quantity' => (int)$item['quantity'],
+                        ':unit_price' => (float)$item['unit_price'],
+                        ':discount_percent' => (float)$item['discount_percent'],
+                        ':total_price' => $itemTotal,
+                        ':vat_rate' => $vatRate,
+                        ':vat_amount' => $itemVat
+                    ]);
+                }
+                
+                // Create document record
+                $stmtDoc = $pdo->prepare("INSERT INTO order_documents (order_id, document_type, document_number, document_date, status) 
+                                          VALUES (:order_id, 'invoice', :doc_number, :doc_date, 'draft')");
+                $stmtDoc->execute([
+                    ':order_id' => $orderId,
+                    ':doc_number' => $invoiceNumber,
+                    ':doc_date' => $invoiceDate
+                ]);
+                
+                $pdo->commit();
+                
+                logActivity($pdo, $_SESSION['user_id'], 'invoice_created', 'orders', $orderId);
+                $success = 'Счет-фактура успешно создан';
+                
+                header('Location: ' . $_SERVER['PHP_SELF'] . '?view=' . $orderId . '&success=' . urlencode($success));
+                exit;
+            }
         }
         
         header('Location: ' . $_SERVER['PHP_SELF'] . '?success=' . urlencode($success));
         exit;
         
     } catch (PDOException $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         $error = 'Ошибка при сохранении данных заказа: ' . $e->getMessage();
+        error_log($e->getMessage());
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $error = 'Ошибка: ' . $e->getMessage();
         error_log($e->getMessage());
     }
 }
@@ -166,6 +274,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
 // Handle success message from redirect
 if (isset($_GET['success'])) {
     $success = $_GET['success'];
+}
+
+// Handle invoice print view
+if (isset($_GET['print_invoice'])) {
+    $invoiceId = (int)$_GET['print_invoice'];
+    
+    $stmtInv = $pdo->prepare("SELECT i.*, o.order_number, c.company_name as client_name, c.inn as client_inn, 
+                              c.address as client_address, c.contact_person, c.phone, c.email
+                              FROM invoices i
+                              LEFT JOIN orders o ON i.order_id = o.id
+                              LEFT JOIN clients c ON o.client_id = c.id
+                              WHERE i.id = :id");
+    $stmtInv->execute([':id' => $invoiceId]);
+    $printInvoice = $stmtInv->fetch();
+    
+    if ($printInvoice) {
+        // Get invoice items
+        $stmtInvItems = $pdo->prepare("SELECT ii.*, p.product_name, p.product_code 
+                                       FROM invoice_items ii
+                                       LEFT JOIN products p ON ii.product_id = p.id
+                                       WHERE ii.invoice_id = :invoice_id");
+        $stmtInvItems->execute([':invoice_id' => $invoiceId]);
+        $printInvoiceItems = $stmtInvItems->fetchAll();
+        
+        // Include print template
+        include 'invoice_print.php';
+        exit;
+    }
 }
 
 // Get order for viewing
@@ -716,10 +852,69 @@ $statusColors = [
                         <?php else: ?>
                         <p class="text-muted">Счет еще не выставлен</p>
                         <?php if (hasRole(['admin', 'manager', 'accountant'])): ?>
-                        <button class="btn btn-primary" onclick="createInvoice(<?php echo $orderId; ?>)">
+                        <button class="btn btn-primary" onclick="showCreateInvoiceModal(<?php echo $orderId; ?>)">
                             <i class="fas fa-plus"></i> Выставить счет
                         </button>
                         <?php endif; ?>
+                        <?php endif; ?>
+                        
+                        <?php if ($invoice): ?>
+                        <!-- Invoice Items Table -->
+                        <div class="order-detail-section" style="margin-top: 20px;">
+                            <h3>Позиции счета</h3>
+                            <?php
+                            // Get invoice items
+                            $stmtInvItems = $pdo->prepare("SELECT ii.*, p.product_name, p.product_code 
+                                                           FROM invoice_items ii
+                                                           LEFT JOIN products p ON ii.product_id = p.id
+                                                           WHERE ii.invoice_id = :invoice_id");
+                            $stmtInvItems->execute([':invoice_id' => $invoice['id']]);
+                            $invoiceItems = $stmtInvItems->fetchAll();
+                            ?>
+                            <?php if ($invoiceItems): ?>
+                            <table class="items-table">
+                                <thead>
+                                    <tr>
+                                        <th>№</th>
+                                        <th>Артикул</th>
+                                        <th>Наименование</th>
+                                        <th class="text-right">Количество</th>
+                                        <th class="text-right">Цена за ед.</th>
+                                        <th class="text-right">Скидка %</th>
+                                        <th class="text-right">Сумма</th>
+                                        <th class="text-right">НДС %</th>
+                                        <th class="text-right">НДС</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php 
+                                    $invTotalItems = 0;
+                                    foreach ($invoiceItems as $index => $item): 
+                                        $invTotalItems++;
+                                    ?>
+                                    <tr>
+                                        <td><?php echo $invTotalItems; ?></td>
+                                        <td><?php echo htmlspecialchars($item['product_code']); ?></td>
+                                        <td><?php echo htmlspecialchars($item['product_name']); ?></td>
+                                        <td class="text-right"><?php echo $item['quantity']; ?> шт</td>
+                                        <td class="text-right"><?php echo number_format($item['unit_price'], 2, ',', ' '); ?> BYN</td>
+                                        <td class="text-right"><?php echo $item['discount_percent']; ?>%</td>
+                                        <td class="text-right"><?php echo number_format($item['total_price'], 2, ',', ' '); ?> BYN</td>
+                                        <td class="text-right"><?php echo $item['vat_rate']; ?>%</td>
+                                        <td class="text-right"><?php echo number_format($item['vat_amount'], 2, ',', ' '); ?> BYN</td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            <?php endif; ?>
+                            
+                            <!-- Print Invoice Button -->
+                            <div class="action-bar" style="margin-top: 20px;">
+                                <button class="btn print-btn" onclick="printInvoice(<?php echo $invoice['id']; ?>)">
+                                    <i class="fas fa-print"></i> Печать счета
+                                </button>
+                            </div>
+                        </div>
                         <?php endif; ?>
                     </div>
                     
@@ -1278,9 +1473,73 @@ $statusColors = [
             // Client info update (no discount logic needed)
         }
         
-        function createInvoice(orderId) {
-            alert('Функция создания счета будет реализована в следующем обновлении');
-            // Здесь можно добавить AJAX запрос для создания счета
+        function showCreateInvoiceModal(orderId) {
+            // Create modal HTML
+            const modalHtml = `
+                <div id="invoiceModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+                    <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 60%; border-radius: 8px; max-height: 90vh; overflow-y: auto;">
+                        <span onclick="closeInvoiceModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+                        <h2>Создание счета-фактуры</h2>
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="create_invoice">
+                            <input type="hidden" name="order_id" value="${orderId}">
+                            
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label class="info-label">Номер счета *</label>
+                                    <input type="text" name="invoice_number" class="form-control" required placeholder="Например: СЧ-001/2024">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Дата выставления *</label>
+                                    <input type="date" name="invoice_date" class="form-control" required value="${new Date().toISOString().split('T')[0]}">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Срок оплаты до</label>
+                                    <input type="date" name="due_date" class="form-control">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Ставка НДС (%)</label>
+                                    <select name="vat_rate" class="form-control">
+                                        <option value="0">Без НДС</option>
+                                        <option value="10" selected>10%</option>
+                                        <option value="20" selected>20%</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="info-item" style="margin-top: 15px;">
+                                <label class="info-label">Примечание</label>
+                                <textarea name="notes" class="form-control" rows="3"></textarea>
+                            </div>
+                            
+                            <div style="margin-top: 20px; text-align: right;">
+                                <button type="button" onclick="closeInvoiceModal()" class="btn btn-secondary" style="margin-right: 10px;">Отмена</button>
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Создать счет</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            // Add modal to page
+            const existingModal = document.getElementById('invoiceModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        function closeInvoiceModal() {
+            const modal = document.getElementById('invoiceModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        function printInvoice(invoiceId) {
+            // Open print view in new window
+            const printUrl = window.location.href.split('?')[0] + '?print_invoice=' + invoiceId;
+            window.open(printUrl, '_blank', 'width=800,height=600');
         }
         
         function createDeliveryNote(orderId) {

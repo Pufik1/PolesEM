@@ -145,6 +145,21 @@ CREATE TABLE invoices (
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 );
 
+-- Invoice items
+CREATE TABLE invoice_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    invoice_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    discount_percent DECIMAL(5,2) DEFAULT 0,
+    total_price DECIMAL(12,2) NOT NULL,
+    vat_rate DECIMAL(5,2) DEFAULT 20,
+    vat_amount DECIMAL(12,2) DEFAULT 0,
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+);
+
 -- Delivery Note / Товарная накладная
 CREATE TABLE delivery_notes (
     id INT AUTO_INCREMENT PRIMARY KEY,
