@@ -353,7 +353,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 
                 // Create document record
                 $stmtDoc = $pdo->prepare("INSERT INTO order_documents (order_id, document_type, document_number, document_date, status) 
-                                          VALUES (:order_id, 'delivery_note', :doc_number, :doc_date, 'draft')");
+                                          VALUES (:order_id, 'tn', :doc_number, :doc_date, 'draft')");
                 $stmtDoc->execute([
                     ':order_id' => $orderId,
                     ':doc_number' => $tnNumber,
@@ -440,7 +440,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 
                 // Create document record
                 $stmtDoc = $pdo->prepare("INSERT INTO order_documents (order_id, document_type, document_number, document_date, status) 
-                                          VALUES (:order_id, 'transport_waybill', :doc_number, :doc_date, 'draft')");
+                                          VALUES (:order_id, 'ttn', :doc_number, :doc_date, 'draft')");
                 $stmtDoc->execute([
                     ':order_id' => $orderId,
                     ':doc_number' => $ttnNumber,
