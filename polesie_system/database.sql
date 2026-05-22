@@ -429,22 +429,6 @@ CREATE TABLE IF NOT EXISTS defect_log (
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Warehouse operations table
-CREATE TABLE warehouse_operations (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    operation_type ENUM('income', 'outcome', 'transfer', 'write_off') NOT NULL,
-    product_id INT NOT NULL,
-    quantity INT NOT NULL,
-    warehouse_from INT,
-    warehouse_to INT,
-    user_id INT NOT NULL,
-    operation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    document_number VARCHAR(50),
-    notes TEXT,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
-);
-
 -- Employees table (extended HR data) - REMOVED
 /*
 CREATE TABLE employees (
