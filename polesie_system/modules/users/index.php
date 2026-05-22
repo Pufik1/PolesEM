@@ -4,11 +4,6 @@
  * Функционал: просмотр, добавление, редактирование, удаление, поиск
  */
 
-// Запускаем сессию ПЕРЕД подключением config.php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
 require_once '../../includes/config.php';
 
 // Проверка авторизации

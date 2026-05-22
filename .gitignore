@@ -1,1 +1,1 @@
-Nothing should be ignored since the changes only include PHP source files (.php) which are core project files and not build artifacts, dependencies, or temporary files.
+Nothing should be ignored since the changes only include PHP source files (.php) which are not build artifacts, dependencies, or temporary files.
