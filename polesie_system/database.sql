@@ -448,6 +448,26 @@ CREATE TABLE warehouse_operations (
 -- Employees table (extended HR data)
 CREATE TABLE employees (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    full_name VARCHAR(200) NOT NULL,
+    email VARCHAR(100),
+    phone VARCHAR(20),
+    position VARCHAR(100) NOT NULL,
+    department VARCHAR(100) NOT NULL,
+    hire_date DATE,
+    salary DECIMAL(10,2),
+    status ENUM('active', 'inactive', 'vacation') DEFAULT 'active',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_department (department),
+    INDEX idx_status (status),
+    INDEX idx_full_name (full_name)
+);
+
+-- Original employees table structure (for reference - linked to users)
+/*
+CREATE TABLE employees_old (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     employee_code VARCHAR(50) NOT NULL UNIQUE,
     hire_date DATE NOT NULL,
@@ -460,6 +480,7 @@ CREATE TABLE employees (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (supervisor_id) REFERENCES employees(id) ON DELETE SET NULL
 );
+*/
 
 -- Activity log table
 CREATE TABLE activity_log (
@@ -596,3 +617,14 @@ INSERT INTO quality_control (production_order_id, route_sheet_id, inspection_dat
 -- Sample defect log entries
 INSERT INTO defect_log (quality_control_id, defect_type_id, quantity, description, created_by) VALUES
 (1, 2, 2, 'Обнаружены сквозные трещины в литых корпусах при визуальном контроле', 4);
+
+-- Sample employees data for demonstration
+INSERT INTO employees (full_name, email, phone, position, department, hire_date, salary, status, notes) VALUES
+('Иванов Иван Иванович', 'ivanov@polesie.by', '+375-29-111-11-11', 'Инженер-конструктор', 'Конструкторский отдел', '2020-03-15', 2500.00, 'active', 'Ведущий специалист'),
+('Петров Пётр Петрович', 'petrov@polesie.by', '+375-29-222-22-22', 'Менеджер по продажам', 'Отдел продаж', '2019-06-01', 2200.00, 'active', NULL),
+('Сидорова Анна Сергеевна', 'sidorova@polesie.by', '+375-29-333-33-33', 'Бухгалтер', 'Бухгалтерия', '2018-01-10', 2000.00, 'active', NULL),
+('Козлов Дмитрий Андреевич', 'kozlov@polesie.by', '+375-29-444-44-44', 'Начальник производства', 'Производство', '2017-09-20', 3500.00, 'active', 'Руководитель подразделения'),
+('Новикова Елена Владимировна', 'novikova@polesie.by', '+375-29-555-55-55', 'Инспектор по кадрам', 'Отдел кадров', '2021-02-14', 1800.00, 'active', NULL),
+('Морозов Сергей Николаевич', 'morozov@polesie.by', '+375-29-666-66-66', 'Электрик', 'Производство', '2022-05-01', 1500.00, 'vacation', 'Ежегодный отпуск'),
+('Волкова Мария Игоревна', 'volkova@polesie.by', '+375-29-777-77-77', 'Технолог', 'Технический отдел', '2020-11-30', 2300.00, 'active', NULL),
+('Зайцев Александр Павлович', 'zaitsev@polesie.by', '+375-29-888-88-88', 'Водитель', 'Транспортный отдел', '2023-01-15', 1200.00, 'inactive', 'Декретный отпуск');
