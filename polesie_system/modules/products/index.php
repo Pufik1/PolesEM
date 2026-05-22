@@ -83,6 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'delete') {
             $product_id = (int)$_POST['product_id'];
             
+            // Сначала удаляем связанные записи в production_orders
+            $stmt = $pdo->prepare("DELETE FROM production_orders WHERE product_id = :id");
+            $stmt->execute([':id' => $product_id]);
+            
+            // Теперь удаляем продукт
             $stmt = $pdo->prepare("DELETE FROM products WHERE id = :id");
             $stmt->execute([':id' => $product_id]);
             
@@ -98,12 +103,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $viewAction = $_GET['action'] ?? '';
 $viewProductId = $_GET['product_id'] ?? null;
 $editProduct = null;
+$viewProduct = null;
 
 if ($viewAction === 'edit' && $viewProductId) {
     try {
         $stmt = $pdo->prepare("SELECT * FROM products WHERE id = :id");
         $stmt->execute([':id' => (int)$viewProductId]);
         $editProduct = $stmt->fetch();
+    } catch (PDOException $e) {
+        // Error handling
+    }
+}
+
+if ($viewAction === 'view' && $viewProductId) {
+    try {
+        $stmt = $pdo->prepare("SELECT p.*, pc.category_name FROM products p LEFT JOIN product_categories pc ON p.category_id = pc.id WHERE p.id = :id");
+        $stmt->execute([':id' => (int)$viewProductId]);
+        $viewProduct = $stmt->fetch();
     } catch (PDOException $e) {
         // Error handling
     }
@@ -403,6 +419,57 @@ try {
     </div>
     
     <!-- Delete Confirmation Modal -->
+    <!-- View Product Modal -->
+    <div id="viewProductModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Просмотр продукции</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <?php if ($viewProduct): ?>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h3><?php echo htmlspecialchars($viewProduct['product_name']); ?></h3>
+                        <p><strong>Артикул:</strong> <?php echo htmlspecialchars($viewProduct['product_code']); ?></p>
+                        <p><strong>Категория:</strong> <?php echo htmlspecialchars($viewProduct['category_name'] ?? 'Не указана'); ?></p>
+                        <p><strong>Цена:</strong> <?php echo number_format($viewProduct['base_price'], 2); ?> BYN</p>
+                        <p><strong>Остаток на складе:</strong> <?php echo $viewProduct['stock_quantity']; ?> шт.</p>
+                        <p><strong>Вес:</strong> <?php echo $viewProduct['weight']; ?> кг</p>
+                    </div>
+                    <div>
+                        <h4>Характеристики</h4>
+                        <?php 
+                        $specs = json_decode($viewProduct['specifications'] ?? '[]', true);
+                        if (!empty($specs) && is_array($specs)):
+                        ?>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <?php foreach ($specs as $key => $value): ?>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding: 8px; font-weight: bold;"><?php echo htmlspecialchars($key); ?></td>
+                                <td style="padding: 8px;"><?php echo htmlspecialchars($value); ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </table>
+                        <?php else: ?>
+                        <p class="text-muted">Характеристики не указаны</p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h4>Описание</h4>
+                    <p><?php echo nl2br(htmlspecialchars($viewProduct['description'] ?? 'Описание отсутствует')); ?></p>
+                </div>
+                <?php else: ?>
+                <p class="text-muted">Данные о продукте загружаются...</p>
+                <?php endif; ?>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('viewProductModal')">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
     <div id="deleteProductModal" class="modal">
         <div class="modal-content modal-small">
             <div class="modal-header">
@@ -442,8 +509,7 @@ try {
         }
         
         function viewProduct(productId) {
-            // Implement view functionality
-            alert('Функция просмотра продукта ID: ' + productId);
+            window.location.href = `index.php?action=view&product_id=${productId}`;
         }
         
         function deleteProduct(productId, productName) {
