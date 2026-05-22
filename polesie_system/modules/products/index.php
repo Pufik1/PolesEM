@@ -142,15 +142,19 @@ if ($viewAction === 'view' && $viewProductId) {
         if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             header('Content-Type: application/json');
             if ($viewProduct) {
+                // Декодируем specifications из JSON строки в массив
+                $specs = json_decode($viewProduct['specifications'] ?? '{}', true);
+                $viewProduct['specifications'] = $specs;
+                
                 echo json_encode([
                     'success' => true,
                     'product' => $viewProduct
-                ]);
+                ], JSON_UNESCAPED_UNICODE);
             } else {
                 echo json_encode([
                     'success' => false,
                     'error' => 'Продукт не найден'
-                ]);
+                ], JSON_UNESCAPED_UNICODE);
             }
             exit;
         }
@@ -484,43 +488,8 @@ try {
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <?php if ($viewProduct): ?>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                    <div>
-                        <h3><?php echo htmlspecialchars($viewProduct['product_name']); ?></h3>
-                        <p><strong>Артикул:</strong> <?php echo htmlspecialchars($viewProduct['product_code']); ?></p>
-                        <p><strong>Расшифровка артикула:</strong> <span id="skuDecoding" style="color: var(--primary-color); font-weight: bold;">-</span></p>
-                        <p><strong>Категория:</strong> <?php echo htmlspecialchars($viewProduct['category_name'] ?? 'Не указана'); ?></p>
-                        <p><strong>Цена:</strong> <?php echo number_format($viewProduct['base_price'], 2); ?> BYN</p>
-                        <p><strong>Остаток на складе:</strong> <?php echo $viewProduct['stock_quantity']; ?> шт.</p>
-                        <p><strong>Вес:</strong> <?php echo $viewProduct['weight']; ?> кг</p>
-                    </div>
-                    <div>
-                        <h4>Характеристики</h4>
-                        <?php 
-                        $specs = json_decode($viewProduct['specifications'] ?? '{}', true);
-                        if (!empty($specs) && is_array($specs)):
-                        ?>
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <?php foreach ($specs as $key => $value): ?>
-                            <tr style="border-bottom: 1px solid var(--border-color);">
-                                <td style="padding: 8px; font-weight: bold;"><?php echo htmlspecialchars($key); ?></td>
-                                <td style="padding: 8px;"><?php echo htmlspecialchars($value); ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </table>
-                        <?php else: ?>
-                        <p class="text-muted">Характеристики не указаны</p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div style="margin-top: 20px;">
-                    <h4>Описание</h4>
-                    <p><?php echo nl2br(htmlspecialchars($viewProduct['description'] ?? 'Описание отсутствует')); ?></p>
-                </div>
-                <?php else: ?>
-                <p class="text-muted">Данные о продукте загружаются...</p>
-                <?php endif; ?>
+                <!-- Содержимое загружается динамически через JavaScript -->
+                <p class="text-muted">Нажмите на иконку глаза для просмотра характеристик товара</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('viewProductModal')">Закрыть</button>
@@ -851,11 +820,19 @@ try {
             const skuDecoding = decodeSKU(product.product_code);
             
             let specsHtml = '';
-            if (product.specifications && Object.keys(product.specifications).length > 0) {
+            // product.specifications теперь уже объект (декодирован на сервере)
+            if (product.specifications && typeof product.specifications === 'object' && Object.keys(product.specifications).length > 0) {
                 specsHtml = '<table style="width: 100%; border-collapse: collapse;">';
                 for (const [key, value] of Object.entries(product.specifications)) {
+                    // Красивое отображение ключей характеристик
+                    let displayKey = key;
+                    if (key === 'gost') displayKey = 'ГОСТ';
+                    else if (key === 'size_mm') displayKey = 'Размеры (мм)';
+                    else if (key === 'material') displayKey = 'Материал';
+                    else if (key === 'weight_kg') displayKey = 'Вес (кг)';
+                    
                     specsHtml += `<tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 8px; font-weight: bold;">${key}</td>
+                        <td style="padding: 8px; font-weight: bold;">${displayKey}</td>
                         <td style="padding: 8px;">${value}</td>
                     </tr>`;
                 }
@@ -863,6 +840,9 @@ try {
             } else {
                 specsHtml = '<p class="text-muted">Характеристики не указаны</p>';
             }
+            
+            // Вес указывается за одну штуку
+            const weightInfo = product.weight ? `${product.weight} кг (за 1 шт.)` : 'Н/Д';
             
             const html = `
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
@@ -873,7 +853,7 @@ try {
                         <p><strong>Категория:</strong> ${product.category_name || 'Не указана'}</p>
                         <p><strong>Цена:</strong> ${parseFloat(product.base_price).toFixed(2)} BYN</p>
                         <p><strong>Остаток на складе:</strong> ${product.stock_quantity} шт.</p>
-                        <p><strong>Вес:</strong> ${product.weight || 'Н/Д'} кг</p>
+                        <p><strong>Вес:</strong> ${weightInfo}</p>
                     </div>
                     <div>
                         <h4>Характеристики</h4>
@@ -895,13 +875,10 @@ try {
             openModal('deleteProductModal');
         }
         
-        // Функция для отображения расшифровки артикула в модальном окне
+        // Функция для отображения расшифровки артикула в модальном окне (больше не используется, т.к. данные загружаются через AJAX)
         function showSKUDecoding(sku) {
-            const decoding = decodeSKU(sku);
-            const element = document.getElementById('skuDecoding');
-            if (element) {
-                element.textContent = decoding;
-            }
+            // Эта функция больше не нужна, так как расшифровка теперь отображается в renderProductModal
+            console.log('SKU Decoding:', decodeSKU(sku));
         }
         
         // Populate edit modal if editing
@@ -916,16 +893,6 @@ try {
             document.getElementById('edit_stock_quantity').value = '<?php echo $editProduct['stock_quantity']; ?>';
             document.getElementById('edit_min_stock_level').value = '<?php echo $editProduct['min_stock_level']; ?>';
             openModal('editProductModal');
-            
-            // Показать расшифровку артикула при редактировании
-            showSKUDecoding('<?php echo htmlspecialchars($editProduct['product_code']); ?>');
-        });
-        <?php endif; ?>
-        
-        // Показать расшифровку артикула при просмотре
-        <?php if ($viewProduct): ?>
-        document.addEventListener('DOMContentLoaded', function() {
-            showSKUDecoding('<?php echo htmlspecialchars($viewProduct['product_code']); ?>');
         });
         <?php endif; ?>
         
