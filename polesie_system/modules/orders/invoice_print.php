@@ -195,7 +195,7 @@ if (!isset($printInvoice)) {
         <div class="company-info">
             <h1>ОАО «Полесьеэлектромаш»</h1>
             <div>УНП: <?php echo APP_INN ?? '123456789'; ?></div>
-            <div>Адрес: <?php echo APP_ADDRESS ?? 'г. Гомель, ул. Примерная, 1'; ?></div>
+            <div>Адрес: <?php echo APP_ADDRESS; ?></div>
             <div>Тел: <?php echo APP_PHONE ?? '+375 (232) 00-00-00'; ?></div>
             <div>Email: <?php echo APP_EMAIL ?? 'info@polesie.by'; ?></div>
         </div>
