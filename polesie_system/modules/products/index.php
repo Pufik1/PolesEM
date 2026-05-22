@@ -56,7 +56,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $base_price = (float)$_POST['base_price'];
             $stock_quantity = (int)($_POST['stock_quantity'] ?? 0);
             $min_stock_level = (int)($_POST['min_stock_level'] ?? 10);
-            $is_active = isset($_POST['is_active']) ? 1 : 0;
             
             $stmt = $pdo->prepare("UPDATE products SET 
                                    product_code = :product_code,
@@ -65,8 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                    description = :description,
                                    base_price = :base_price,
                                    stock_quantity = :stock_quantity,
-                                   min_stock_level = :min_stock_level,
-                                   is_active = :is_active
+                                   min_stock_level = :min_stock_level
                                    WHERE id = :id");
             $stmt->execute([
                 ':product_code' => $product_code,
@@ -76,7 +74,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':base_price' => $base_price,
                 ':stock_quantity' => $stock_quantity,
                 ':min_stock_level' => $min_stock_level,
-                ':is_active' => $is_active,
                 ':id' => $product_id
             ]);
             
@@ -86,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'delete') {
             $product_id = (int)$_POST['product_id'];
             
-            $stmt = $pdo->prepare("UPDATE products SET is_active = 0 WHERE id = :id");
+            $stmt = $pdo->prepare("DELETE FROM products WHERE id = :id");
             $stmt->execute([':id' => $product_id]);
             
             logActivity($pdo, $_SESSION['user_id'], 'delete_product', 'products', $product_id);
@@ -235,11 +232,12 @@ try {
                     <div style="margin-bottom: 20px; display: flex; gap: 15px;">
                         <input 
                             type="text" 
+                            id="productSearch"
                             placeholder="Поиск продукции..." 
-                            data-table-search="productsTable"
+                            onkeyup="filterProducts()"
                             style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px; width: 300px;"
                         >
-                        <select style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                        <select id="categoryFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
                             <option value="">Все категории</option>
                             <?php foreach ($categories as $cat): ?>
                                 <option value="<?php echo $cat['id']; ?>"><?php echo htmlspecialchars($cat['category_name']); ?></option>
@@ -256,18 +254,17 @@ try {
                                     <th>Категория</th>
                                     <th>Цена (BYN)</th>
                                     <th>Остаток</th>
-                                    <th>Статус</th>
                                     <th>Действия</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($products)): ?>
                                     <tr>
-                                        <td colspan="7" class="text-center">Продукция не найдена</td>
+                                        <td colspan="6" class="text-center">Продукция не найдена</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($products as $product): ?>
-                                        <tr>
+                                        <tr data-category="<?php echo $product['category_id'] ?? ''; ?>">
                                             <td><strong><?php echo htmlspecialchars($product['product_code']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($product['product_name']); ?></td>
                                             <td><?php echo htmlspecialchars($product['category_name'] ?? 'Не указана'); ?></td>
@@ -277,13 +274,6 @@ try {
                                                     <span class="badge badge-danger"><?php echo $product['stock_quantity']; ?> шт.</span>
                                                 <?php else: ?>
                                                     <span class="badge badge-success"><?php echo $product['stock_quantity']; ?> шт.</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td>
-                                                <?php if ($product['is_active']): ?>
-                                                    <span class="badge badge-success">Активен</span>
-                                                <?php else: ?>
-                                                    <span class="badge badge-danger">Неактивен</span>
                                                 <?php endif; ?>
                                             </td>
                                             <td>
@@ -304,49 +294,6 @@ try {
                                 <?php endif; ?>
                             </tbody>
                         </table>
-                    </div>
-                </div>
-                
-                <!-- Product Categories Info -->
-                <div class="stats-grid mt-20">
-                    <div class="stat-card">
-                        <div class="stat-icon primary">
-                            <i class="fas fa-motorcycle"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3>Электродвигатели</h3>
-                            <p>АИР, АИРЕ, 2AIR, АИВР</p>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon success">
-                            <i class="fas fa-plug"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3>Электроконфорки</h3>
-                            <p>Чугунные бытовые</p>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon warning">
-                            <i class="fas fa-water"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3>Насосы</h3>
-                            <p>Бытовые и ГНОМ</p>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon danger">
-                            <i class="fas fa-cubes"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3>Литье</h3>
-                            <p>Чугунное и цветное</p>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -469,13 +416,6 @@ try {
                             <input type="number" id="edit_min_stock_level" name="min_stock_level" min="0">
                         </div>
                     </div>
-                    
-                    <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="edit_is_active" name="is_active" checked>
-                            <span>Активен</span>
-                        </label>
-                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('editProductModal')">Отмена</button>
@@ -497,7 +437,7 @@ try {
                 <input type="hidden" name="product_id" id="delete_product_id">
                 <div class="modal-body">
                     <p>Вы уверены, что хотите удалить продукцию <strong id="delete_product_name"></strong>?</p>
-                    <p class="text-muted">Это действие деактивирует продукт в системе.</p>
+                    <p class="text-muted">Это действие безвозвратно удалит продукт из базы данных.</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('deleteProductModal')">Отмена</button>
@@ -546,10 +486,32 @@ try {
             document.getElementById('edit_base_price').value = '<?php echo $editProduct['base_price']; ?>';
             document.getElementById('edit_stock_quantity').value = '<?php echo $editProduct['stock_quantity']; ?>';
             document.getElementById('edit_min_stock_level').value = '<?php echo $editProduct['min_stock_level']; ?>';
-            document.getElementById('edit_is_active').checked = <?php echo $editProduct['is_active'] ? 'true' : 'false'; ?>;
             openModal('editProductModal');
         });
         <?php endif; ?>
+        
+        // Filter products function
+        function filterProducts() {
+            const searchInput = document.getElementById('productSearch').value.toLowerCase();
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const table = document.getElementById('productsTable');
+            const rows = table.querySelectorAll('tbody tr[data-category]');
+            
+            rows.forEach(row => {
+                const productCode = row.cells[0].textContent.toLowerCase();
+                const productName = row.cells[1].textContent.toLowerCase();
+                const category = row.dataset.category;
+                
+                const matchesSearch = productCode.includes(searchInput) || productName.includes(searchInput);
+                const matchesCategory = categoryFilter === '' || category === categoryFilter;
+                
+                if (matchesSearch && matchesCategory) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
     </script>
 </body>
 </html>
