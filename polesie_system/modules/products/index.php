@@ -83,8 +83,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'delete') {
             $product_id = (int)$_POST['product_id'];
             
-            // Сначала удаляем связанные записи в production_orders
+            // Сначала удаляем связанные записи во всех таблицах где есть product_id
+            // production_orders
             $stmt = $pdo->prepare("DELETE FROM production_orders WHERE product_id = :id");
+            $stmt->execute([':id' => $product_id]);
+            
+            // order_items
+            $stmt = $pdo->prepare("DELETE FROM order_items WHERE product_id = :id");
+            $stmt->execute([':id' => $product_id]);
+            
+            // technological_operations
+            $stmt = $pdo->prepare("DELETE FROM technological_operations WHERE product_id = :id");
+            $stmt->execute([':id' => $product_id]);
+            
+            // quality_control
+            $stmt = $pdo->prepare("DELETE FROM quality_control WHERE product_id = :id");
+            $stmt->execute([':id' => $product_id]);
+            
+            // warehouse_inventory
+            $stmt = $pdo->prepare("DELETE FROM warehouse_inventory WHERE product_id = :id");
             $stmt->execute([':id' => $product_id]);
             
             // Теперь удаляем продукт
@@ -222,7 +239,7 @@ try {
                         </button>
                     </div>
                     
-                    <div style="margin-bottom: 20px; display: flex; gap: 15px;">
+                    <div style="margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap;">
                         <input 
                             type="text" 
                             id="productSearch"
@@ -235,6 +252,29 @@ try {
                             <?php foreach ($categories as $cat): ?>
                                 <option value="<?php echo $cat['id']; ?>"><?php echo htmlspecialchars($cat['category_name']); ?></option>
                             <?php endforeach; ?>
+                        </select>
+                        <select id="powerFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                            <option value="">Любая мощность</option>
+                            <option value="0-1">до 1 кВт</option>
+                            <option value="1-3">1-3 кВт</option>
+                            <option value="3-5">3-5 кВт</option>
+                            <option value="5-10">5-10 кВт</option>
+                            <option value="10+">более 10 кВт</option>
+                        </select>
+                        <select id="speedFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                            <option value="">Любая скорость</option>
+                            <option value="3000">3000 об/мин</option>
+                            <option value="1500">1500 об/мин</option>
+                            <option value="1000">1000 об/мин</option>
+                            <option value="750">750 об/мин</option>
+                        </select>
+                        <select id="frameFilter" onchange="filterProducts()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                            <option value="">Любой габарит</option>
+                            <option value="71">71</option>
+                            <option value="80">80</option>
+                            <option value="90">90</option>
+                            <option value="100">100</option>
+                            <option value="112">112</option>
                         </select>
                     </div>
                     
@@ -257,7 +297,8 @@ try {
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($products as $product): ?>
-                                        <tr data-category="<?php echo $product['category_id'] ?? ''; ?>">
+                                        <tr data-category="<?php echo $product['category_id'] ?? ''; ?>" 
+                                            data-specs='<?php echo htmlspecialchars(json_encode($product['specifications'] ?? '{}'), ENT_QUOTES); ?>'>
                                             <td><strong><?php echo htmlspecialchars($product['product_code']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($product['product_name']); ?></td>
                                             <td><?php echo htmlspecialchars($product['category_name'] ?? 'Не указана'); ?></td>
@@ -271,7 +312,7 @@ try {
                                             </td>
                                             <td>
                                                 <div class="action-buttons">
-                                                    <button class="btn btn-sm btn-icon btn-primary" title="Просмотр" onclick="viewProduct(<?php echo $product['id']; ?>)">
+                                                    <button class="btn btn-sm btn-icon btn-primary" title="Просмотр характеристик" onclick="viewProduct(<?php echo $product['id']; ?>)">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
                                                     <button class="btn btn-sm btn-icon btn-secondary" title="Редактировать" onclick="editProduct(<?php echo $product['id']; ?>)">
@@ -537,6 +578,9 @@ try {
         function filterProducts() {
             const searchInput = document.getElementById('productSearch').value.toLowerCase();
             const categoryFilter = document.getElementById('categoryFilter').value;
+            const powerFilter = document.getElementById('powerFilter').value;
+            const speedFilter = document.getElementById('speedFilter').value;
+            const frameFilter = document.getElementById('frameFilter').value;
             const table = document.getElementById('productsTable');
             const rows = table.querySelectorAll('tbody tr[data-category]');
             
@@ -544,11 +588,50 @@ try {
                 const productCode = row.cells[0].textContent.toLowerCase();
                 const productName = row.cells[1].textContent.toLowerCase();
                 const category = row.dataset.category;
+                const specs = row.dataset.specs ? JSON.parse(row.dataset.specs) : {};
                 
+                // Extract power, speed, frame from specs
+                const powerStr = specs['Мощность'] || specs['мощность'] || '';
+                const speedStr = specs['Частота вращения'] || specs['Об/мин'] || specs['частота вращения'] || '';
+                const frameStr = specs['Габарит'] || specs['габарит'] || '';
+                
+                // Parse power value
+                let powerValue = 0;
+                const powerMatch = powerStr.match(/([\d.]+)\s*кВт/);
+                if (powerMatch) {
+                    powerValue = parseFloat(powerMatch[1]);
+                }
+                
+                // Parse speed value (take first number if multiple)
+                const speedMatch = speedStr.match(/(\d+)/);
+                const speedValue = speedMatch ? parseInt(speedMatch[1]) : 0;
+                
+                // Parse frame value
+                const frameValue = frameStr.trim();
+                
+                // Check search match
                 const matchesSearch = productCode.includes(searchInput) || productName.includes(searchInput);
+                
+                // Check category match
                 const matchesCategory = categoryFilter === '' || category === categoryFilter;
                 
-                if (matchesSearch && matchesCategory) {
+                // Check power match
+                let matchesPower = true;
+                if (powerFilter !== '') {
+                    if (powerFilter === '0-1') matchesPower = powerValue >= 0 && powerValue <= 1;
+                    else if (powerFilter === '1-3') matchesPower = powerValue > 1 && powerValue <= 3;
+                    else if (powerFilter === '3-5') matchesPower = powerValue > 3 && powerValue <= 5;
+                    else if (powerFilter === '5-10') matchesPower = powerValue > 5 && powerValue <= 10;
+                    else if (powerFilter === '10+') matchesPower = powerValue > 10;
+                }
+                
+                // Check speed match
+                const matchesSpeed = speedFilter === '' || speedValue === parseInt(speedFilter);
+                
+                // Check frame match
+                const matchesFrame = frameFilter === '' || frameValue === frameFilter;
+                
+                if (matchesSearch && matchesCategory && matchesPower && matchesSpeed && matchesFrame) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';
