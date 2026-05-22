@@ -445,7 +445,8 @@ CREATE TABLE warehouse_operations (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
 );
 
--- Employees table (extended HR data)
+-- Employees table (extended HR data) - REMOVED
+/*
 CREATE TABLE employees (
     id INT AUTO_INCREMENT PRIMARY KEY,
     full_name VARCHAR(200) NOT NULL,
@@ -463,6 +464,7 @@ CREATE TABLE employees (
     INDEX idx_status (status),
     INDEX idx_full_name (full_name)
 );
+*/
 
 -- Original employees table structure (for reference - linked to users)
 /*
@@ -499,12 +501,12 @@ CREATE TABLE activity_log (
 -- Insert default roles
 INSERT INTO roles (role_name, role_description, permissions) VALUES
 ('admin', 'Системный администратор - полный доступ ко всем функциям системы', '{"all": true}'),
-('director', 'Директор - просмотр всех отчетов и аналитики, управление сотрудниками', '{"dashboard": true, "reports": true, "hr": true, "analytics": true}'),
+('director', 'Директор - просмотр всех отчетов и аналитики, управление сотрудниками', '{"dashboard": true, "reports": true, "analytics": true}'),
 ('manager', 'Менеджер по продажам - работа с клиентами, заказами, коммерческими предложениями', '{"clients": true, "orders": true, "products": true, "sales": true}'),
 ('production_master', 'Мастер производства - управление производственными заданиями, контроль выпуска продукции', '{"production": true, "warehouse": true, "quality": true}'),
 ('warehouse_keeper', 'Кладовщик - учет ТМЦ, приход/расход материалов и готовой продукции', '{"warehouse": true, "inventory": true}'),
 ('accountant', 'Бухгалтер - финансовая отчетность, счета, акты, накладные', '{"finance": true, "reports": true, "documents": true}'),
-('hr_manager', 'HR-менеджер - кадры, отпуска, больничные, табель учета рабочего времени', '{"hr": true, "employees": true, "schedule": true}');
+('hr_manager', 'HR-менеджер - управление доступом к кадрам', '{}');
 
 -- Insert default admin user (password: admin123)
 -- Insert users with different roles for demonstration
@@ -618,7 +620,8 @@ INSERT INTO quality_control (production_order_id, route_sheet_id, inspection_dat
 INSERT INTO defect_log (quality_control_id, defect_type_id, quantity, description, created_by) VALUES
 (1, 2, 2, 'Обнаружены сквозные трещины в литых корпусах при визуальном контроле', 4);
 
--- Sample employees data for demonstration
+-- Sample employees data for demonstration - REMOVED
+/*
 INSERT INTO employees (full_name, email, phone, position, department, hire_date, salary, status, notes) VALUES
 ('Иванов Иван Иванович', 'ivanov@polesie.by', '+375-29-111-11-11', 'Инженер-конструктор', 'Конструкторский отдел', '2020-03-15', 2500.00, 'active', 'Ведущий специалист'),
 ('Петров Пётр Петрович', 'petrov@polesie.by', '+375-29-222-22-22', 'Менеджер по продажам', 'Отдел продаж', '2019-06-01', 2200.00, 'active', NULL),
@@ -628,3 +631,4 @@ INSERT INTO employees (full_name, email, phone, position, department, hire_date,
 ('Морозов Сергей Николаевич', 'morozov@polesie.by', '+375-29-666-66-66', 'Электрик', 'Производство', '2022-05-01', 1500.00, 'vacation', 'Ежегодный отпуск'),
 ('Волкова Мария Игоревна', 'volkova@polesie.by', '+375-29-777-77-77', 'Технолог', 'Технический отдел', '2020-11-30', 2300.00, 'active', NULL),
 ('Зайцев Александр Павлович', 'zaitsev@polesie.by', '+375-29-888-88-88', 'Водитель', 'Транспортный отдел', '2023-01-15', 1200.00, 'inactive', 'Декретный отпуск');
+*/
