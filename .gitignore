@@ -1,1 +1,49 @@
-Nothing needs to be added to .gitignore since only a PHP source file (index.php) was modified and no build artifacts, dependencies, or temporary files were detected in the changes.
+```
+# Environment variables
+.env
+.env.local
+.env.*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Logs
+*.log
+
+# Python specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py~
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-selfcheck.json
+*.so
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.db
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+*.py~
+*.egg-info/
+.egg-info/
+.eggs/
+.eggs/
+.eggs/
+.eggs/
+```
