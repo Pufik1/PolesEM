@@ -355,15 +355,6 @@ try {
             gap: 8px;
         }
         
-        .btn-export-csv {
-            background: #27ae60;
-            color: white;
-        }
-        
-        .btn-export-csv:hover {
-            background: #219a52;
-        }
-        
         .btn-export-print {
             background: #3498db;
             color: white;
@@ -466,12 +457,6 @@ try {
                             <label>&nbsp;</label>
                             <button class="btn-filter" onclick="applyFilters()">
                                 <i class="fas fa-filter"></i> Применить
-                            </button>
-                        </div>
-                        <div class="filter-group">
-                            <label>&nbsp;</label>
-                            <button class="btn-filter" style="background: #27ae60;" onclick="exportToCSV()">
-                                <i class="fas fa-file-csv"></i> CSV
                             </button>
                         </div>
                         <div class="filter-group">
@@ -727,6 +712,8 @@ try {
     <script>
         // Глобальные переменные для графиков
         let salesChart, statusChart, revenueChart;
+        let currentPeriod = 'month';
+        let currentReportType = 'all';
         
         // Переключение вкладок
         function switchTab(tabName) {
@@ -741,6 +728,8 @@ try {
         function applyFilters() {
             const period = document.getElementById('periodFilter').value;
             const reportType = document.getElementById('reportType').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
             
             // Показываем/скрываем поля для произвольного периода
             const dateRangeGroup = document.getElementById('dateRangeGroup');
@@ -750,57 +739,96 @@ try {
                 dateRangeGroup.style.display = 'none';
             }
             
-            // Здесь должна быть логика перезагрузки данных с сервера
-            // Для демонстрации покажем уведомление
-            console.log('Applying filters:', period, reportType);
+            currentPeriod = period;
+            currentReportType = reportType;
             
-            // В реальной реализации здесь был бы AJAX запрос к серверу
-            // fetch('api/reports.php?period=' + period + '&type=' + reportType)
-            //     .then(response => response.json())
-            //     .then(data => updateCharts(data));
+            // Загружаем новые данные с сервера
+            loadReportData(period, reportType, dateFrom, dateTo);
         }
         
-        // Экспорт в CSV
-        function exportToCSV() {
-            const reportType = document.getElementById('reportType').value;
-            const period = document.getElementById('periodFilter').value;
+        // Загрузка данных отчета через AJAX
+        function loadReportData(period, type, dateFrom, dateTo) {
+            let url = `api.php?period=${period}&type=${type}`;
             
-            // Собираем данные из таблиц на странице
-            const tables = document.querySelectorAll('.data-table');
-            if (tables.length === 0) {
-                alert('Нет данных для экспорта');
-                return;
+            if (dateFrom && dateTo) {
+                url += `&date_from=${dateFrom}&date_to=${dateTo}`;
             }
             
-            let csvContent = '\uFEFF'; // BOM для корректного отображения кириллицы
-            
-            tables.forEach((table, index) => {
-                const tableName = table.closest('.report-card')?.querySelector('h3')?.textContent || 'Данные';
-                csvContent += `\n${tableName}\n`;
-                
-                const rows = table.querySelectorAll('tr');
-                rows.forEach(row => {
-                    const cells = row.querySelectorAll('th, td');
-                    const rowData = Array.from(cells).map(cell => {
-                        let text = cell.textContent.trim();
-                        text = text.replace(/"/g, '""');
-                        return `"${text}"`;
-                    });
-                    csvContent += rowData.join(',') + '\n';
+            fetch(url)
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        updateCharts(result.data);
+                        updateSummaryCards(result.data);
+                        updateTables(result.data);
+                    } else {
+                        console.error('Ошибка загрузки данных:', result.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
                 });
-                csvContent += '\n';
-            });
+        }
+        
+        // Обновление сводных карточек
+        function updateSummaryCards(data) {
+            const cards = document.querySelectorAll('.summary-card .value');
+            if (cards[0]) cards[0].textContent = number_format(data.total_orders ?? 0);
+            if (cards[1]) cards[1].textContent = number_format(data.total_clients ?? 0);
+            if (cards[2]) cards[2].textContent = number_format(data.total_products ?? 0);
+            if (cards[3]) cards[3].textContent = number_format(data.total_revenue ?? 0, 2) + ' BYN';
+        }
+        
+        // Обновление таблиц
+        function updateTables(data) {
+            // Топ клиентов
+            if (data.top_clients) {
+                const tbody = document.querySelector('#sales-tab .data-table tbody');
+                if (tbody) {
+                    if (data.top_clients.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="3" class="text-center">Нет данных</td></tr>';
+                    } else {
+                        tbody.innerHTML = data.top_clients.map(client => 
+                            `<tr>
+                                <td>${escapeHtml(client.company_name)}</td>
+                                <td>${client.order_count}</td>
+                                <td>${number_format(client.total_amount, 2)}</td>
+                            </tr>`
+                        ).join('');
+                    }
+                }
+            }
             
-            // Создаем и скачиваем файл
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', `otchet_${reportType}_${new Date().toISOString().split('T')[0]}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            // Товары с низким запасом
+            if (data.low_stock) {
+                const tbody = document.querySelector('#warehouse-tab .data-table tbody');
+                if (tbody) {
+                    if (data.low_stock.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center">Все товары в норме</td></tr>';
+                    } else {
+                        tbody.innerHTML = data.low_stock.map(item => 
+                            `<tr>
+                                <td>${escapeHtml(item.product_code)}</td>
+                                <td>${escapeHtml(item.product_name)}</td>
+                                <td>${item.stock_quantity}</td>
+                                <td>${item.min_stock_level}</td>
+                                <td style="color: var(--danger-color); font-weight: bold;">${item.shortage}</td>
+                            </tr>`
+                        ).join('');
+                    }
+                }
+            }
+        }
+        
+        // Вспомогательные функции
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+        
+        function number_format(number, decimals = 0) {
+            return Number(number).toFixed(decimals).replace(/\d(?=(\d{3})+\.)/g, '$&,');
         }
         
         // Экспорт в печать
@@ -810,19 +838,45 @@ try {
         
         // Обновление графиков с новыми данными
         function updateCharts(newData) {
-            if (salesChart && newData.sales_by_month) {
-                salesChart.data.datasets[0].data = newData.sales_by_month.map(d => d.order_count);
-                salesChart.data.datasets[1].data = newData.sales_by_month.map(d => (d.total_amount / 1000).toFixed(2));
+            const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+            
+            if (salesChart && newData.sales_by_period) {
+                const salesByPeriod = newData.sales_by_period;
+                salesChart.data.labels = salesByPeriod.map(d => {
+                    const period = d.period;
+                    return period > 31 ? monthNames[period - 1] : `${period} число`;
+                });
+                salesChart.data.datasets[0].data = salesByPeriod.map(d => d.order_count);
+                salesChart.data.datasets[1].data = salesByPeriod.map(d => (d.total_amount / 1000).toFixed(2));
                 salesChart.update();
             }
             if (statusChart && newData.order_statuses) {
                 statusChart.data.datasets[0].data = newData.order_statuses.map(d => d.count);
+                statusChart.data.labels = newData.order_statuses.map(d => getStatusLabel(d.status));
                 statusChart.update();
             }
-            if (revenueChart && newData.revenue_by_month) {
-                revenueChart.data.datasets[0].data = newData.revenue_by_month.map(d => (d.total_paid / 1000).toFixed(2));
+            if (revenueChart && newData.revenue_by_period) {
+                const revenueByPeriod = newData.revenue_by_period;
+                revenueChart.data.labels = revenueByPeriod.map(d => {
+                    const period = d.period;
+                    return period > 31 ? monthNames[period - 1] : `${period} число`;
+                });
+                revenueChart.data.datasets[0].data = revenueByPeriod.map(d => (d.total_paid / 1000).toFixed(2));
                 revenueChart.update();
             }
+        }
+        
+        function getStatusLabel(status) {
+            const labels = {
+                'new': 'Новый',
+                'processing': 'В обработке',
+                'production': 'В производстве',
+                'ready': 'Готов',
+                'shipped': 'Отгружен',
+                'completed': 'Завершен',
+                'cancelled': 'Отменен'
+            };
+            return labels[status] || status;
         }
         
         // Инициализация графиков
@@ -887,15 +941,6 @@ try {
             // График статусов заказов
             const statusCtx = document.getElementById('statusChart').getContext('2d');
             const statusData = <?php echo json_encode($reportData['order_statuses'] ?? []); ?>;
-            const statusLabels = {
-                'new': 'Новый',
-                'processing': 'В обработке',
-                'production': 'В производстве',
-                'ready': 'Готов',
-                'shipped': 'Отгружен',
-                'completed': 'Завершен',
-                'cancelled': 'Отменен'
-            };
             const statusColors = {
                 'new': '#3498db',
                 'processing': '#f39c12',
@@ -909,7 +954,7 @@ try {
             statusChart = new Chart(statusCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: statusData.map(d => statusLabels[d.status] || d.status),
+                    labels: statusData.map(d => getStatusLabel(d.status)),
                     datasets: [{
                         data: statusData.map(d => d.count),
                         backgroundColor: statusData.map(d => statusColors[d.status] || '#95a5a6')
