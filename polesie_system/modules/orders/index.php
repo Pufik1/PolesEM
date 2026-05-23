@@ -27,7 +27,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
         if ($_POST['action'] === 'create') {
             $pdo->beginTransaction();
             
+            // Generate unique order number if not provided or if it's the default format
             $orderNumber = trim($_POST['order_number']);
+            if (empty($orderNumber) || preg_match('/^ORD-\d+-\d+$/', $orderNumber)) {
+                // Get today's date prefix
+                $datePrefix = date('Ymd');
+                
+                // Find the highest order number for today
+                $stmtCheck = $pdo->prepare("SELECT order_number FROM orders WHERE order_number LIKE :prefix ORDER BY id DESC LIMIT 1");
+                $stmtCheck->execute([':prefix' => "ORD-{$datePrefix}-%"]);
+                $lastOrder = $stmtCheck->fetch();
+                
+                if ($lastOrder) {
+                    // Extract the sequence number from the last order
+                    preg_match('/^ORD-\d+-(\d+)$/', $lastOrder['order_number'], $matches);
+                    $nextSequence = isset($matches[1]) ? (int)$matches[1] + 1 : 1;
+                } else {
+                    $nextSequence = 1;
+                }
+                
+                // Format with leading zeros (e.g., 001, 002, etc.)
+                $orderNumber = sprintf('ORD-%s-%03d', $datePrefix, $nextSequence);
+            }
+            
             $clientId = (int)$_POST['client_id'];
             $orderDate = $_POST['order_date'];
             $deliveryDate = $_POST['delivery_date'] ?: null;
