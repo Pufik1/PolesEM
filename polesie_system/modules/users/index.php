@@ -11,8 +11,8 @@ if (!isLoggedIn()) {
     redirect('../../index.php');
 }
 
-// Проверка прав доступа (только admin и manager)
-if (!hasRole(['admin', 'manager'])) {
+// Проверка прав доступа (только admin, director и manager)
+if (!hasRole(['admin', 'director', 'manager'])) {
     $_SESSION['error_message'] = 'У вас нет доступа к этому модулю';
     redirect('../../dashboard.php');
 }
@@ -377,7 +377,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                     </a>
                                 <?php endif; ?>
                             </form>
-                            <?php if (hasRole(['admin'])): ?>
+                            <?php if (hasRole(['admin', 'director'])): ?>
                                 <button class="btn btn-primary" onclick="openCreateModal()">
                                     <i class="fas fa-plus"></i> Добавить пользователя
                                 </button>
@@ -428,7 +428,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                             </td>
                                             <td>
                                                 <div class="action-buttons">
-                                                    <?php if (hasRole(['admin'])): ?>
+                                                    <?php if (hasRole(['admin', 'director'])): ?>
                                                         <button class="btn btn-sm btn-primary btn-icon" 
                                                                 onclick="openEditModal(<?php echo $user['id']; ?>)" 
                                                                 title="Редактировать">
