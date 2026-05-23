@@ -45,6 +45,9 @@ $statusColors = [
     'production' => 'warning',
     'ready' => 'success',
     'shipped' => 'primary',
+    'completed' => 'secondary',
+    'cancelled' => 'danger'
+];
 
 // Handle order creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(['admin', 'manager'])) {
