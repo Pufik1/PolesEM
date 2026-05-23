@@ -799,6 +799,24 @@ try {
                 }
             }
             
+            // Статусы заказов
+            if (data.order_statuses) {
+                const tbody = document.querySelector('.report-card:has(#statusChart) .data-table tbody');
+                if (tbody) {
+                    if (data.order_statuses.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="3" class="text-center">Нет данных</td></tr>';
+                    } else {
+                        tbody.innerHTML = data.order_statuses.map(status => 
+                            `<tr>
+                                <td><span class="badge-status badge-${status.status}">${getStatusLabel(status.status)}</span></td>
+                                <td>${status.count}</td>
+                                <td>${number_format(status.total_amount ?? 0, 2)}</td>
+                            </tr>`
+                        ).join('');
+                    }
+                }
+            }
+            
             // Товары с низким запасом
             if (data.low_stock) {
                 const tbody = document.querySelector('#warehouse-tab .data-table tbody');
@@ -840,28 +858,50 @@ try {
         function updateCharts(newData) {
             const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
             
+            // График продаж - простой линейный
             if (salesChart && newData.sales_by_period) {
                 const salesByPeriod = newData.sales_by_period;
-                salesChart.data.labels = salesByPeriod.map(d => {
+                const labels = salesByPeriod.map(d => {
                     const period = d.period;
-                    return period > 31 ? monthNames[period - 1] : `${period} число`;
+                    if (period > 31) return monthNames[period - 1];
+                    return `${period} день`;
                 });
+                
+                salesChart.data.labels = labels;
                 salesChart.data.datasets[0].data = salesByPeriod.map(d => d.order_count);
-                salesChart.data.datasets[1].data = salesByPeriod.map(d => (d.total_amount / 1000).toFixed(2));
                 salesChart.update();
             }
+            
+            // График статусов - пончик
             if (statusChart && newData.order_statuses) {
-                statusChart.data.datasets[0].data = newData.order_statuses.map(d => d.count);
-                statusChart.data.labels = newData.order_statuses.map(d => getStatusLabel(d.status));
+                const statuses = newData.order_statuses;
+                const colors = {
+                    'new': '#3498db',
+                    'processing': '#f39c12',
+                    'production': '#9b59b6',
+                    'ready': '#2ecc71',
+                    'shipped': '#1abc9c',
+                    'completed': '#27ae60',
+                    'cancelled': '#e74c3c'
+                };
+                
+                statusChart.data.labels = statuses.map(d => getStatusLabel(d.status));
+                statusChart.data.datasets[0].data = statuses.map(d => d.count);
+                statusChart.data.datasets[0].backgroundColor = statuses.map(d => colors[d.status] || '#95a5a6');
                 statusChart.update();
             }
+            
+            // График выручки - простая столбчатая диаграмма
             if (revenueChart && newData.revenue_by_period) {
                 const revenueByPeriod = newData.revenue_by_period;
-                revenueChart.data.labels = revenueByPeriod.map(d => {
+                const labels = revenueByPeriod.map(d => {
                     const period = d.period;
-                    return period > 31 ? monthNames[period - 1] : `${period} число`;
+                    if (period > 31) return monthNames[period - 1];
+                    return `${period} день`;
                 });
-                revenueChart.data.datasets[0].data = revenueByPeriod.map(d => (d.total_paid / 1000).toFixed(2));
+                
+                revenueChart.data.labels = labels;
+                revenueChart.data.datasets[0].data = revenueByPeriod.map(d => d.total_paid);
                 revenueChart.update();
             }
         }
@@ -879,133 +919,178 @@ try {
             return labels[status] || status;
         }
         
-        // Инициализация графиков
+        // Инициализация графиков при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
-            // График продаж по месяцам
-            const salesCtx = document.getElementById('salesChart').getContext('2d');
-            const salesData = <?php echo json_encode($reportData['sales_by_month'] ?? []); ?>;
-            
-            salesChart = new Chart(salesCtx, {
-                type: 'line',
-                data: {
-                    labels: salesData.map(d => d.month + ' мес.'),
-                    datasets: [{
-                        label: 'Заказы',
-                        data: salesData.map(d => d.order_count),
-                        borderColor: '#1a5f7a',
-                        backgroundColor: 'rgba(26, 95, 122, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }, {
-                        label: 'Сумма (тыс. BYN)',
-                        data: salesData.map(d => (d.total_amount / 1000).toFixed(2)),
-                        borderColor: '#f39c12',
-                        backgroundColor: 'rgba(243, 156, 18, 0.1)',
-                        tension: 0.4,
-                        fill: true,
-                        yAxisID: 'y1'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'top'
-                        }
+            // Простой график продаж - только количество заказов
+            const salesCtx = document.getElementById('salesChart');
+            if (salesCtx) {
+                const salesData = <?php echo json_encode($reportData['sales_by_month'] ?? []); ?>;
+                
+                salesChart = new Chart(salesCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: salesData.map(d => d.month + ' мес.'),
+                        datasets: [{
+                            label: 'Количество заказов',
+                            data: salesData.map(d => d.order_count),
+                            borderColor: '#1a5f7a',
+                            backgroundColor: 'rgba(26, 95, 122, 0.2)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.3,
+                            pointBackgroundColor: '#1a5f7a',
+                            pointRadius: 5,
+                            pointHoverRadius: 7
+                        }]
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
                                 display: true,
-                                text: 'Количество заказов'
+                                position: 'top'
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': ' + context.parsed.y;
+                                    }
+                                }
                             }
                         },
-                        y1: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            title: {
-                                display: true,
-                                text: 'Сумма (тыс. BYN)'
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Заказов'
+                                }
                             },
-                            grid: {
-                                drawOnChartArea: false
+                            x: {
+                                title: {
+                                    display: false
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
             
-            // График статусов заказов
-            const statusCtx = document.getElementById('statusChart').getContext('2d');
-            const statusData = <?php echo json_encode($reportData['order_statuses'] ?? []); ?>;
-            const statusColors = {
-                'new': '#3498db',
-                'processing': '#f39c12',
-                'production': '#9b59b6',
-                'ready': '#2ecc71',
-                'shipped': '#1abc9c',
-                'completed': '#27ae60',
-                'cancelled': '#e74c3c'
-            };
-            
-            statusChart = new Chart(statusCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: statusData.map(d => getStatusLabel(d.status)),
-                    datasets: [{
-                        data: statusData.map(d => d.count),
-                        backgroundColor: statusData.map(d => statusColors[d.status] || '#95a5a6')
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'right'
-                        }
-                    }
-                }
-            });
-            
-            // График выручки
-            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-            const revenueData = <?php echo json_encode($reportData['revenue_by_month'] ?? []); ?>;
-            
-            revenueChart = new Chart(revenueCtx, {
-                type: 'bar',
-                data: {
-                    labels: revenueData.map(d => d.month + ' мес.'),
-                    datasets: [{
-                        label: 'Выручка (тыс. BYN)',
-                        data: revenueData.map(d => (d.total_paid / 1000).toFixed(2)),
-                        backgroundColor: 'rgba(46, 204, 113, 0.8)',
-                        borderColor: '#27ae60',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
+            // Простой график статусов - только распределение
+            const statusCtx = document.getElementById('statusChart');
+            if (statusCtx) {
+                const statusData = <?php echo json_encode($reportData['order_statuses'] ?? []); ?>;
+                const statusColors = {
+                    'new': '#3498db',
+                    'processing': '#f39c12',
+                    'production': '#9b59b6',
+                    'ready': '#2ecc71',
+                    'shipped': '#1abc9c',
+                    'completed': '#27ae60',
+                    'cancelled': '#e74c3c'
+                };
+                
+                statusChart = new Chart(statusCtx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: statusData.map(d => getStatusLabel(d.status)),
+                        datasets: [{
+                            data: statusData.map(d => d.count),
+                            backgroundColor: statusData.map(d => statusColors[d.status] || '#95a5a6'),
+                            borderWidth: 2,
+                            borderColor: '#fff'
+                        }]
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Сумма (тыс. BYN)'
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '60%',
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    padding: 15,
+                                    usePointStyle: true,
+                                    pointStyle: 'circle'
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                        return label + ': ' + value + ' (' + percentage + '%)';
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
+            
+            // Простой график выручки - только сумма
+            const revenueCtx = document.getElementById('revenueChart');
+            if (revenueCtx) {
+                const revenueData = <?php echo json_encode($reportData['revenue_by_month'] ?? []); ?>;
+                
+                revenueChart = new Chart(revenueCtx.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: revenueData.map(d => d.month + ' мес.'),
+                        datasets: [{
+                            label: 'Выручка (BYN)',
+                            data: revenueData.map(d => d.total_paid),
+                            backgroundColor: 'rgba(39, 174, 96, 0.8)',
+                            borderColor: '#27ae60',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return 'Выручка: ' + number_format(context.parsed.y, 2) + ' BYN';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Сумма (BYN)'
+                                },
+                                ticks: {
+                                    callback: function(value) {
+                                        return number_format(value, 0);
+                                    }
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: false
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         });
     </script>
 </body>
