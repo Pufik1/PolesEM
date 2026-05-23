@@ -21,6 +21,31 @@ $error = '';
 $success = '';
 $editOrder = null;
 
+// Status translations
+$statusLabels = [
+    'new' => 'Новый',
+    'processing' => 'В обработке',
+    'production' => 'В производстве',
+    'ready' => 'Готов к отгрузке',
+    'shipped' => 'Отгружен',
+    'completed' => 'Выполнен',
+    'cancelled' => 'Отменен'
+];
+
+$paymentStatusLabels = [
+    'unpaid' => 'Не оплачен',
+    'partial' => 'Частично оплачен',
+    'paid' => 'Оплачен',
+    'overdue' => 'Просрочен'
+];
+
+$statusColors = [
+    'new' => 'info',
+    'processing' => 'warning',
+    'production' => 'warning',
+    'ready' => 'success',
+    'shipped' => 'primary',
+
 // Handle order creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(['admin', 'manager'])) {
     try {
