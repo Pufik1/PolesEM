@@ -120,6 +120,37 @@ try {
     $stmt = $pdo->query("SELECT SUM(final_amount) as total FROM orders WHERE status = 'completed'");
     $reportData['total_revenue'] = $stmt->fetch()['total'] ?? 0;
     
+    // 9. Статистика производства по статусам
+    $stmt = $pdo->query("
+        SELECT 
+            SUM(CASE WHEN status = 'planned' THEN 1 ELSE 0 END) as planned_count,
+            SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_count,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count,
+            SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_count,
+            SUM(CASE WHEN status = 'planned' THEN quantity ELSE 0 END) as planned_quantity,
+            SUM(CASE WHEN status = 'in_progress' THEN quantity ELSE 0 END) as in_progress_quantity,
+            SUM(CASE WHEN status = 'completed' THEN quantity ELSE 0 END) as completed_quantity
+        FROM production_orders
+    ");
+    $prodStats = $stmt->fetch();
+    $reportData['production_planned'] = (int)($prodStats['planned_count'] ?? 0);
+    $reportData['production_in_progress'] = (int)($prodStats['in_progress_count'] ?? 0);
+    $reportData['production_completed'] = (int)($prodStats['completed_count'] ?? 0);
+    $reportData['production_cancelled'] = (int)($prodStats['cancelled_count'] ?? 0);
+    $reportData['production_planned_qty'] = (int)($prodStats['planned_quantity'] ?? 0);
+    $reportData['production_in_progress_qty'] = (int)($prodStats['in_progress_quantity'] ?? 0);
+    $reportData['production_completed_qty'] = (int)($prodStats['completed_quantity'] ?? 0);
+    
+    // 10. Выручка за текущий месяц
+    $stmt = $pdo->query("
+        SELECT SUM(final_amount) as total 
+        FROM orders 
+        WHERE status = 'completed' 
+        AND MONTH(order_date) = MONTH(CURRENT_DATE())
+        AND YEAR(order_date) = YEAR(CURRENT_DATE())
+    ");
+    $reportData['month_revenue'] = $stmt->fetch()['total'] ?? 0;
+    
 } catch (PDOException $e) {
     error_log($e->getMessage());
 }
@@ -621,19 +652,19 @@ try {
                             <h3><i class="fas fa-tasks"></i> Статистика производства</h3>
                             <div class="stat-row">
                                 <span class="stat-label">В плане</span>
-                                <span class="stat-value">-</span>
+                                <span class="stat-value"><?php echo $reportData['production_planned'] ?? 0; ?> ед. (<?php echo $reportData['production_planned_qty'] ?? 0; ?> шт.)</span>
                             </div>
                             <div class="stat-row">
                                 <span class="stat-label">В работе</span>
-                                <span class="stat-value">-</span>
+                                <span class="stat-value"><?php echo $reportData['production_in_progress'] ?? 0; ?> ед. (<?php echo $reportData['production_in_progress_qty'] ?? 0; ?> шт.)</span>
                             </div>
                             <div class="stat-row">
                                 <span class="stat-label">Завершено</span>
-                                <span class="stat-value">-</span>
+                                <span class="stat-value"><?php echo $reportData['production_completed'] ?? 0; ?> ед. (<?php echo $reportData['production_completed_qty'] ?? 0; ?> шт.)</span>
                             </div>
                             <div class="stat-row">
-                                <span class="stat-label">Брак</span>
-                                <span class="stat-value">-</span>
+                                <span class="stat-label">Отменено</span>
+                                <span class="stat-value"><?php echo $reportData['production_cancelled'] ?? 0; ?> ед.</span>
                             </div>
                         </div>
                     </div>
@@ -699,7 +730,7 @@ try {
                             </div>
                             <div class="stat-row">
                                 <span class="stat-label">За месяц</span>
-                                <span class="stat-value">- BYN</span>
+                                <span class="stat-value"><?php echo number_format($reportData['month_revenue'] ?? 0, 2); ?> BYN</span>
                             </div>
                         </div>
                     </div>
@@ -834,6 +865,17 @@ try {
                             </tr>`
                         ).join('');
                     }
+                }
+            }
+            
+            // Статистика производства
+            if (data.production_planned !== undefined) {
+                const prodStatsRows = document.querySelectorAll('#production-tab .stat-row');
+                if (prodStatsRows.length >= 4) {
+                    prodStatsRows[0].querySelector('.stat-value').textContent = data.production_planned + ' ед. (' + data.production_planned_qty + ' шт.)';
+                    prodStatsRows[1].querySelector('.stat-value').textContent = data.production_in_progress + ' ед. (' + data.production_in_progress_qty + ' шт.)';
+                    prodStatsRows[2].querySelector('.stat-value').textContent = data.production_completed + ' ед. (' + data.production_completed_qty + ' шт.)';
+                    prodStatsRows[3].querySelector('.stat-value').textContent = data.production_cancelled + ' ед.';
                 }
             }
         }

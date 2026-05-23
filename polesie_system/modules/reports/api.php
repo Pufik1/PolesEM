@@ -181,6 +181,37 @@ try {
     $stmt->execute();
     $response['total_revenue'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
     
+    // Выручка за текущий месяц
+    $stmt = $pdo->query("
+        SELECT SUM(final_amount) as total 
+        FROM orders 
+        WHERE status = 'completed' 
+        AND MONTH(order_date) = MONTH(CURRENT_DATE())
+        AND YEAR(order_date) = YEAR(CURRENT_DATE())
+    ");
+    $response['month_revenue'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+    
+    // Статистика производства по статусам
+    $stmt = $pdo->query("
+        SELECT 
+            SUM(CASE WHEN status = 'planned' THEN 1 ELSE 0 END) as planned_count,
+            SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_count,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count,
+            SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_count,
+            SUM(CASE WHEN status = 'planned' THEN quantity ELSE 0 END) as planned_quantity,
+            SUM(CASE WHEN status = 'in_progress' THEN quantity ELSE 0 END) as in_progress_quantity,
+            SUM(CASE WHEN status = 'completed' THEN quantity ELSE 0 END) as completed_quantity
+        FROM production_orders
+    ");
+    $prodStats = $stmt->fetch(PDO::FETCH_ASSOC);
+    $response['production_planned'] = (int)($prodStats['planned_count'] ?? 0);
+    $response['production_in_progress'] = (int)($prodStats['in_progress_count'] ?? 0);
+    $response['production_completed'] = (int)($prodStats['completed_count'] ?? 0);
+    $response['production_cancelled'] = (int)($prodStats['cancelled_count'] ?? 0);
+    $response['production_planned_qty'] = (int)($prodStats['planned_quantity'] ?? 0);
+    $response['production_in_progress_qty'] = (int)($prodStats['in_progress_quantity'] ?? 0);
+    $response['production_completed_qty'] = (int)($prodStats['completed_quantity'] ?? 0);
+    
     $stmt = $pdo->query("SELECT COUNT(*) as count FROM clients");
     $response['total_clients'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
     
