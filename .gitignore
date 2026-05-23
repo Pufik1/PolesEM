@@ -1,49 +1,63 @@
 ```
+# Database files
+*.sql
+
 # Environment variables
 .env
 .env.local
-.env.*
-
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
+*.env.*
 
 # Logs
 *.log
 
-# Python specific
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.py~
-.Python
-env/
-venv/
-.venv/
-pip-log.txt
-pip-selfcheck.json
-*.so
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.db
-*.log
-*.pot
-*.pyc
-*.pyo
-*.pyd
-*.py~
 *.egg-info/
-.egg-info/
 .eggs/
-.eggs/
-.eggs/
-.eggs/
+
+# Build artifacts
+build/
+dist/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Coverage reports
+.coverage
+htmlcov/
+coverage/
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.nyc_output/
+coverage/
+
+# Distribution / packaging
+*.tar.gz
+*.whl
+*.zip
+
+# Configuration specific to development
+config/
+secrets/
 ```

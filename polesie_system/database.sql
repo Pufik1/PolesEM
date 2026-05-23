@@ -472,8 +472,8 @@ CREATE TABLE employees_old (
 CREATE TABLE activity_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,
-    action VARCHAR(100) NOT NULL,
-    table_name VARCHAR(50),
+    action VARCHAR(255) NOT NULL,
+    table_name VARCHAR(100),
     record_id INT,
     old_values JSON,
     new_values JSON,
