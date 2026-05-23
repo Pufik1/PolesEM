@@ -344,7 +344,7 @@ $stats = $pdo->query("
                 <!-- Tabs -->
                 <div class="production-tabs">
                     <button class="tab-btn active" onclick="showTab('dashboard')">
-                        <i class="fas fa-chart-line"></i> Оперативка
+                        <i class="fas fa-chart-line"></i> Обзор производства
                     </button>
                     <button class="tab-btn" onclick="showTab('orders')">
                         <i class="fas fa-tasks"></i> Планы выпуска
@@ -359,49 +359,164 @@ $stats = $pdo->query("
 
                 <!-- Dashboard Tab -->
                 <div id="dashboard" class="tab-content active">
-                    <div class="card">
-                        <h2><i class="fas fa-fire"></i> Горящие заказы</h2>
+                    <!-- Секция: Требуют внимания -->
+                    <div class="card" style="margin-bottom: 20px;">
+                        <h2><i class="fas fa-exclamation-triangle"></i> Требуют внимания (дедлайн ≤ 7 дней)</h2>
+                        <?php 
+                        $urgent_orders = array_filter($current_orders, function($order) {
+                            return $order['days_remaining'] <= 7;
+                        });
+                        ?>
+                        <?php if (count($urgent_orders) > 0): ?>
                         <div class="kanban-board">
-                            <?php foreach ($current_orders as $order): ?>
-                                <?php if ($order['days_remaining'] <= 7): ?>
-                                <div class="kanban-card">
-                                    <span class="priority-badge priority-<?php echo $order['priority']; ?>">
-                                        <?php 
-                                        $priorities = ['urgent' => 'Срочно', 'high' => 'Высокий', 'normal' => 'Нормальный', 'low' => 'Низкий'];
-                                        echo $priorities[$order['priority']];
-                                        ?>
-                                    </span>
-                                    <h4><?php echo htmlspecialchars($order['product_name']); ?></h4>
-                                    <div class="info-grid">
-                                        <div class="info-item">
-                                            <label>№ заказа:</label>
-                                            <span><?php echo htmlspecialchars($order['production_number']); ?></span>
-                                        </div>
-                                        <div class="info-item">
-                                            <label>Количество:</label>
-                                            <span><?php echo $order['quantity']; ?> шт</span>
-                                        </div>
-                                        <div class="info-item">
-                                            <label>До конца:</label>
-                                            <span style="color: <?php echo $order['days_remaining'] <= 3 ? '#e74c3c' : '#f39c12'; ?>">
-                                                <?php echo $order['days_remaining']; ?> дн.
-                                            </span>
-                                        </div>
-                                        <div class="info-item">
-                                            <label>Ответственный:</label>
-                                            <span><?php echo $order['responsible_name'] ?: 'Не назначен'; ?></span>
-                                        </div>
+                            <?php foreach ($urgent_orders as $order): ?>
+                            <div class="kanban-card" style="border-left: 4px solid <?php echo $order['days_remaining'] <= 3 ? '#e74c3c' : '#f39c12'; ?>;">
+                                <span class="priority-badge priority-<?php echo $order['priority']; ?>">
+                                    <?php 
+                                    $priorities = ['urgent' => 'Срочно', 'high' => 'Высокий', 'normal' => 'Нормальный', 'low' => 'Низкий'];
+                                    echo $priorities[$order['priority']];
+                                    ?>
+                                </span>
+                                <h4><?php echo htmlspecialchars($order['product_name']); ?></h4>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <label>№ заказа:</label>
+                                        <span><?php echo htmlspecialchars($order['production_number']); ?></span>
                                     </div>
-                                    <div class="progress-bar">
-                                        <div class="progress-fill" style="width: <?php 
-                                            $total_days = strtotime($order['planned_end_date']) - strtotime($order['planned_start_date']);
-                                            $elapsed = time() - strtotime($order['planned_start_date']);
-                                            echo min(100, max(0, ($elapsed / $total_days) * 100));
-                                        ?>%"></div>
+                                    <div class="info-item">
+                                        <label>Количество:</label>
+                                        <span><?php echo $order['quantity']; ?> шт</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>До конца:</label>
+                                        <span style="color: <?php echo $order['days_remaining'] <= 3 ? '#e74c3c' : '#f39c12'; ?>; font-weight: bold;">
+                                            <?php echo $order['days_remaining']; ?> дн.
+                                        </span>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Ответственный:</label>
+                                        <span><?php echo $order['responsible_name'] ?: '<em style="color: #999;">Не назначен</em>'; ?></span>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Рабочий центр:</label>
+                                        <span><?php echo $order['center_name'] ?: '<em style="color: #999;">Не назначен</em>'; ?></span>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Статус:</label>
+                                        <span class="badge badge-<?php echo $order['status'] === 'in_progress' ? 'warning' : 'primary'; ?>">
+                                            <?php echo $order['status'] === 'in_progress' ? 'В работе' : 'В плане'; ?>
+                                        </span>
                                     </div>
                                 </div>
-                                <?php endif; ?>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: <?php 
+                                        $total_days = strtotime($order['planned_end_date']) - strtotime($order['planned_start_date']);
+                                        $elapsed = time() - strtotime($order['planned_start_date']);
+                                        echo min(100, max(0, ($elapsed / $total_days) * 100));
+                                    ?>%"></div>
+                                </div>
+                                <small style="color: #7f8c8d; font-size: 11px;">
+                                    План: <?php echo date('d.m.Y', strtotime($order['planned_start_date'])); ?> - <?php echo date('d.m.Y', strtotime($order['planned_end_date'])); ?>
+                                </small>
+                                <div style="margin-top: 10px; display: flex; gap: 5px;">
+                                    <?php if ($order['status'] === 'planned'): ?>
+                                    <form method="POST" style="display:inline;">
+                                        <input type="hidden" name="action" value="update_status">
+                                        <input type="hidden" name="production_order_id" value="<?php echo $order['id']; ?>">
+                                        <input type="hidden" name="status" value="in_progress">
+                                        <button type="submit" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-play"></i> Начать
+                                        </button>
+                                    </form>
+                                    <?php endif; ?>
+                                    <button class="btn btn-sm btn-secondary" onclick="viewRouteSheet(<?php echo $order['id']; ?>)">
+                                        <i class="fas fa-file-alt"></i> Маршрутный лист
+                                    </button>
+                                </div>
+                            </div>
                             <?php endforeach; ?>
+                        </div>
+                        <?php else: ?>
+                        <div class="alert alert-info">
+                            <i class="fas fa-check-circle"></i> Нет заказов, требующих срочного внимания. Все заказы в графике!
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <!-- Секция: Все текущие заказы -->
+                    <div class="card">
+                        <h2><i class="fas fa-list"></i> Все активные производственные заказы</h2>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>№ заказа</th>
+                                        <th>Продукция</th>
+                                        <th>Кол-во</th>
+                                        <th>Приоритет</th>
+                                        <th>План начало</th>
+                                        <th>План окончание</th>
+                                        <th>Дней осталось</th>
+                                        <th>Статус</th>
+                                        <th>Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($current_orders as $order): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($order['production_number']); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($order['product_name']); ?></td>
+                                        <td><?php echo $order['quantity']; ?> шт</td>
+                                        <td>
+                                            <span class="badge badge-<?php 
+                                                echo $order['priority'] === 'urgent' ? 'danger' : 
+                                                    ($order['priority'] === 'high' ? 'warning' : 'info');
+                                            ?>">
+                                                <?php 
+                                                $priorities = ['urgent' => 'Срочно', 'high' => 'Высокий', 'normal' => 'Нормальный', 'low' => 'Низкий'];
+                                                echo $priorities[$order['priority']];
+                                                ?>
+                                            </span>
+                                        </td>
+                                        <td><?php echo date('d.m.Y', strtotime($order['planned_start_date'])); ?></td>
+                                        <td><?php echo date('d.m.Y', strtotime($order['planned_end_date'])); ?></td>
+                                        <td>
+                                            <span style="color: <?php echo $order['days_remaining'] <= 3 ? '#e74c3c' : ($order['days_remaining'] <= 7 ? '#f39c12' : '#2ecc71'); ?>; font-weight: bold;">
+                                                <?php echo $order['days_remaining']; ?> дн.
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-<?php 
+                                                echo $order['status'] === 'in_progress' ? 'warning' : 'primary';
+                                            ?>">
+                                                <?php 
+                                                $statuses = ['planned' => 'В плане', 'in_progress' => 'В работе', 'completed' => 'Завершен'];
+                                                echo $statuses[$order['status']];
+                                                ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="action-buttons">
+                                                <button class="btn btn-icon btn-sm" title="Маршрутный лист" 
+                                                        onclick="viewRouteSheet(<?php echo $order['id']; ?>)">
+                                                    <i class="fas fa-file-alt"></i>
+                                                </button>
+                                                <?php if ($order['status'] === 'planned'): ?>
+                                                <form method="POST" style="display:inline;">
+                                                    <input type="hidden" name="action" value="update_status">
+                                                    <input type="hidden" name="production_order_id" value="<?php echo $order['id']; ?>">
+                                                    <input type="hidden" name="status" value="in_progress">
+                                                    <button type="submit" class="btn btn-icon btn-sm" title="Начать производство">
+                                                        <i class="fas fa-play"></i>
+                                                    </button>
+                                                </form>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
