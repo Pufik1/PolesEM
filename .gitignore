@@ -1,1 +1,1 @@
-Nothing to output - the file changes contain only source code files (.php) and no build artifacts, dependencies, or temporary files that need to be ignored.
+Nothing should be ignored since only a PHP source file was modified and no build artifacts, dependencies, or temporary files were detected in the changes.
