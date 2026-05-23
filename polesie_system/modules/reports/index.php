@@ -336,6 +336,74 @@ try {
         .tab-content.active {
             display: block;
         }
+        
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .btn-export {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-export-csv {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-export-csv:hover {
+            background: #219a52;
+        }
+        
+        .btn-export-print {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-export-print:hover {
+            background: #2980b9;
+        }
+        
+        .date-range-inputs {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .date-range-inputs input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .chart-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+        
+        .chart-fullscreen {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+        
+        .chart-fullscreen:hover {
+            background: var(--bg-color);
+        }
     </style>
 </head>
 <body>
@@ -356,6 +424,10 @@ try {
             <header class="header">
                 <div class="header-title"><h1>Отчетность и аналитика</h1></div>
                 <div class="user-info">
+                    <div class="user-details">
+                        <span class="user-role"><?php echo htmlspecialchars($userRole); ?></span>
+                        <span class="user-name"><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
+                    </div>
                     <div class="user-avatar"><?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?></div>
                 </div>
             </header>
@@ -366,23 +438,28 @@ try {
                     <div class="filter-row">
                         <div class="filter-group">
                             <label>Период</label>
-                            <select id="periodFilter">
+                            <select id="periodFilter" onchange="applyFilters()">
                                 <option value="today">Сегодня</option>
                                 <option value="week">Неделя</option>
                                 <option value="month" selected>Месяц</option>
                                 <option value="quarter">Квартал</option>
                                 <option value="year">Год</option>
+                                <option value="custom">Произвольный</option>
                             </select>
+                        </div>
+                        <div class="filter-group date-range-inputs" id="dateRangeGroup" style="display: none;">
+                            <input type="date" id="dateFrom" placeholder="С">
+                            <span>—</span>
+                            <input type="date" id="dateTo" placeholder="По">
                         </div>
                         <div class="filter-group">
                             <label>Тип отчета</label>
-                            <select id="reportType">
+                            <select id="reportType" onchange="applyFilters()">
                                 <option value="all">Все отчеты</option>
                                 <option value="sales">Продажи</option>
                                 <option value="production">Производство</option>
                                 <option value="warehouse">Склад</option>
                                 <option value="finance">Финансы</option>
-                                <option value="hr">Кадры</option>
                             </select>
                         </div>
                         <div class="filter-group">
@@ -393,8 +470,14 @@ try {
                         </div>
                         <div class="filter-group">
                             <label>&nbsp;</label>
-                            <button class="btn-filter" style="background: var(--secondary-color);" onclick="exportReport()">
-                                <i class="fas fa-download"></i> Экспорт
+                            <button class="btn-filter" style="background: #27ae60;" onclick="exportToCSV()">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </button>
+                        </div>
+                        <div class="filter-group">
+                            <label>&nbsp;</label>
+                            <button class="btn-filter" style="background: #3498db;" onclick="exportToPrint()">
+                                <i class="fas fa-print"></i> Печать
                             </button>
                         </div>
                     </div>
@@ -426,7 +509,6 @@ try {
                     <button class="tab-btn" onclick="switchTab('production')">Производство</button>
                     <button class="tab-btn" onclick="switchTab('warehouse')">Склад</button>
                     <button class="tab-btn" onclick="switchTab('finance')">Финансы</button>
-                    <button class="tab-btn" onclick="switchTab('hr')">Кадры</button>
                 </div>
                 
                 <!-- Вкладка: Продажи -->
@@ -638,42 +720,14 @@ try {
                     </div>
                 </div>
                 
-                <!-- Вкладка: Кадры -->
-                <div id="hr-tab" class="tab-content">
-                    <div class="report-card">
-                        <h3><i class="fas fa-users"></i> Производительность сотрудников</h3>
-                        <div class="table-responsive">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Сотрудник</th>
-                                        <th>Выполнено заданий</th>
-                                        <th>Произведено (шт)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (empty($reportData['employee_performance'])): ?>
-                                        <tr><td colspan="3" class="text-center">Нет данных за текущий месяц</td></tr>
-                                    <?php else: ?>
-                                        <?php foreach ($reportData['employee_performance'] as $employee): ?>
-                                            <tr>
-                                                <td><?php echo htmlspecialchars($employee['full_name']); ?></td>
-                                                <td><?php echo $employee['tasks_completed']; ?></td>
-                                                <td><?php echo $employee['total_produced']; ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                
             </div>
         </div>
     </div>
     
     <script>
+        // Глобальные переменные для графиков
+        let salesChart, statusChart, revenueChart;
+        
         // Переключение вкладок
         function switchTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
@@ -687,13 +741,88 @@ try {
         function applyFilters() {
             const period = document.getElementById('periodFilter').value;
             const reportType = document.getElementById('reportType').value;
+            
+            // Показываем/скрываем поля для произвольного периода
+            const dateRangeGroup = document.getElementById('dateRangeGroup');
+            if (period === 'custom') {
+                dateRangeGroup.style.display = 'flex';
+            } else {
+                dateRangeGroup.style.display = 'none';
+            }
+            
+            // Здесь должна быть логика перезагрузки данных с сервера
+            // Для демонстрации покажем уведомление
             console.log('Applying filters:', period, reportType);
-            alert('Фильтры применены: ' + period + ', ' + reportType);
+            
+            // В реальной реализации здесь был бы AJAX запрос к серверу
+            // fetch('api/reports.php?period=' + period + '&type=' + reportType)
+            //     .then(response => response.json())
+            //     .then(data => updateCharts(data));
         }
         
-        // Экспорт отчета
-        function exportReport() {
-            alert('Экспорт отчета в формате Excel/PDF будет реализован в следующей версии');
+        // Экспорт в CSV
+        function exportToCSV() {
+            const reportType = document.getElementById('reportType').value;
+            const period = document.getElementById('periodFilter').value;
+            
+            // Собираем данные из таблиц на странице
+            const tables = document.querySelectorAll('.data-table');
+            if (tables.length === 0) {
+                alert('Нет данных для экспорта');
+                return;
+            }
+            
+            let csvContent = '\uFEFF'; // BOM для корректного отображения кириллицы
+            
+            tables.forEach((table, index) => {
+                const tableName = table.closest('.report-card')?.querySelector('h3')?.textContent || 'Данные';
+                csvContent += `\n${tableName}\n`;
+                
+                const rows = table.querySelectorAll('tr');
+                rows.forEach(row => {
+                    const cells = row.querySelectorAll('th, td');
+                    const rowData = Array.from(cells).map(cell => {
+                        let text = cell.textContent.trim();
+                        text = text.replace(/"/g, '""');
+                        return `"${text}"`;
+                    });
+                    csvContent += rowData.join(',') + '\n';
+                });
+                csvContent += '\n';
+            });
+            
+            // Создаем и скачиваем файл
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `otchet_${reportType}_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Экспорт в печать
+        function exportToPrint() {
+            window.print();
+        }
+        
+        // Обновление графиков с новыми данными
+        function updateCharts(newData) {
+            if (salesChart && newData.sales_by_month) {
+                salesChart.data.datasets[0].data = newData.sales_by_month.map(d => d.order_count);
+                salesChart.data.datasets[1].data = newData.sales_by_month.map(d => (d.total_amount / 1000).toFixed(2));
+                salesChart.update();
+            }
+            if (statusChart && newData.order_statuses) {
+                statusChart.data.datasets[0].data = newData.order_statuses.map(d => d.count);
+                statusChart.update();
+            }
+            if (revenueChart && newData.revenue_by_month) {
+                revenueChart.data.datasets[0].data = newData.revenue_by_month.map(d => (d.total_paid / 1000).toFixed(2));
+                revenueChart.update();
+            }
         }
         
         // Инициализация графиков
@@ -702,7 +831,7 @@ try {
             const salesCtx = document.getElementById('salesChart').getContext('2d');
             const salesData = <?php echo json_encode($reportData['sales_by_month'] ?? []); ?>;
             
-            new Chart(salesCtx, {
+            salesChart = new Chart(salesCtx, {
                 type: 'line',
                 data: {
                     labels: salesData.map(d => d.month + ' мес.'),
@@ -777,7 +906,7 @@ try {
                 'cancelled': '#e74c3c'
             };
             
-            new Chart(statusCtx, {
+            statusChart = new Chart(statusCtx, {
                 type: 'doughnut',
                 data: {
                     labels: statusData.map(d => statusLabels[d.status] || d.status),
@@ -801,7 +930,7 @@ try {
             const revenueCtx = document.getElementById('revenueChart').getContext('2d');
             const revenueData = <?php echo json_encode($reportData['revenue_by_month'] ?? []); ?>;
             
-            new Chart(revenueCtx, {
+            revenueChart = new Chart(revenueCtx, {
                 type: 'bar',
                 data: {
                     labels: revenueData.map(d => d.month + ' мес.'),
