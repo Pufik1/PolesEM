@@ -546,6 +546,341 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 header('Location: ' . $_SERVER['PHP_SELF'] . '?view=' . $orderId . '&success=' . urlencode($success));
                 exit;
             }
+        } elseif ($_POST['action'] === 'update_invoice') {
+            if (!hasRole(['admin', 'manager', 'accountant'])) {
+                $error = 'Недостаточно прав для редактирования счета';
+            } else {
+                $pdo->beginTransaction();
+                
+                $invoiceId = (int)$_POST['invoice_id'];
+                $orderId = (int)$_POST['order_id'];
+                $invoiceNumber = trim($_POST['invoice_number']);
+                $invoiceDate = $_POST['invoice_date'];
+                $dueDate = $_POST['due_date'] ?: null;
+                $vatRate = (float)($_POST['vat_rate'] ?? 20);
+                $notes = trim($_POST['notes']);
+                
+                // Get order items
+                $stmtItems = $pdo->prepare("SELECT oi.*, p.product_name, p.product_code 
+                                            FROM order_items oi
+                                            LEFT JOIN products p ON oi.product_id = p.id
+                                            WHERE oi.order_id = :order_id");
+                $stmtItems->execute([':order_id' => $orderId]);
+                $orderItems = $stmtItems->fetchAll();
+                
+                // Calculate totals
+                $totalAmount = 0;
+                $vatAmount = 0;
+                
+                foreach ($orderItems as $item) {
+                    $itemTotal = (float)$item['total_price'];
+                    $itemVat = $itemTotal * ($vatRate / 100);
+                    $totalAmount += $itemTotal;
+                    $vatAmount += $itemVat;
+                }
+                
+                $totalWithVat = $totalAmount + $vatAmount;
+                
+                // Update invoice
+                $stmtInv = $pdo->prepare("UPDATE invoices SET 
+                                          invoice_number = :invoice_number,
+                                          invoice_date = :invoice_date,
+                                          due_date = :due_date,
+                                          total_amount = :total_amount,
+                                          vat_amount = :vat_amount,
+                                          total_with_vat = :total_with_vat,
+                                          notes = :notes
+                                          WHERE id = :id");
+                $stmtInv->execute([
+                    ':invoice_number' => $invoiceNumber,
+                    ':invoice_date' => $invoiceDate,
+                    ':due_date' => $dueDate,
+                    ':total_amount' => $totalAmount,
+                    ':vat_amount' => $vatAmount,
+                    ':total_with_vat' => $totalWithVat,
+                    ':notes' => $notes,
+                    ':id' => $invoiceId
+                ]);
+                
+                // Delete old invoice items and create new ones
+                $stmtDel = $pdo->prepare("DELETE FROM invoice_items WHERE invoice_id = :invoice_id");
+                $stmtDel->execute([':invoice_id' => $invoiceId]);
+                
+                $stmtItem = $pdo->prepare("INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, 
+                                           discount_percent, total_price, vat_rate, vat_amount) 
+                                           VALUES (:invoice_id, :product_id, :quantity, :unit_price, 
+                                           :discount_percent, :total_price, :vat_rate, :vat_amount)");
+                
+                foreach ($orderItems as $item) {
+                    $itemTotal = (float)$item['total_price'];
+                    $itemVat = $itemTotal * ($vatRate / 100);
+                    
+                    $stmtItem->execute([
+                        ':invoice_id' => $invoiceId,
+                        ':product_id' => (int)$item['product_id'],
+                        ':quantity' => (int)$item['quantity'],
+                        ':unit_price' => (float)$item['unit_price'],
+                        ':discount_percent' => (float)$item['discount_percent'],
+                        ':total_price' => $itemTotal,
+                        ':vat_rate' => $vatRate,
+                        ':vat_amount' => $itemVat
+                    ]);
+                }
+                
+                // Update document record
+                $stmtDoc = $pdo->prepare("UPDATE order_documents SET 
+                                          document_number = :doc_number,
+                                          document_date = :doc_date
+                                          WHERE order_id = :order_id AND document_type = 'invoice'");
+                $stmtDoc->execute([
+                    ':doc_number' => $invoiceNumber,
+                    ':doc_date' => $invoiceDate,
+                    ':order_id' => $orderId
+                ]);
+                
+                $pdo->commit();
+                
+                logActivity($pdo, $_SESSION['user_id'], 'invoice_updated', 'orders', $orderId);
+                $success = 'Счет-фактура успешно обновлен';
+                
+                header('Location: ' . $_SERVER['PHP_SELF'] . '?view=' . $orderId . '&success=' . urlencode($success));
+                exit;
+            }
+        } elseif ($_POST['action'] === 'update_delivery_note') {
+            if (!hasRole(['admin', 'manager', 'warehouse_keeper'])) {
+                $error = 'Недостаточно прав для редактирования товарной накладной';
+            } else {
+                $pdo->beginTransaction();
+                
+                $deliveryNoteId = (int)$_POST['delivery_note_id'];
+                $orderId = (int)$_POST['order_id'];
+                $tnNumber = trim($_POST['tn_number']);
+                $tnDate = $_POST['tn_date'];
+                $warehouseFrom = trim($_POST['warehouse_from']);
+                $warehouseTo = trim($_POST['warehouse_to']);
+                $notes = trim($_POST['notes']);
+                
+                // Get order and client info
+                $stmtOrder = $pdo->prepare("SELECT o.*, c.company_name, c.inn, c.address 
+                                            FROM orders o
+                                            LEFT JOIN clients c ON o.client_id = c.id
+                                            WHERE o.id = :id");
+                $stmtOrder->execute([':id' => $orderId]);
+                $order = $stmtOrder->fetch();
+                
+                if (!$order) {
+                    throw new Exception('Заказ не найден');
+                }
+                
+                // Get order items with product details
+                $stmtItems = $pdo->prepare("SELECT oi.*, p.product_name, p.product_code, p.weight 
+                                            FROM order_items oi
+                                            LEFT JOIN products p ON oi.product_id = p.id
+                                            WHERE oi.order_id = :order_id");
+                $stmtItems->execute([':order_id' => $orderId]);
+                $orderItems = $stmtItems->fetchAll();
+                
+                $companyName = defined('APP_COMPANY_NAME') ? APP_COMPANY_NAME : 'ОАО «Полесьеэлектромаш»';
+                $companyInn = defined('APP_INN') ? APP_INN : '';
+                $companyAddress = defined('APP_ADDRESS') ? APP_ADDRESS : '';
+                
+                $totalItems = count($orderItems);
+                $totalWeight = 0;
+                
+                foreach ($orderItems as $item) {
+                    $weightPerUnit = (float)($item['weight'] ?? 0);
+                    $itemTotalWeight = $weightPerUnit * (int)$item['quantity'];
+                    $totalWeight += $itemTotalWeight;
+                }
+                
+                // Update delivery note
+                $stmtDN = $pdo->prepare("UPDATE delivery_notes SET 
+                                         tn_number = :tn_number,
+                                         tn_date = :tn_date,
+                                         warehouse_from = :warehouse_from,
+                                         warehouse_to = :warehouse_to,
+                                         shipper_name = :shipper_name,
+                                         consignee_name = :consignee_name,
+                                         shipper_inn = :shipper_inn,
+                                         consignee_inn = :consignee_inn,
+                                         shipper_address = :shipper_address,
+                                         consignee_address = :consignee_address,
+                                         total_items = :total_items,
+                                         total_weight = :total_weight,
+                                         notes = :notes
+                                         WHERE id = :id");
+                
+                $stmtDN->execute([
+                    ':tn_number' => $tnNumber,
+                    ':tn_date' => $tnDate,
+                    ':warehouse_from' => $warehouseFrom,
+                    ':warehouse_to' => $warehouseTo,
+                    ':shipper_name' => $companyName,
+                    ':consignee_name' => $order['company_name'],
+                    ':shipper_inn' => $companyInn,
+                    ':consignee_inn' => $order['inn'],
+                    ':shipper_address' => $companyAddress,
+                    ':consignee_address' => $order['address'],
+                    ':total_items' => $totalItems,
+                    ':total_weight' => $totalWeight,
+                    ':notes' => $notes,
+                    ':id' => $deliveryNoteId
+                ]);
+                
+                // Delete old delivery note items and create new ones
+                $stmtDel = $pdo->prepare("DELETE FROM delivery_note_items WHERE delivery_note_id = :delivery_note_id");
+                $stmtDel->execute([':delivery_note_id' => $deliveryNoteId]);
+                
+                $stmtItem = $pdo->prepare("INSERT INTO delivery_note_items (delivery_note_id, product_id, 
+                                           quantity, unit, weight_per_unit, total_weight, price, total_price) 
+                                           VALUES (:delivery_note_id, :product_id, :quantity, :unit, 
+                                           :weight_per_unit, :total_weight, :price, :total_price)");
+                
+                foreach ($orderItems as $item) {
+                    $weightPerUnit = (float)($item['weight'] ?? 0);
+                    $itemTotalWeight = $weightPerUnit * (int)$item['quantity'];
+                    $itemPrice = (float)$item['unit_price'];
+                    $itemTotalPrice = (float)$item['total_price'];
+                    
+                    $stmtItem->execute([
+                        ':delivery_note_id' => $deliveryNoteId,
+                        ':product_id' => (int)$item['product_id'],
+                        ':quantity' => (int)$item['quantity'],
+                        ':unit' => 'шт',
+                        ':weight_per_unit' => $weightPerUnit,
+                        ':total_weight' => $itemTotalWeight,
+                        ':price' => $itemPrice,
+                        ':total_price' => $itemTotalPrice
+                    ]);
+                }
+                
+                // Update document record
+                $stmtDoc = $pdo->prepare("UPDATE order_documents SET 
+                                          document_number = :doc_number,
+                                          document_date = :doc_date
+                                          WHERE order_id = :order_id AND document_type = 'tn'");
+                $stmtDoc->execute([
+                    ':doc_number' => $tnNumber,
+                    ':doc_date' => $tnDate,
+                    ':order_id' => $orderId
+                ]);
+                
+                $pdo->commit();
+                
+                logActivity($pdo, $_SESSION['user_id'], 'delivery_note_updated', 'orders', $orderId);
+                $success = 'Товарная накладная успешно обновлена';
+                
+                header('Location: ' . $_SERVER['PHP_SELF'] . '?view=' . $orderId . '&success=' . urlencode($success));
+                exit;
+            }
+        } elseif ($_POST['action'] === 'update_transport_waybill') {
+            if (!hasRole(['admin', 'manager', 'warehouse_keeper'])) {
+                $error = 'Недостаточно прав для редактирования ТТН';
+            } else {
+                $pdo->beginTransaction();
+                
+                $ttnId = (int)$_POST['ttn_id'];
+                $orderId = (int)$_POST['order_id'];
+                $ttnNumber = trim($_POST['ttn_number']);
+                $ttnDate = $_POST['ttn_date'];
+                $vehicleNumber = trim($_POST['vehicle_number']);
+                $driverName = trim($_POST['driver_name']);
+                $driverLicense = trim($_POST['driver_license']);
+                $carrierName = trim($_POST['carrier_name']);
+                $carrierInn = trim($_POST['carrier_inn']);
+                $freightCost = (float)($_POST['freight_cost'] ?? 0);
+                $loadingPoint = trim($_POST['loading_point']);
+                $unloadingPoint = trim($_POST['unloading_point']);
+                $routeFromTo = trim($_POST['route_from_to']);
+                $notes = trim($_POST['notes']);
+                
+                // Get order and client info
+                $stmtOrder = $pdo->prepare("SELECT o.*, c.company_name, c.inn, c.address 
+                                            FROM orders o
+                                            LEFT JOIN clients c ON o.client_id = c.id
+                                            WHERE o.id = :id");
+                $stmtOrder->execute([':id' => $orderId]);
+                $order = $stmtOrder->fetch();
+                
+                if (!$order) {
+                    throw new Exception('Заказ не найден');
+                }
+                
+                // Get delivery note if exists
+                $stmtDN = $pdo->prepare("SELECT id FROM delivery_notes WHERE order_id = :order_id");
+                $stmtDN->execute([':order_id' => $orderId]);
+                $deliveryNote = $stmtDN->fetch();
+                $deliveryNoteId = $deliveryNote ? $deliveryNote['id'] : null;
+                
+                $companyName = defined('APP_COMPANY_NAME') ? APP_COMPANY_NAME : 'ОАО «Полесьеэлектромаш»';
+                $companyInn = defined('APP_INN') ? APP_INN : '';
+                $companyAddress = defined('APP_ADDRESS') ? APP_ADDRESS : '';
+                
+                // Update transport waybill
+                $stmtTW = $pdo->prepare("UPDATE transport_waybills SET 
+                                         ttn_number = :ttn_number,
+                                         ttn_date = :ttn_date,
+                                         vehicle_number = :vehicle_number,
+                                         driver_name = :driver_name,
+                                         driver_license = :driver_license,
+                                         carrier_name = :carrier_name,
+                                         carrier_inn = :carrier_inn,
+                                         route_from = :route_from,
+                                         route_to = :route_to,
+                                         loading_point = :loading_point,
+                                         unloading_point = :unloading_point,
+                                         shipper_name = :shipper_name,
+                                         shipper_inn = :shipper_inn,
+                                         shipper_address = :shipper_address,
+                                         consignee_name = :consignee_name,
+                                         consignee_inn = :consignee_inn,
+                                         consignee_address = :consignee_address,
+                                         freight_cost = :freight_cost,
+                                         notes = :notes
+                                         WHERE id = :id");
+                
+                $stmtTW->execute([
+                    ':ttn_number' => $ttnNumber,
+                    ':ttn_date' => $ttnDate,
+                    ':vehicle_number' => $vehicleNumber,
+                    ':driver_name' => $driverName,
+                    ':driver_license' => $driverLicense,
+                    ':carrier_name' => $carrierName ?: $companyName,
+                    ':carrier_inn' => $carrierInn,
+                    ':route_from' => $routeFromTo,
+                    ':route_to' => $routeFromTo,
+                    ':loading_point' => $loadingPoint ?: $companyAddress,
+                    ':unloading_point' => $unloadingPoint ?: $order['address'],
+                    ':shipper_name' => $companyName,
+                    ':shipper_inn' => $companyInn,
+                    ':shipper_address' => $companyAddress,
+                    ':consignee_name' => $order['company_name'],
+                    ':consignee_inn' => $order['inn'],
+                    ':consignee_address' => $order['address'],
+                    ':freight_cost' => $freightCost,
+                    ':notes' => $notes,
+                    ':id' => $ttnId
+                ]);
+                
+                // Update document record
+                $stmtDoc = $pdo->prepare("UPDATE order_documents SET 
+                                          document_number = :doc_number,
+                                          document_date = :doc_date
+                                          WHERE order_id = :order_id AND document_type = 'ttn'");
+                $stmtDoc->execute([
+                    ':doc_number' => $ttnNumber,
+                    ':doc_date' => $ttnDate,
+                    ':order_id' => $orderId
+                ]);
+                
+                $pdo->commit();
+                
+                logActivity($pdo, $_SESSION['user_id'], 'transport_waybill_updated', 'orders', $orderId);
+                $success = 'Товарно-транспортная накладная успешно обновлена';
+                
+                header('Location: ' . $_SERVER['PHP_SELF'] . '?view=' . $orderId . '&success=' . urlencode($success));
+                exit;
+            }
         }
         
         header('Location: ' . $_SERVER['PHP_SELF'] . '?success=' . urlencode($success));
@@ -662,6 +997,55 @@ if (isset($_GET['print_ttn'])) {
         include 'ttn_print.php';
         exit;
     }
+}
+
+// Handle AJAX requests for editing documents
+if (isset($_GET['get_invoice_data'])) {
+    header('Content-Type: application/json');
+    $invoiceId = (int)$_GET['get_invoice_data'];
+    
+    $stmtInv = $pdo->prepare("SELECT * FROM invoices WHERE id = :id");
+    $stmtInv->execute([':id' => $invoiceId]);
+    $invoice = $stmtInv->fetch();
+    
+    if ($invoice) {
+        echo json_encode(['success' => true, 'invoice' => $invoice]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Invoice not found']);
+    }
+    exit;
+}
+
+if (isset($_GET['get_delivery_note_data'])) {
+    header('Content-Type: application/json');
+    $deliveryNoteId = (int)$_GET['get_delivery_note_data'];
+    
+    $stmtDN = $pdo->prepare("SELECT * FROM delivery_notes WHERE id = :id");
+    $stmtDN->execute([':id' => $deliveryNoteId]);
+    $deliveryNote = $stmtDN->fetch();
+    
+    if ($deliveryNote) {
+        echo json_encode(['success' => true, 'delivery_note' => $deliveryNote]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Delivery note not found']);
+    }
+    exit;
+}
+
+if (isset($_GET['get_ttn_data'])) {
+    header('Content-Type: application/json');
+    $ttnId = (int)$_GET['get_ttn_data'];
+    
+    $stmtTW = $pdo->prepare("SELECT * FROM transport_waybills WHERE id = :id");
+    $stmtTW->execute([':id' => $ttnId]);
+    $ttn = $stmtTW->fetch();
+    
+    if ($ttn) {
+        echo json_encode(['success' => true, 'ttn' => $ttn]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'TTN not found']);
+    }
+    exit;
 }
 
 // Get order for viewing
@@ -1273,6 +1657,11 @@ $statusColors = [
                                 <button class="btn print-btn" onclick="printInvoice(<?php echo $invoice['id']; ?>)">
                                     <i class="fas fa-print"></i> Печать счета
                                 </button>
+                                <?php if (hasRole(['admin', 'manager', 'accountant'])): ?>
+                                <button class="btn btn-warning" onclick="editInvoice(<?php echo $invoice['id']; ?>, <?php echo $orderId; ?>)">
+                                    <i class="fas fa-edit"></i> Редактировать
+                                </button>
+                                <?php endif; ?>
                             </div>
                         </div>
                         <?php endif; ?>
@@ -1396,6 +1785,11 @@ $statusColors = [
                             <button class="btn print-btn" onclick="printDeliveryNote(<?php echo $deliveryNote['id']; ?>)">
                                 <i class="fas fa-print"></i> Печать ТН
                             </button>
+                            <?php if (hasRole(['admin', 'manager', 'warehouse_keeper'])): ?>
+                            <button class="btn btn-warning" onclick="editDeliveryNote(<?php echo $deliveryNote['id']; ?>, <?php echo $orderId; ?>)">
+                                <i class="fas fa-edit"></i> Редактировать
+                            </button>
+                            <?php endif; ?>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -1481,6 +1875,11 @@ $statusColors = [
                             <button class="btn print-btn" onclick="printTTN(<?php echo $transportWaybill['id']; ?>)">
                                 <i class="fas fa-print"></i> Печать ТТН
                             </button>
+                            <?php if (hasRole(['admin', 'manager', 'warehouse_keeper'])): ?>
+                            <button class="btn btn-warning" onclick="editTransportWaybill(<?php echo $transportWaybill['id']; ?>, <?php echo $orderId; ?>)">
+                                <i class="fas fa-edit"></i> Редактировать
+                            </button>
+                            <?php endif; ?>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -1992,6 +2391,260 @@ $statusColors = [
             // Open print view in new window
             const printUrl = window.location.href.split('?')[0] + '?print_ttn=' + ttnId;
             window.open(printUrl, '_blank', 'width=800,height=600');
+        }
+        
+        function editInvoice(invoiceId, orderId) {
+            showEditInvoiceModal(invoiceId, orderId);
+        }
+        
+        function editDeliveryNote(deliveryNoteId, orderId) {
+            showEditDeliveryNoteModal(deliveryNoteId, orderId);
+        }
+        
+        function editTransportWaybill(ttnId, orderId) {
+            showEditTransportWaybillModal(ttnId, orderId);
+        }
+        
+        function showEditInvoiceModal(invoiceId, orderId) {
+            const modalHtml = `
+                <div id="editInvoiceModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+                    <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 60%; border-radius: 8px; max-height: 90vh; overflow-y: auto;">
+                        <span onclick="closeEditInvoiceModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+                        <h2>Редактирование счета-фактуры</h2>
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="update_invoice">
+                            <input type="hidden" name="invoice_id" value="${invoiceId}">
+                            <input type="hidden" name="order_id" value="${orderId}">
+                            
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label class="info-label">Номер счета *</label>
+                                    <input type="text" name="invoice_number" id="edit_invoice_number" class="form-control" required placeholder="Например: СЧ-001/2024">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Дата выставления *</label>
+                                    <input type="date" name="invoice_date" id="edit_invoice_date" class="form-control" required>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Срок оплаты до</label>
+                                    <input type="date" name="due_date" id="edit_due_date" class="form-control">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">НДС %</label>
+                                    <input type="number" name="vat_rate" id="edit_vat_rate" class="form-control" step="0.1" value="20">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group" style="margin-top: 15px;">
+                                <label class="info-label">Примечание</label>
+                                <textarea name="notes" id="edit_invoice_notes" class="form-control" rows="3"></textarea>
+                            </div>
+                            
+                            <div style="margin-top: 20px; text-align: right;">
+                                <button type="button" class="btn btn-secondary" onclick="closeEditInvoiceModal()">Отмена</button>
+                                <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Load current invoice data
+            fetch(window.location.href + '&get_invoice_data=' + invoiceId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('edit_invoice_number').value = data.invoice.invoice_number;
+                        document.getElementById('edit_invoice_date').value = data.invoice.invoice_date;
+                        document.getElementById('edit_due_date').value = data.invoice.due_date || '';
+                        document.getElementById('edit_vat_rate').value = data.invoice.vat_rate || 20;
+                        document.getElementById('edit_invoice_notes').value = data.invoice.notes || '';
+                    }
+                })
+                .catch(err => console.error('Error loading invoice data:', err));
+        }
+        
+        function closeEditInvoiceModal() {
+            const modal = document.getElementById('editInvoiceModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        function showEditDeliveryNoteModal(deliveryNoteId, orderId) {
+            const modalHtml = `
+                <div id="editDeliveryNoteModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+                    <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 60%; border-radius: 8px; max-height: 90vh; overflow-y: auto;">
+                        <span onclick="closeEditDeliveryNoteModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+                        <h2>Редактирование товарной накладной</h2>
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="update_delivery_note">
+                            <input type="hidden" name="delivery_note_id" value="${deliveryNoteId}">
+                            <input type="hidden" name="order_id" value="${orderId}">
+                            
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label class="info-label">Номер ТН *</label>
+                                    <input type="text" name="tn_number" id="edit_tn_number" class="form-control" required placeholder="Например: ТН-001/2024">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Дата *</label>
+                                    <input type="date" name="tn_date" id="edit_tn_date" class="form-control" required>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Склад отправитель</label>
+                                    <input type="text" name="warehouse_from" id="edit_warehouse_from" class="form-control" placeholder="Основной склад">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Склад получатель</label>
+                                    <input type="text" name="warehouse_to" id="edit_warehouse_to" class="form-control" placeholder="Склад клиента">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group" style="margin-top: 15px;">
+                                <label class="info-label">Примечание</label>
+                                <textarea name="notes" id="edit_tn_notes" class="form-control" rows="3"></textarea>
+                            </div>
+                            
+                            <div style="margin-top: 20px; text-align: right;">
+                                <button type="button" class="btn btn-secondary" onclick="closeEditDeliveryNoteModal()">Отмена</button>
+                                <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Load current delivery note data
+            fetch(window.location.href + '&get_delivery_note_data=' + deliveryNoteId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('edit_tn_number').value = data.delivery_note.tn_number;
+                        document.getElementById('edit_tn_date').value = data.delivery_note.tn_date;
+                        document.getElementById('edit_warehouse_from').value = data.delivery_note.warehouse_from || '';
+                        document.getElementById('edit_warehouse_to').value = data.delivery_note.warehouse_to || '';
+                        document.getElementById('edit_tn_notes').value = data.delivery_note.notes || '';
+                    }
+                })
+                .catch(err => console.error('Error loading delivery note data:', err));
+        }
+        
+        function closeEditDeliveryNoteModal() {
+            const modal = document.getElementById('editDeliveryNoteModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        function showEditTransportWaybillModal(ttnId, orderId) {
+            const modalHtml = `
+                <div id="editTransportWaybillModal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+                    <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 65%; border-radius: 8px; max-height: 90vh; overflow-y: auto;">
+                        <span onclick="closeEditTransportWaybillModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+                        <h2>Редактирование товарно-транспортной накладной</h2>
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="update_transport_waybill">
+                            <input type="hidden" name="ttn_id" value="${ttnId}">
+                            <input type="hidden" name="order_id" value="${orderId}">
+                            
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label class="info-label">Номер ТТН *</label>
+                                    <input type="text" name="ttn_number" id="edit_ttn_number" class="form-control" required placeholder="Например: ТТН-001/2024">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Дата *</label>
+                                    <input type="date" name="ttn_date" id="edit_ttn_date" class="form-control" required>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Номер автомобиля</label>
+                                    <input type="text" name="vehicle_number" id="edit_vehicle_number" class="form-control" placeholder="AB1234CD7">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Водитель</label>
+                                    <input type="text" name="driver_name" id="edit_driver_name" class="form-control" placeholder="ФИО водителя">
+                                </div>
+                            </div>
+                            
+                            <div class="info-grid" style="margin-top: 15px;">
+                                <div class="info-item">
+                                    <label class="info-label">Лицензия водителя</label>
+                                    <input type="text" name="driver_license" id="edit_driver_license" class="form-control" placeholder="Номер лицензии">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Перевозчик</label>
+                                    <input type="text" name="carrier_name" id="edit_carrier_name" class="form-control" placeholder="Наименование перевозчика">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">УНП перевозчика</label>
+                                    <input type="text" name="carrier_inn" id="edit_carrier_inn" class="form-control" placeholder="УНП">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Стоимость перевозки (BYN)</label>
+                                    <input type="number" name="freight_cost" id="edit_freight_cost" class="form-control" step="0.01" value="0">
+                                </div>
+                            </div>
+                            
+                            <div class="info-grid" style="margin-top: 15px;">
+                                <div class="info-item">
+                                    <label class="info-label">Пункт погрузки</label>
+                                    <input type="text" name="loading_point" id="edit_loading_point" class="form-control" placeholder="Адрес погрузки">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Пункт разгрузки</label>
+                                    <input type="text" name="unloading_point" id="edit_unloading_point" class="form-control" placeholder="Адрес разгрузки">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Маршрут</label>
+                                    <input type="text" name="route_from_to" id="edit_route_from_to" class="form-control" placeholder="Откуда - Куда">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group" style="margin-top: 15px;">
+                                <label class="info-label">Примечание</label>
+                                <textarea name="notes" id="edit_ttn_notes" class="form-control" rows="3"></textarea>
+                            </div>
+                            
+                            <div style="margin-top: 20px; text-align: right;">
+                                <button type="button" class="btn btn-secondary" onclick="closeEditTransportWaybillModal()">Отмена</button>
+                                <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Load current transport waybill data
+            fetch(window.location.href + '&get_ttn_data=' + ttnId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('edit_ttn_number').value = data.ttn.ttn_number;
+                        document.getElementById('edit_ttn_date').value = data.ttn.ttn_date;
+                        document.getElementById('edit_vehicle_number').value = data.ttn.vehicle_number || '';
+                        document.getElementById('edit_driver_name').value = data.ttn.driver_name || '';
+                        document.getElementById('edit_driver_license').value = data.ttn.driver_license || '';
+                        document.getElementById('edit_carrier_name').value = data.ttn.carrier_name || '';
+                        document.getElementById('edit_carrier_inn').value = data.ttn.carrier_inn || '';
+                        document.getElementById('edit_freight_cost').value = data.ttn.freight_cost || 0;
+                        document.getElementById('edit_loading_point').value = data.ttn.loading_point || '';
+                        document.getElementById('edit_unloading_point').value = data.ttn.unloading_point || '';
+                        document.getElementById('edit_route_from_to').value = data.ttn.route_from || '';
+                        document.getElementById('edit_ttn_notes').value = data.ttn.notes || '';
+                    }
+                })
+                .catch(err => console.error('Error loading TTN data:', err));
+        }
+        
+        function closeEditTransportWaybillModal() {
+            const modal = document.getElementById('editTransportWaybillModal');
+            if (modal) {
+                modal.remove();
+            }
         }
         
         function createDeliveryNote(orderId) {
