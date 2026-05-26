@@ -2,6 +2,7 @@
 /**
  * Warehouse module for OAO "Polesieelectromash" ERP System
  * Warehouse management: inventory, operations (income/outcome/transfer/write-off)
+ * Separated sections for Materials and Finished Products with advanced filtering
  */
 
 require_once '../../includes/config.php';
@@ -23,24 +24,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
     try {
-        if ($action === 'income') {
-            // Приход товаров на склад
+        if ($action === 'income_product') {
+            // Приход готовой продукции на склад
             $product_id = (int)$_POST['product_id'];
             $quantity = (int)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
+            $batch_number = trim($_POST['batch_number']);
             $notes = trim($_POST['notes']);
             
             $pdo->beginTransaction();
             
             // Добавляем операцию прихода
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, product_id, quantity, warehouse_to, user_id, document_number, notes) 
-                                   VALUES ('income', :product_id, :quantity, 1, :user_id, :document_number, :notes)");
+                                   (operation_type, product_id, quantity, warehouse_to, user_id, document_number, batch_number, notes) 
+                                   VALUES ('income', :product_id, :quantity, 1, :user_id, :document_number, :batch_number, :notes)");
             $stmt->execute([
                 ':product_id' => $product_id,
                 ':quantity' => $quantity,
                 ':user_id' => $_SESSION['user_id'],
                 ':document_number' => $document_number,
+                ':batch_number' => $batch_number,
                 ':notes' => $notes
             ]);
             
@@ -52,11 +55,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             
             $pdo->commit();
-            logActivity($pdo, $_SESSION['user_id'], 'Приход товара', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Товар успешно оприходован';
+            logActivity($pdo, $_SESSION['user_id'], 'Приход готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
+            $success = 'Готовая продукция успешно оприходована';
             
-        } elseif ($action === 'outcome') {
-            // Расход товаров со склада
+        } elseif ($action === 'income_material') {
+            // Приход материалов на склад
+            $material_id = (int)$_POST['material_id'];
+            $quantity = (float)$_POST['quantity'];
+            $document_number = trim($_POST['document_number']);
+            $batch_number = trim($_POST['batch_number']);
+            $quality_cert = trim($_POST['quality_cert']);
+            $expiry_date = !empty($_POST['expiry_date']) ? $_POST['expiry_date'] : null;
+            $notes = trim($_POST['notes']);
+            
+            $pdo->beginTransaction();
+            
+            // Добавляем операцию прихода материала
+            $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
+                                   (operation_type, material_id, quantity, warehouse_to, user_id, document_number, batch_number, quality_cert, expiry_date, notes) 
+                                   VALUES ('income', :material_id, :quantity, 1, :user_id, :document_number, :batch_number, :quality_cert, :expiry_date, :notes)");
+            $stmt->execute([
+                ':material_id' => $material_id,
+                ':quantity' => $quantity,
+                ':user_id' => $_SESSION['user_id'],
+                ':document_number' => $document_number,
+                ':batch_number' => $batch_number,
+                ':quality_cert' => $quality_cert,
+                ':expiry_date' => $expiry_date,
+                ':notes' => $notes
+            ]);
+            
+            // Добавляем запись в движения материалов
+            $stmt = $pdo->prepare("INSERT INTO material_stock_movements 
+                                   (material_id, operation_type, quantity, warehouse_to, user_id, document_number, batch_number, notes) 
+                                   VALUES (:material_id, 'income', :quantity, 1, :user_id, :document_number, :batch_number, :notes)");
+            $stmt->execute([
+                ':material_id' => $material_id,
+                ':quantity' => $quantity,
+                ':user_id' => $_SESSION['user_id'],
+                ':document_number' => $document_number,
+                ':batch_number' => $batch_number,
+                ':notes' => $notes
+            ]);
+            
+            // Обновляем остаток материала
+            $stmt = $pdo->prepare("UPDATE materials SET current_stock = current_stock + :quantity WHERE id = :material_id");
+            $stmt->execute([
+                ':quantity' => $quantity,
+                ':material_id' => $material_id
+            ]);
+            
+            $pdo->commit();
+            logActivity($pdo, $_SESSION['user_id'], 'Приход материалов', 'warehouse_operations', $pdo->lastInsertId());
+            $success = 'Материалы успешно оприходованы';
+            
+        } elseif ($action === 'outcome_product') {
+            // Расход готовой продукции со склада
             $product_id = (int)$_POST['product_id'];
             $quantity = (int)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
@@ -93,11 +147,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             
             $pdo->commit();
-            logActivity($pdo, $_SESSION['user_id'], 'Расход товара', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Товар успешно списан';
+            logActivity($pdo, $_SESSION['user_id'], 'Расход готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
+            $success = 'Готовая продукция успешно отгружена';
             
-        } elseif ($action === 'transfer') {
-            // Перемещение между складами
+        } elseif ($action === 'outcome_material') {
+            // Расход материалов со склада (в производство)
+            $material_id = (int)$_POST['material_id'];
+            $quantity = (float)$_POST['quantity'];
+            $document_number = trim($_POST['document_number']);
+            $production_order_id = !empty($_POST['production_order_id']) ? (int)$_POST['production_order_id'] : null;
+            $notes = trim($_POST['notes']);
+            
+            // Проверяем достаточность количества
+            $stmt = $pdo->prepare("SELECT current_stock FROM materials WHERE id = :material_id");
+            $stmt->execute([':material_id' => $material_id]);
+            $material = $stmt->fetch();
+            
+            if ($material['current_stock'] < $quantity) {
+                throw new Exception('Недостаточно материала на складе');
+            }
+            
+            $pdo->beginTransaction();
+            
+            // Добавляем операцию расхода материала
+            $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
+                                   (operation_type, material_id, quantity, warehouse_from, user_id, document_number, notes) 
+                                   VALUES ('outcome', :material_id, :quantity, 1, :user_id, :document_number, :notes)");
+            $stmt->execute([
+                ':material_id' => $material_id,
+                ':quantity' => $quantity,
+                ':user_id' => $_SESSION['user_id'],
+                ':document_number' => $document_number,
+                ':notes' => $notes
+            ]);
+            
+            // Добавляем запись в движения материалов
+            $stmt = $pdo->prepare("INSERT INTO material_stock_movements 
+                                   (material_id, operation_type, quantity, warehouse_from, user_id, document_number, production_order_id, notes) 
+                                   VALUES (:material_id, 'outcome', :quantity, 1, :user_id, :document_number, :production_order_id, :notes)");
+            $stmt->execute([
+                ':material_id' => $material_id,
+                ':quantity' => $quantity,
+                ':user_id' => $_SESSION['user_id'],
+                ':document_number' => $document_number,
+                ':production_order_id' => $production_order_id,
+                ':notes' => $notes
+            ]);
+            
+            // Обновляем остаток материала
+            $stmt = $pdo->prepare("UPDATE materials SET current_stock = current_stock - :quantity WHERE id = :material_id");
+            $stmt->execute([
+                ':quantity' => $quantity,
+                ':material_id' => $material_id
+            ]);
+            
+            $pdo->commit();
+            logActivity($pdo, $_SESSION['user_id'], 'Расход материалов', 'warehouse_operations', $pdo->lastInsertId());
+            $success = 'Материалы успешно списаны';
+            
+        } elseif ($action === 'transfer_product') {
+            // Перемещение готовой продукции между складами
             $product_id = (int)$_POST['product_id'];
             $quantity = (int)$_POST['quantity'];
             $warehouse_from = (int)$_POST['warehouse_from'];
@@ -121,11 +230,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             
             $pdo->commit();
-            logActivity($pdo, $_SESSION['user_id'], 'Перемещение товара', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Товар успешно перемещён';
+            logActivity($pdo, $_SESSION['user_id'], 'Перемещение готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
+            $success = 'Готовая продукция успешно перемещена';
             
-        } elseif ($action === 'write_off') {
-            // Списание товаров
+        } elseif ($action === 'transfer_material') {
+            // Перемещение материалов между складами
+            $material_id = (int)$_POST['material_id'];
+            $quantity = (float)$_POST['quantity'];
+            $warehouse_from = (int)$_POST['warehouse_from'];
+            $warehouse_to = (int)$_POST['warehouse_to'];
+            $document_number = trim($_POST['document_number']);
+            $notes = trim($_POST['notes']);
+            
+            $pdo->beginTransaction();
+            
+            $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
+                                   (operation_type, material_id, quantity, warehouse_from, warehouse_to, user_id, document_number, notes) 
+                                   VALUES ('transfer', :material_id, :quantity, :warehouse_from, :warehouse_to, :user_id, :document_number, :notes)");
+            $stmt->execute([
+                ':material_id' => $material_id,
+                ':quantity' => $quantity,
+                ':warehouse_from' => $warehouse_from,
+                ':warehouse_to' => $warehouse_to,
+                ':user_id' => $_SESSION['user_id'],
+                ':document_number' => $document_number,
+                ':notes' => $notes
+            ]);
+            
+            // Добавляем запись в движения материалов
+            $stmt = $pdo->prepare("INSERT INTO material_stock_movements 
+                                   (material_id, operation_type, quantity, warehouse_from, warehouse_to, user_id, document_number, notes) 
+                                   VALUES (:material_id, 'transfer', :quantity, :warehouse_from, :warehouse_to, :user_id, :document_number, :notes)");
+            $stmt->execute([
+                ':material_id' => $material_id,
+                ':quantity' => $quantity,
+                ':warehouse_from' => $warehouse_from,
+                ':warehouse_to' => $warehouse_to,
+                ':user_id' => $_SESSION['user_id'],
+                ':document_number' => $document_number,
+                ':notes' => $notes
+            ]);
+            
+            $pdo->commit();
+            logActivity($pdo, $_SESSION['user_id'], 'Перемещение материалов', 'warehouse_operations', $pdo->lastInsertId());
+            $success = 'Материалы успешно перемещены';
+            
+        } elseif ($action === 'write_off_product') {
+            // Списание готовой продукции
             $product_id = (int)$_POST['product_id'];
             $quantity = (int)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
@@ -161,8 +312,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             
             $pdo->commit();
-            logActivity($pdo, $_SESSION['user_id'], 'Списание товара', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Товар успешно списан';
+            logActivity($pdo, $_SESSION['user_id'], 'Списание готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
+            $success = 'Готовая продукция успешно списана';
+            
+        } elseif ($action === 'write_off_material') {
+            // Списание материалов
+            $material_id = (int)$_POST['material_id'];
+            $quantity = (float)$_POST['quantity'];
+            $document_number = trim($_POST['document_number']);
+            $notes = trim($_POST['notes']);
+            
+            // Проверяем достаточность количества
+            $stmt = $pdo->prepare("SELECT current_stock FROM materials WHERE id = :material_id");
+            $stmt->execute([':material_id' => $material_id]);
+            $material = $stmt->fetch();
+            
+            if ($material['current_stock'] < $quantity) {
+                throw new Exception('Недостаточно материала на складе');
+            }
+            
+            $pdo->beginTransaction();
+            
+            $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
+                                   (operation_type, material_id, quantity, warehouse_from, user_id, document_number, notes) 
+                                   VALUES ('write_off', :material_id, :quantity, 1, :user_id, :document_number, :notes)");
+            $stmt->execute([
+                ':material_id' => $material_id,
+                ':quantity' => $quantity,
+                ':user_id' => $_SESSION['user_id'],
+                ':document_number' => $document_number,
+                ':notes' => $notes
+            ]);
+            
+            // Добавляем запись в движения материалов
+            $stmt = $pdo->prepare("INSERT INTO material_stock_movements 
+                                   (material_id, operation_type, quantity, warehouse_from, user_id, document_number, notes) 
+                                   VALUES (:material_id, 'write_off', :quantity, 1, :user_id, :document_number, :notes)");
+            $stmt->execute([
+                ':material_id' => $material_id,
+                ':quantity' => $quantity,
+                ':user_id' => $_SESSION['user_id'],
+                ':document_number' => $document_number,
+                ':notes' => $notes
+            ]);
+            
+            // Обновляем остаток материала
+            $stmt = $pdo->prepare("UPDATE materials SET current_stock = current_stock - :quantity WHERE id = :material_id");
+            $stmt->execute([
+                ':quantity' => $quantity,
+                ':material_id' => $material_id
+            ]);
+            
+            $pdo->commit();
+            logActivity($pdo, $_SESSION['user_id'], 'Списание материалов', 'warehouse_operations', $pdo->lastInsertId());
+            $success = 'Материалы успешно списаны';
         }
     } catch (Exception $e) {
         if ($pdo->inTransaction()) {
@@ -172,31 +375,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get action parameter for modals
-$viewAction = $_GET['action'] ?? '';
-$viewOperationId = $_GET['operation_id'] ?? null;
+// Get active tab
+$activeTab = $_GET['tab'] ?? 'products';
 
-// Get all products
+// Get filter parameters
+$filterCategory = $_GET['category'] ?? '';
+$filterZone = $_GET['zone'] ?? '';
+$filterSearch = $_GET['search'] ?? '';
+$filterLowStock = isset($_GET['low_stock']) ? true : false;
+
+// Get all products with filters
 try {
-    $stmt = $pdo->query("
+    // Products query with filters
+    $productQuery = "
         SELECT p.*, pc.category_name 
         FROM products p
         LEFT JOIN product_categories pc ON p.category_id = pc.id
         WHERE p.is_active = 1
-        ORDER BY p.product_name
-    ");
+    ";
+    $productParams = [];
+    
+    if ($filterCategory && $activeTab === 'products') {
+        $productQuery .= " AND p.category_id = :category_id";
+        $productParams[':category_id'] = $filterCategory;
+    }
+    
+    if ($filterSearch && $activeTab === 'products') {
+        $productQuery .= " AND (p.product_code LIKE :search OR p.product_name LIKE :search)";
+        $productParams[':search'] = "%{$filterSearch}%";
+    }
+    
+    if ($filterLowStock && $activeTab === 'products') {
+        $productQuery .= " AND p.stock_quantity <= p.min_stock_level";
+    }
+    
+    $productQuery .= " ORDER BY p.product_name";
+    
+    $stmt = $pdo->prepare($productQuery);
+    $stmt->execute($productParams);
     $products = $stmt->fetchAll();
     
-    // Get warehouses (work centers with type 'warehouse')
+    // Materials query with filters
+    $materialQuery = "
+        SELECT m.*, mc.category_name, wz.zone_name
+        FROM materials m
+        LEFT JOIN material_categories mc ON m.category_id = mc.id
+        LEFT JOIN warehouse_zones wz ON mc.storage_zone = wz.zone_code
+        WHERE m.is_active = 1
+    ";
+    $materialParams = [];
+    
+    if ($filterCategory && $activeTab === 'materials') {
+        $materialQuery .= " AND m.category_id = :category_id";
+        $materialParams[':category_id'] = $filterCategory;
+    }
+    
+    if ($filterZone && $activeTab === 'materials') {
+        $materialQuery .= " AND mc.storage_zone = :zone";
+        $materialParams[':zone'] = $filterZone;
+    }
+    
+    if ($filterSearch && $activeTab === 'materials') {
+        $materialQuery .= " AND (m.sku LIKE :search OR m.name LIKE :search)";
+        $materialParams[':search'] = "%{$filterSearch}%";
+    }
+    
+    if ($filterLowStock && $activeTab === 'materials') {
+        $materialQuery .= " AND m.current_stock <= m.min_stock_level";
+    }
+    
+    $materialQuery .= " ORDER BY m.name";
+    
+    $stmt = $pdo->prepare($materialQuery);
+    $stmt->execute($materialParams);
+    $materials = $stmt->fetchAll();
+    
+    // Get warehouses
     $stmt = $pdo->query("SELECT * FROM work_centers WHERE center_type = 'warehouse' AND is_active = 1 ORDER BY center_name");
     $warehouses = $stmt->fetchAll();
     
-    // Get recent warehouse operations
+    // Get material categories
+    $stmt = $pdo->query("SELECT * FROM material_categories ORDER BY category_name");
+    $materialCategories = $stmt->fetchAll();
+    
+    // Get product categories
+    $stmt = $pdo->query("SELECT * FROM product_categories ORDER BY category_name");
+    $productCategories = $stmt->fetchAll();
+    
+    // Get warehouse zones
+    $stmt = $pdo->query("SELECT * FROM warehouse_zones WHERE is_active = 1 ORDER BY zone_code");
+    $warehouseZones = $stmt->fetchAll();
+    
+    // Get recent warehouse operations (both products and materials)
     $stmt = $pdo->prepare("
-        SELECT wo.*, p.product_name, p.product_code, u.full_name as user_name,
-               wf.center_name as warehouse_from_name, wt.center_name as warehouse_to_name
+        SELECT wo.*, p.product_name, p.product_code, m.name as material_name, m.sku as material_sku, 
+               u.full_name as user_name,
+               wf.center_name as warehouse_from_name, wt.center_name as warehouse_to_name,
+               CASE WHEN wo.product_id IS NOT NULL THEN 'product' ELSE 'material' END as item_type
         FROM warehouse_operations wo
         LEFT JOIN products p ON wo.product_id = p.id
+        LEFT JOIN materials m ON wo.material_id = m.id
         LEFT JOIN users u ON wo.user_id = u.id
         LEFT JOIN work_centers wf ON wo.warehouse_from = wf.id
         LEFT JOIN work_centers wt ON wo.warehouse_to = wt.id
@@ -206,18 +484,19 @@ try {
     $stmt->execute();
     $operations = $stmt->fetchAll();
     
-    // Get statistics
-    $stmt = $pdo->query("SELECT COUNT(*) as count FROM warehouse_operations WHERE operation_type = 'income' AND MONTH(operation_date) = MONTH(CURRENT_DATE())");
-    $stats['income_count'] = $stmt->fetch()['count'];
+    // Get statistics for products
+    $stmt = $pdo->query("SELECT COUNT(*) as count FROM warehouse_operations WHERE operation_type = 'income' AND product_id IS NOT NULL AND MONTH(operation_date) = MONTH(CURRENT_DATE())");
+    $stats['product_income_count'] = $stmt->fetch()['count'];
     
-    $stmt = $pdo->query("SELECT COUNT(*) as count FROM warehouse_operations WHERE operation_type = 'outcome' AND MONTH(operation_date) = MONTH(CURRENT_DATE())");
-    $stats['outcome_count'] = $stmt->fetch()['count'];
+    $stmt = $pdo->query("SELECT COUNT(*) as count FROM warehouse_operations WHERE operation_type = 'outcome' AND product_id IS NOT NULL AND MONTH(operation_date) = MONTH(CURRENT_DATE())");
+    $stats['product_outcome_count'] = $stmt->fetch()['count'];
     
-    $stmt = $pdo->query("SELECT SUM(wo.quantity) as total FROM warehouse_operations wo WHERE wo.operation_type = 'income' AND MONTH(wo.operation_date) = MONTH(CURRENT_DATE())");
-    $stats['income_qty'] = $stmt->fetch()['total'] ?? 0;
+    // Get statistics for materials
+    $stmt = $pdo->query("SELECT COUNT(*) as count FROM warehouse_operations WHERE operation_type = 'income' AND material_id IS NOT NULL AND MONTH(operation_date) = MONTH(CURRENT_DATE())");
+    $stats['material_income_count'] = $stmt->fetch()['count'];
     
-    $stmt = $pdo->query("SELECT SUM(wo.quantity) as total FROM warehouse_operations wo WHERE wo.operation_type = 'outcome' AND MONTH(wo.operation_date) = MONTH(CURRENT_DATE())");
-    $stats['outcome_qty'] = $stmt->fetch()['total'] ?? 0;
+    $stmt = $pdo->query("SELECT COUNT(*) as count FROM warehouse_operations WHERE operation_type = 'outcome' AND material_id IS NOT NULL AND MONTH(operation_date) = MONTH(CURRENT_DATE())");
+    $stats['material_outcome_count'] = $stmt->fetch()['count'];
     
     // Low stock products
     $stmt = $pdo->query("
@@ -230,13 +509,38 @@ try {
     ");
     $lowStockProducts = $stmt->fetchAll();
     
+    // Low stock materials
+    $stmt = $pdo->query("
+        SELECT m.*, mc.category_name, wz.zone_name
+        FROM materials m
+        LEFT JOIN material_categories mc ON m.category_id = mc.id
+        LEFT JOIN warehouse_zones wz ON mc.storage_zone = wz.zone_code
+        WHERE m.current_stock <= m.min_stock_level AND m.is_active = 1
+        ORDER BY m.current_stock ASC
+        LIMIT 10
+    ");
+    $lowStockMaterials = $stmt->fetchAll();
+    
+    // Production orders for material issue
+    $stmt = $pdo->query("SELECT id, production_number, product_id, quantity, status FROM production_orders WHERE status IN ('planned', 'in_progress') ORDER BY created_at DESC LIMIT 20");
+    $productionOrders = $stmt->fetchAll();
+    
 } catch (PDOException $e) {
-    $error = 'Ошибка загрузки данных';
+    $error = 'Ошибка загрузки данных: ' . $e->getMessage();
     $products = [];
+    $materials = [];
     $warehouses = [];
+    $materialCategories = [];
+    $productCategories = [];
+    $warehouseZones = [];
     $operations = [];
     $lowStockProducts = [];
-    $stats = ['income_count' => 0, 'outcome_count' => 0, 'income_qty' => 0, 'outcome_qty' => 0];
+    $lowStockMaterials = [];
+    $productionOrders = [];
+    $stats = [
+        'product_income_count' => 0, 'product_outcome_count' => 0,
+        'material_income_count' => 0, 'material_outcome_count' => 0
+    ];
 }
 ?>
 <!DOCTYPE html>
@@ -316,7 +620,7 @@ try {
                             <i class="fas fa-arrow-down"></i>
                         </div>
                         <div class="stat-details">
-                            <h3><?php echo $stats['income_count']; ?></h3>
+                            <h3><?php echo $activeTab === 'products' ? $stats['product_income_count'] : $stats['material_income_count']; ?></h3>
                             <p>Приходов за месяц</p>
                         </div>
                     </div>
@@ -326,7 +630,7 @@ try {
                             <i class="fas fa-arrow-up"></i>
                         </div>
                         <div class="stat-details">
-                            <h3><?php echo $stats['outcome_count']; ?></h3>
+                            <h3><?php echo $activeTab === 'products' ? $stats['product_outcome_count'] : $stats['material_outcome_count']; ?></h3>
                             <p>Расходов за месяц</p>
                         </div>
                     </div>
@@ -336,8 +640,8 @@ try {
                             <i class="fas fa-boxes"></i>
                         </div>
                         <div class="stat-details">
-                            <h3><?php echo $stats['income_qty']; ?></h3>
-                            <p>Принято товаров (шт)</p>
+                            <h3><?php echo count($activeTab === 'products' ? $products : $materials); ?></h3>
+                            <p><?php echo $activeTab === 'products' ? 'Видов продукции' : 'Видов материалов'; ?></p>
                         </div>
                     </div>
                     
@@ -346,8 +650,27 @@ try {
                             <i class="fas fa-exclamation-triangle"></i>
                         </div>
                         <div class="stat-details">
-                            <h3><?php echo count($lowStockProducts); ?></h3>
+                            <h3><?php echo count($activeTab === 'products' ? $lowStockProducts : $lowStockMaterials); ?></h3>
                             <p>Товаров с низким запасом</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tabs for Products and Materials -->
+                <div class="card" style="margin-bottom: 30px;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2 class="card-title">Складские запасы</h2>
+                        <div class="tab-buttons">
+                            <a href="?tab=products&category=<?php echo htmlspecialchars($filterCategory); ?>&search=<?php echo htmlspecialchars($filterSearch); ?>" 
+                               class="btn <?php echo $activeTab === 'products' ? 'btn-primary' : 'btn-secondary'; ?>" 
+                               style="padding: 8px 16px; margin-right: 10px;">
+                                <i class="fas fa-box"></i> Готовая продукция
+                            </a>
+                            <a href="?tab=materials&category=<?php echo htmlspecialchars($filterCategory); ?>&zone=<?php echo htmlspecialchars($filterZone); ?>&search=<?php echo htmlspecialchars($filterSearch); ?>" 
+                               class="btn <?php echo $activeTab === 'materials' ? 'btn-primary' : 'btn-secondary'; ?>" 
+                               style="padding: 8px 16px;">
+                                <i class="fas fa-cubes"></i> Материалы
+                            </a>
                         </div>
                     </div>
                 </div>
