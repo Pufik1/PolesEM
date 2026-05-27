@@ -120,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Создаем документ приема
             $stmt = $pdo->prepare("INSERT INTO goods_receipt_documents 
                                    (receipt_number, receipt_date, receipt_type, warehouse_id, total_items, total_quantity, status, notes, created_by) 
-                                   VALUES (:receipt_number, CURRENT_DATE, 'from_supplier', NULL, 1, 1, :quantity, 'confirmed', :notes, :user_id)");
+                                   VALUES (:receipt_number, CURRENT_DATE, 'from_supplier', 1, 1, :quantity, 'confirmed', :notes, :user_id)");
             $stmt->execute([
                 ':receipt_number' => $document_number,
                 ':quantity' => $quantity,
