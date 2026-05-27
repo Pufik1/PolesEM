@@ -21,6 +21,49 @@ $initials = strtoupper(substr($userFullName, 0, 1));
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // ==========================================
+    // МАКСИМАЛЬНАЯ ОТЛАДКА - ВЫВОДИМ ВСЕ ДАННЫЕ
+    // ==========================================
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+    
+    echo "<pre style='background:#f0f0f0; border:2px solid #f00; padding:20px; font-family:monospace; font-size:12px;'>";
+    echo "<strong style='color:red;font-size:16px;'>=== DEBUG MODE: POST REQUEST ===</strong>\n\n";
+    
+    echo "<strong>1. Все POST данные:</strong>\n";
+    var_dump($_POST);
+    echo "\n";
+    
+    echo "<strong>2. Проверка поля 'action':</strong>\n";
+    if (isset($_POST['action'])) {
+        echo "  action = '" . htmlspecialchars($_POST['action']) . "'\n";
+    } else {
+        echo "  <span style='color:red;font-weight:bold;'>ОШИБКА: Поле 'action' НЕ НАЙДЕНО в POST!</span>\n";
+    }
+    echo "\n";
+    
+    echo "<strong>3. Все SESSION данные:</strong>\n";
+    var_dump($_SESSION);
+    echo "\n";
+    
+    echo "<strong>4. Информация о запросе:</strong>\n";
+    echo "  REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD'] . "\n";
+    echo "  SCRIPT_NAME: " . $_SERVER['SCRIPT_NAME'] . "\n";
+    echo "  HTTP_REFERER: " . ($_SERVER['HTTP_REFERER'] ?? 'N/A') . "\n";
+    echo "  CONTENT_TYPE: " . ($_SERVER['CONTENT_TYPE'] ?? 'N/A') . "\n";
+    echo "\n";
+    
+    echo "<strong>5. Сырые POST данные (php://input):</strong>\n";
+    $rawInput = file_get_contents('php://input');
+    echo htmlspecialchars($rawInput);
+    echo "\n";
+    
+    echo "\n<strong style='color:red;'>=== СКРИПТ ОСТАНОВЛЕН ДЛЯ АНАЛИЗА ===</strong>";
+    echo "\n<span style='color:blue;'>Если вы видите этот вывод, значит POST запрос приходит.</span>";
+    echo "\n<span style='color:blue;'>Проверьте выше поле 'action' - оно должно быть 'outcome_product'</span>";
+    echo "</pre>";
+    exit; // Останавливаем выполнение для анализа
+    
     $action = $_POST['action'] ?? '';
     
     try {
