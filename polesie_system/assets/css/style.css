@@ -503,7 +503,7 @@ body {
     width: 100%;
     border-collapse: collapse;
     background-color: var(--card-bg);
-    table-layout: fixed;
+    table-layout: auto;
 }
 
 .data-table thead {
@@ -518,6 +518,7 @@ body {
     word-wrap: break-word;
     overflow-wrap: break-word;
     white-space: normal;
+    vertical-align: middle;
 }
 
 .data-table th {
@@ -550,14 +551,12 @@ body {
 /* Badges */
 .badge {
     display: inline-block;
-    padding: 5px 12px;
+    padding: 6px 14px;
     border-radius: 20px;
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
-    max-width: 150px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.4;
 }
 
 .badge-success {
