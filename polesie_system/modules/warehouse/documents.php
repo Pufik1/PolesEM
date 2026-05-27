@@ -251,7 +251,7 @@ try {
         .documents-table th:nth-child(1), .documents-table td:nth-child(1) { width: 15%; } /* № документа */
         .documents-table th:nth-child(2), .documents-table td:nth-child(2) { width: 12%; } /* Дата */
         .documents-table th:nth-child(3), .documents-table td:nth-child(3) { width: 15%; } /* Тип/Клиент */
-        .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 12%; padding-left: 15px; } /* Позиций */
+        .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 10%; text-align: center; padding-left: 20px; } /* Позиций */
         .documents-table th:nth-child(5), .documents-table td:nth-child(5) { width: 12%; } /* Количество */
         .documents-table th:nth-child(6), .documents-table td:nth-child(6) { width: 15%; } /* Склад/Сумма */
         .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 13%; } /* Статус */
