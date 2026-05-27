@@ -46,7 +46,7 @@ try {
     $stmt->execute([':receipt_id' => $receiptId]);
     $items = $stmt->fetchAll();
     
-    $stmt = $pdo->query("SELECT id, center_name FROM work_centers WHERE type = 'warehouse' ORDER BY center_name");
+    $stmt = $pdo->query("SELECT id, center_name FROM work_centers WHERE center_type = 'warehouse' ORDER BY center_name");
     $warehouses = $stmt->fetchAll();
     
 } catch (Exception $e) {
