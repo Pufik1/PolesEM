@@ -74,8 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Добавляем операцию прихода со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, product_id, quantity, warehouse_to, user_id, document_number, batch_number, notes, receipt_id) 
-                                   VALUES ('income', :product_id, :quantity, 1, :user_id, :document_number, :batch_number, :notes, :receipt_id)");
+                                   (operation_type, product_id, quantity, warehouse_to, user_id, document_number, batch_number, expiry_date, quality_cert, notes, receipt_id) 
+                                   VALUES ('income', :product_id, :quantity, 1, :user_id, :document_number, :batch_number, NULL, NULL, :notes, :receipt_id)");
             $stmt->execute([
                 ':product_id' => $product_id,
                 ':quantity' => $quantity,
@@ -258,8 +258,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Добавляем операцию расхода со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, product_id, quantity, warehouse_from, user_id, document_number, batch_number, notes, shipment_id) 
-                                   VALUES ('outcome', :product_id, :quantity, 1, :user_id, :document_number, NULL, :notes, :shipment_id)");
+                                   (operation_type, product_id, quantity, warehouse_from, user_id, document_number, batch_number, expiry_date, quality_cert, notes, shipment_id) 
+                                   VALUES ('outcome', :product_id, :quantity, 1, :user_id, :document_number, NULL, NULL, NULL, :notes, :shipment_id)");
             $stmt->execute([
                 ':product_id' => $product_id,
                 ':quantity' => $quantity,
@@ -342,8 +342,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Добавляем операцию расхода материала со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, material_id, quantity, warehouse_from, user_id, document_number, notes, writeoff_id) 
-                                   VALUES ('outcome', :material_id, :quantity, 1, :user_id, :document_number, :notes, :writeoff_id)");
+                                   (operation_type, material_id, quantity, warehouse_from, user_id, document_number, batch_number, expiry_date, quality_cert, notes, writeoff_id) 
+                                   VALUES ('outcome', :material_id, :quantity, 1, :user_id, :document_number, NULL, NULL, NULL, :notes, :writeoff_id)");
             $stmt->execute([
                 ':material_id' => $material_id,
                 ':quantity' => $quantity,
@@ -389,8 +389,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
             
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, product_id, quantity, warehouse_from, warehouse_to, user_id, document_number, notes) 
-                                   VALUES ('transfer', :product_id, :quantity, :warehouse_from, :warehouse_to, :user_id, :document_number, :notes)");
+                                   (operation_type, product_id, quantity, warehouse_from, warehouse_to, user_id, document_number, batch_number, expiry_date, quality_cert, notes) 
+                                   VALUES ('transfer', :product_id, :quantity, :warehouse_from, :warehouse_to, :user_id, :document_number, NULL, NULL, NULL, :notes)");
             $stmt->execute([
                 ':product_id' => $product_id,
                 ':quantity' => $quantity,
@@ -417,8 +417,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
             
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, material_id, quantity, warehouse_from, warehouse_to, user_id, document_number, notes) 
-                                   VALUES ('transfer', :material_id, :quantity, :warehouse_from, :warehouse_to, :user_id, :document_number, :notes)");
+                                   (operation_type, material_id, quantity, warehouse_from, warehouse_to, user_id, document_number, batch_number, expiry_date, quality_cert, notes) 
+                                   VALUES ('transfer', :material_id, :quantity, :warehouse_from, :warehouse_to, :user_id, :document_number, NULL, NULL, NULL, :notes)");
             $stmt->execute([
                 ':material_id' => $material_id,
                 ':quantity' => $quantity,
@@ -507,8 +507,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Добавляем операцию списания со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, product_id, quantity, warehouse_from, user_id, document_number, notes, writeoff_id) 
-                                   VALUES ('write_off', :product_id, :quantity, 1, :user_id, :document_number, :notes, :writeoff_id)");
+                                   (operation_type, product_id, quantity, warehouse_from, user_id, document_number, batch_number, expiry_date, quality_cert, notes, writeoff_id) 
+                                   VALUES ('write_off', :product_id, :quantity, 1, :user_id, :document_number, NULL, NULL, NULL, :notes, :writeoff_id)");
             $stmt->execute([
                 ':product_id' => $product_id,
                 ':quantity' => $quantity,
@@ -590,8 +590,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Добавляем операцию списания со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, material_id, quantity, warehouse_from, user_id, document_number, notes, writeoff_id) 
-                                   VALUES ('write_off', :material_id, :quantity, 1, :user_id, :document_number, :notes, :writeoff_id)");
+                                   (operation_type, material_id, quantity, warehouse_from, user_id, document_number, batch_number, expiry_date, quality_cert, notes, writeoff_id) 
+                                   VALUES ('write_off', :material_id, :quantity, 1, :user_id, :document_number, NULL, NULL, NULL, :notes, :writeoff_id)");
             $stmt->execute([
                 ':material_id' => $material_id,
                 ':quantity' => $quantity,
