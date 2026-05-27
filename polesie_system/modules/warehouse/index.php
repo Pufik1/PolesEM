@@ -218,11 +218,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([':product_id' => $product_id]);
             $productData = $stmt->fetch();
             
+            // Вычисляем общую стоимость
+            $total_cost = $productData['base_price'] * $quantity;
+            
             // Создаем документ отгрузки
             $stmt = $pdo->prepare("INSERT INTO shipment_documents 
                                    (shipment_number, shipment_date, shipment_type, customer_id, customer_name, warehouse_from_id, total_items, total_quantity, total_cost, status, notes, created_by) 
                                    VALUES (:shipment_number, CURRENT_DATE, 'to_customer', NULL, 'Прямая продажа', 1, 1, :quantity, :total_cost, 'shipped', :notes, :user_id)");
-            $total_cost = $productData['base_price'] * $quantity;
             $stmt->execute([
                 ':shipment_number' => $document_number,
                 ':quantity' => $quantity,
