@@ -742,17 +742,119 @@ try {
                 <!-- Inventory Table -->
                 <div class="card" style="margin-bottom: 30px;">
                     <div class="card-header">
-                        <h2 class="card-title">Остатки товаров на складе</h2>
+                        <h2 class="card-title"><?php echo $activeTab === 'products' ? 'Остатки готовой продукции на складе' : 'Остатки материалов на складе'; ?></h2>
                     </div>
                     
-                    <div style="margin-bottom: 20px;">
+                    <!-- Filters -->
+                    <div style="margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
                         <input 
                             type="text" 
                             id="inventorySearch"
-                            placeholder="Поиск товаров..." 
+                            placeholder="<?php echo $activeTab === 'products' ? 'Поиск продукции...' : 'Поиск материалов...'; ?>" 
                             onkeyup="filterInventory()"
                             style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px; width: 300px;"
                         >
+                        
+                        <?php if ($activeTab === 'products'): ?>
+                            <!-- Product filters -->
+                            <select id="categoryFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                                <option value="">Все категории</option>
+                                <?php foreach ($productCategories as $cat): ?>
+                                    <option value="<?php echo $cat['id']; ?>" <?php echo $filterCategory == $cat['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($cat['category_name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select id="powerFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                                <option value="">Любая мощность</option>
+                                <option value="0-0.5">до 0.5 кВт</option>
+                                <option value="0.5-1">0.5 - 1 кВт</option>
+                                <option value="1-3">1 - 3 кВт</option>
+                                <option value="3-5">3 - 5 кВт</option>
+                                <option value="5-10">5 - 10 кВт</option>
+                                <option value="10-20">10 - 20 кВт</option>
+                                <option value="20-50">20 - 50 кВт</option>
+                                <option value="50-100">50 - 100 кВт</option>
+                                <option value="100+">более 100 кВт</option>
+                            </select>
+                            <select id="frameSizeFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                                <option value="">Любой габарит</option>
+                                <option value="63">63</option>
+                                <option value="71">71</option>
+                                <option value="80">80</option>
+                                <option value="90">90</option>
+                                <option value="100">100</option>
+                                <option value="112">112</option>
+                                <option value="132">132</option>
+                                <option value="160">160</option>
+                                <option value="180">180</option>
+                                <option value="200">200</option>
+                                <option value="225">225</option>
+                                <option value="250">250</option>
+                                <option value="280">280</option>
+                                <option value="315">315</option>
+                            </select>
+                            <select id="voltageFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                                <option value="">Любое напряжение</option>
+                                <option value="220">220 В</option>
+                                <option value="380">380 В</option>
+                                <option value="400">400 В</option>
+                                <option value="660">660 В</option>
+                            </select>
+                            <select id="protectionFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                                <option value="">Любая защита</option>
+                                <option value="IP23">IP23</option>
+                                <option value="IP44">IP44</option>
+                                <option value="IP54">IP54</option>
+                                <option value="IP55">IP55</option>
+                                <option value="IP65">IP65</option>
+                            </select>
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                <input type="checkbox" id="lowStockFilter" onchange="applyFilters()" <?php echo $filterLowStock ? 'checked' : ''; ?>>
+                                Только низкий запас
+                            </label>
+                            
+                        <?php else: ?>
+                            <!-- Material filters -->
+                            <select id="materialCategoryFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                                <option value="">Все категории</option>
+                                <?php foreach ($materialCategories as $cat): ?>
+                                    <option value="<?php echo $cat['id']; ?>" <?php echo $filterCategory == $cat['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($cat['category_name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select id="zoneFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                                <option value="">Все зоны</option>
+                                <?php foreach ($warehouseZones as $zone): ?>
+                                    <option value="<?php echo $zone['zone_code']; ?>" <?php echo $filterZone == $zone['zone_code'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($zone['zone_name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select id="unitFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                                <option value="">Все единицы</option>
+                                <option value="шт">шт</option>
+                                <option value="кг">кг</option>
+                                <option value="м">м</option>
+                                <option value="л">л</option>
+                                <option value="т">т</option>
+                                <option value="рулон">рулон</option>
+                            </select>
+                            <select id="tempClassFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                                <option value="">Любой класс нагревостойкости</option>
+                                <option value="A">A (105°C)</option>
+                                <option value="E">E (120°C)</option>
+                                <option value="B">B (130°C)</option>
+                                <option value="F">F (155°C)</option>
+                                <option value="H">H (180°C)</option>
+                            </select>
+                            <select id="ipRatingFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
+                                <option value="">Любая степень защиты</option>
+                                <option value="IP44">IP44</option>
+                                <option value="IP54">IP54</option>
+                                <option value="IP55">IP55</option>
+                                <option value="IP65">IP65</option>
+                            </select>
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                <input type="checkbox" id="lowStockFilter" onchange="applyFilters()" <?php echo $filterLowStock ? 'checked' : ''; ?>>
+                                Только низкий запас
+                            </label>
+                        <?php endif; ?>
                     </div>
                     
                     <div class="table-responsive">
@@ -762,35 +864,89 @@ try {
                                     <th>Артикул</th>
                                     <th>Наименование</th>
                                     <th>Категория</th>
-                                    <th>Остаток (шт)</th>
+                                    <?php if ($activeTab === 'materials'): ?>
+                                    <th>Зона</th>
+                                    <th>Ед.изм.</th>
+                                    <?php endif; ?>
+                                    <th>Остаток</th>
                                     <th>Мин. запас</th>
                                     <th>Статус</th>
+                                    <th>Действия</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if (empty($products)): ?>
-                                    <tr>
-                                        <td colspan="6" class="text-center">Товары не найдены</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($products as $product): ?>
+                                <?php if ($activeTab === 'products'): ?>
+                                    <?php if (empty($products)): ?>
                                         <tr>
-                                            <td><strong><?php echo htmlspecialchars($product['product_code']); ?></strong></td>
-                                            <td><?php echo htmlspecialchars($product['product_name']); ?></td>
-                                            <td><?php echo htmlspecialchars($product['category_name'] ?? 'Не указана'); ?></td>
-                                            <td><?php echo $product['stock_quantity']; ?></td>
-                                            <td><?php echo $product['min_stock_level']; ?></td>
-                                            <td>
-                                                <?php if ($product['stock_quantity'] <= $product['min_stock_level']): ?>
-                                                    <span class="badge badge-danger">Низкий запас</span>
-                                                <?php elseif ($product['stock_quantity'] <= $product['min_stock_level'] * 1.5): ?>
-                                                    <span class="badge badge-warning">Средний запас</span>
-                                                <?php else: ?>
-                                                    <span class="badge badge-success">В норме</span>
-                                                <?php endif; ?>
-                                            </td>
+                                            <td colspan="7" class="text-center">Продукция не найдена</td>
                                         </tr>
-                                    <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <?php foreach ($products as $product): ?>
+                                            <tr data-product-id="<?php echo $product['id']; ?>" 
+                                                data-category="<?php echo $product['category_id'] ?? ''; ?>"
+                                                data-power="<?php echo $product['power_kw'] ?? ''; ?>"
+                                                data-frame="<?php echo $product['frame_size_mm'] ?? ''; ?>"
+                                                data-voltage="<?php echo $product['voltage_v'] ?? ''; ?>"
+                                                data-protection="<?php echo $product['protection_class'] ?? ''; ?>">
+                                                <td><strong><?php echo htmlspecialchars($product['product_code']); ?></strong></td>
+                                                <td><?php echo htmlspecialchars($product['product_name']); ?></td>
+                                                <td><?php echo htmlspecialchars($product['category_name'] ?? 'Не указана'); ?></td>
+                                                <td><?php echo $product['stock_quantity']; ?> шт.</td>
+                                                <td><?php echo $product['min_stock_level']; ?> шт.</td>
+                                                <td>
+                                                    <?php if ($product['stock_quantity'] <= $product['min_stock_level']): ?>
+                                                        <span class="badge badge-danger">Низкий запас</span>
+                                                    <?php elseif ($product['stock_quantity'] <= $product['min_stock_level'] * 1.5): ?>
+                                                        <span class="badge badge-warning">Средний запас</span>
+                                                    <?php else: ?>
+                                                        <span class="badge badge-success">В норме</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-primary" onclick="showProductDetails(<?php echo $product['id']; ?>)">
+                                                        <i class="fas fa-eye"></i> Подробнее
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <?php if (empty($materials)): ?>
+                                        <tr>
+                                            <td colspan="8" class="text-center">Материалы не найдены</td>
+                                        </tr>
+                                    <?php else: ?>
+                                        <?php foreach ($materials as $material): ?>
+                                            <tr data-material-id="<?php echo $material['id']; ?>" 
+                                                data-category="<?php echo $material['category_id'] ?? ''; ?>"
+                                                data-zone="<?php echo $material['storage_zone'] ?? ''; ?>"
+                                                data-unit="<?php echo $material['unit'] ?? ''; ?>"
+                                                data-temp-class="<?php echo $material['temperature_class'] ?? ''; ?>"
+                                                data-ip-rating="<?php echo $material['ip_rating'] ?? ''; ?>">
+                                                <td><strong><?php echo htmlspecialchars($material['sku']); ?></strong></td>
+                                                <td><?php echo htmlspecialchars($material['name']); ?></td>
+                                                <td><?php echo htmlspecialchars($material['category_name'] ?? 'Не указана'); ?></td>
+                                                <td><?php echo htmlspecialchars($material['zone_name'] ?? '-'); ?></td>
+                                                <td><?php echo htmlspecialchars($material['unit']); ?></td>
+                                                <td><?php echo $material['current_stock']; ?> <?php echo htmlspecialchars($material['unit']); ?></td>
+                                                <td><?php echo $material['min_stock_level']; ?> <?php echo htmlspecialchars($material['unit']); ?></td>
+                                                <td>
+                                                    <?php if ($material['current_stock'] <= $material['min_stock_level']): ?>
+                                                        <span class="badge badge-danger">Низкий запас</span>
+                                                    <?php elseif ($material['current_stock'] <= $material['min_stock_level'] * 1.5): ?>
+                                                        <span class="badge badge-warning">Средний запас</span>
+                                                    <?php else: ?>
+                                                        <span class="badge badge-success">В норме</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-primary" onclick="showMaterialDetails(<?php echo $material['id']; ?>)">
+                                                        <i class="fas fa-eye"></i> Подробнее
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -1088,32 +1244,359 @@ try {
     
     <script src="../../assets/js/main.js"></script>
     <script>
-        // Filter inventory table
+        // Product and Material details data
+        const productsData = <?php echo json_encode($products, JSON_UNESCAPED_UNICODE); ?>;
+        const materialsData = <?php echo json_encode($materials, JSON_UNESCAPED_UNICODE); ?>;
+        
+        // Filter inventory table with all filters
+        function applyFilters() {
+            const searchInput = document.getElementById('inventorySearch').value.toUpperCase();
+            const activeTab = '<?php echo $activeTab; ?>';
+            
+            if (activeTab === 'products') {
+                filterProductsTable(searchInput);
+            } else {
+                filterMaterialsTable(searchInput);
+            }
+        }
+        
         function filterInventory() {
-            const input = document.getElementById('inventorySearch');
-            const filter = input.value.toUpperCase();
+            applyFilters();
+        }
+        
+        function filterProductsTable(searchFilter) {
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const powerFilter = document.getElementById('powerFilter').value;
+            const frameFilter = document.getElementById('frameSizeFilter').value;
+            const voltageFilter = document.getElementById('voltageFilter').value;
+            const protectionFilter = document.getElementById('protectionFilter').value;
+            const lowStockFilter = document.getElementById('lowStockFilter').checked;
+            
             const table = document.getElementById('inventoryTable');
             const tr = table.getElementsByTagName('tr');
             
             for (let i = 1; i < tr.length; i++) {
-                const tdCode = tr[i].getElementsByTagName('td')[0];
-                const tdName = tr[i].getElementsByTagName('td')[1];
-                const tdCategory = tr[i].getElementsByTagName('td')[2];
+                const row = tr[i];
+                const productId = row.getAttribute('data-product-id');
+                const category = row.getAttribute('data-category');
+                const power = parseFloat(row.getAttribute('data-power')) || 0;
+                const frame = row.getAttribute('data-frame');
+                const voltage = row.getAttribute('data-voltage');
+                const protection = row.getAttribute('data-protection');
                 
-                if (tdCode || tdName || tdCategory) {
+                const tdCode = row.getElementsByTagName('td')[0];
+                const tdName = row.getElementsByTagName('td')[1];
+                const tdCategory = row.getElementsByTagName('td')[2];
+                const tdStock = row.getElementsByTagName('td')[3];
+                const tdMinStock = row.getElementsByTagName('td')[4];
+                
+                let showRow = true;
+                
+                // Search filter
+                if (searchFilter) {
                     const codeValue = tdCode.textContent || tdCode.innerText;
                     const nameValue = tdName.textContent || tdName.innerText;
                     const categoryValue = tdCategory.textContent || tdCategory.innerText;
                     
-                    if (codeValue.toUpperCase().indexOf(filter) > -1 ||
-                        nameValue.toUpperCase().indexOf(filter) > -1 ||
-                        categoryValue.toUpperCase().indexOf(filter) > -1) {
-                        tr[i].style.display = '';
-                    } else {
-                        tr[i].style.display = 'none';
+                    if (codeValue.toUpperCase().indexOf(searchFilter) === -1 &&
+                        nameValue.toUpperCase().indexOf(searchFilter) === -1 &&
+                        categoryValue.toUpperCase().indexOf(searchFilter) === -1) {
+                        showRow = false;
                     }
                 }
+                
+                // Category filter
+                if (showRow && categoryFilter && category !== categoryFilter) {
+                    showRow = false;
+                }
+                
+                // Power filter
+                if (showRow && powerFilter) {
+                    const parts = powerFilter.split('-');
+                    if (parts.length === 2) {
+                        const minPower = parseFloat(parts[0]);
+                        const maxPower = parseFloat(parts[1]);
+                        if (power < minPower || power > maxPower) {
+                            showRow = false;
+                        }
+                    } else if (powerFilter.endsWith('+')) {
+                        const minPower = parseFloat(powerFilter);
+                        if (power <= minPower) {
+                            showRow = false;
+                        }
+                    }
+                }
+                
+                // Frame size filter
+                if (showRow && frameFilter && frame !== frameFilter) {
+                    showRow = false;
+                }
+                
+                // Voltage filter
+                if (showRow && voltageFilter && !voltage.includes(voltageFilter)) {
+                    showRow = false;
+                }
+                
+                // Protection filter
+                if (showRow && protectionFilter && protection !== protectionFilter) {
+                    showRow = false;
+                }
+                
+                // Low stock filter
+                if (showRow && lowStockFilter) {
+                    const stockText = tdStock.textContent || tdStock.innerText;
+                    const minStockText = tdMinStock.textContent || tdMinStock.innerText;
+                    const stock = parseInt(stockText) || 0;
+                    const minStock = parseInt(minStockText) || 0;
+                    if (stock > minStock) {
+                        showRow = false;
+                    }
+                }
+                
+                row.style.display = showRow ? '' : 'none';
             }
+        }
+        
+        function filterMaterialsTable(searchFilter) {
+            const categoryFilter = document.getElementById('materialCategoryFilter').value;
+            const zoneFilter = document.getElementById('zoneFilter').value;
+            const unitFilter = document.getElementById('unitFilter').value;
+            const tempClassFilter = document.getElementById('tempClassFilter').value;
+            const ipRatingFilter = document.getElementById('ipRatingFilter').value;
+            const lowStockFilter = document.getElementById('lowStockFilter').checked;
+            
+            const table = document.getElementById('inventoryTable');
+            const tr = table.getElementsByTagName('tr');
+            
+            for (let i = 1; i < tr.length; i++) {
+                const row = tr[i];
+                const materialId = row.getAttribute('data-material-id');
+                const category = row.getAttribute('data-category');
+                const zone = row.getAttribute('data-zone');
+                const unit = row.getAttribute('data-unit');
+                const tempClass = row.getAttribute('data-temp-class');
+                const ipRating = row.getAttribute('data-ip-rating');
+                
+                const tdSku = row.getElementsByTagName('td')[0];
+                const tdName = row.getElementsByTagName('td')[1];
+                const tdCategory = row.getElementsByTagName('td')[2];
+                const tdStock = row.getElementsByTagName('td')[5];
+                const tdMinStock = row.getElementsByTagName('td')[6];
+                
+                let showRow = true;
+                
+                // Search filter
+                if (searchFilter) {
+                    const skuValue = tdSku.textContent || tdSku.innerText;
+                    const nameValue = tdName.textContent || tdName.innerText;
+                    const categoryValue = tdCategory.textContent || tdCategory.innerText;
+                    
+                    if (skuValue.toUpperCase().indexOf(searchFilter) === -1 &&
+                        nameValue.toUpperCase().indexOf(searchFilter) === -1 &&
+                        categoryValue.toUpperCase().indexOf(searchFilter) === -1) {
+                        showRow = false;
+                    }
+                }
+                
+                // Category filter
+                if (showRow && categoryFilter && category !== categoryFilter) {
+                    showRow = false;
+                }
+                
+                // Zone filter
+                if (showRow && zoneFilter && zone !== zoneFilter) {
+                    showRow = false;
+                }
+                
+                // Unit filter
+                if (showRow && unitFilter && unit !== unitFilter) {
+                    showRow = false;
+                }
+                
+                // Temperature class filter
+                if (showRow && tempClassFilter && tempClass !== tempClassFilter) {
+                    showRow = false;
+                }
+                
+                // IP rating filter
+                if (showRow && ipRatingFilter && ipRating !== ipRatingFilter) {
+                    showRow = false;
+                }
+                
+                // Low stock filter
+                if (showRow && lowStockFilter) {
+                    const stockText = tdStock.textContent || tdStock.innerText;
+                    const minStockText = tdMinStock.textContent || tdMinStock.innerText;
+                    const stock = parseFloat(stockText) || 0;
+                    const minStock = parseFloat(minStockText) || 0;
+                    if (stock > minStock) {
+                        showRow = false;
+                    }
+                }
+                
+                row.style.display = showRow ? '' : 'none';
+            }
+        }
+        
+        // Show product details modal
+        function showProductDetails(productId) {
+            const product = productsData.find(p => p.id == productId);
+            if (!product) return;
+            
+            const specs = product.specifications ? JSON.parse(product.specifications) : {};
+            
+            let detailsHtml = `
+                <div style="padding: 20px;">
+                    <h3 style="margin-bottom: 20px; color: var(--primary-color);">${escapeHtml(product.product_code)} - ${escapeHtml(product.product_name)}</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                        <div><strong>Категория:</strong> ${escapeHtml(product.category_name || 'Не указана')}</div>
+                        <div><strong>Артикул:</strong> ${escapeHtml(product.product_code)}</div>
+                        <div><strong>Остаток на складе:</strong> ${product.stock_quantity} шт.</div>
+                        <div><strong>Минимальный запас:</strong> ${product.min_stock_level} шт.</div>
+                        <div><strong>Базовая цена:</strong> ${product.base_price} BYN</div>
+                        <div><strong>Валюта:</strong> ${escapeHtml(product.currency || 'BYN')}</div>
+            `;
+            
+            if (product.frame_size_mm) {
+                detailsHtml += `<div><strong>Габарит рамы:</strong> ${product.frame_size_mm} мм</div>`;
+            }
+            if (product.power_kw) {
+                detailsHtml += `<div><strong>Мощность:</strong> ${product.power_kw} кВт</div>`;
+            }
+            if (product.rpm) {
+                detailsHtml += `<div><strong>Обороты:</strong> ${product.rpm} об/мин</div>`;
+            }
+            if (product.efficiency_pct) {
+                detailsHtml += `<div><strong>КПД:</strong> ${product.efficiency_pct}%</div>`;
+            }
+            if (product.cos_phi) {
+                detailsHtml += `<div><strong>cos φ:</strong> ${product.cos_phi}</div>`;
+            }
+            if (product.voltage_v) {
+                detailsHtml += `<div><strong>Напряжение:</strong> ${escapeHtml(product.voltage_v)} В</div>`;
+            }
+            if (product.protection_class) {
+                detailsHtml += `<div><strong>Класс защиты:</strong> ${escapeHtml(product.protection_class)}</div>`;
+            }
+            if (product.mounting_type) {
+                detailsHtml += `<div><strong>Тип монтажа:</strong> ${escapeHtml(product.mounting_type)}</div>`;
+            }
+            if (product.weight) {
+                detailsHtml += `<div><strong>Вес:</strong> ${product.weight} кг</div>`;
+            }
+            if (product.description) {
+                detailsHtml += `<div style="grid-column: span 2;"><strong>Описание:</strong><br>${escapeHtml(product.description)}</div>`;
+            }
+            
+            detailsHtml += `</div></div>`;
+            
+            showModal('productDetailsModal', detailsHtml);
+        }
+        
+        // Show material details modal
+        function showMaterialDetails(materialId) {
+            const material = materialsData.find(m => m.id == materialId);
+            if (!material) return;
+            
+            let detailsHtml = `
+                <div style="padding: 20px;">
+                    <h3 style="margin-bottom: 20px; color: var(--primary-color);">${escapeHtml(material.sku)} - ${escapeHtml(material.name)}</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                        <div><strong>Категория:</strong> ${escapeHtml(material.category_name || 'Не указана')}</div>
+                        <div><strong>Артикул:</strong> ${escapeHtml(material.sku)}</div>
+                        <div><strong>Текущий остаток:</strong> ${material.current_stock} ${escapeHtml(material.unit)}</div>
+                        <div><strong>Минимальный запас:</strong> ${material.min_stock_level} ${escapeHtml(material.unit)}</div>
+                        <div><strong>Цена за единицу:</strong> ${material.price_per_unit} ${escapeHtml(material.currency || 'BYN')}</div>
+                        <div><strong>Единица измерения:</strong> ${escapeHtml(material.unit)}</div>
+            `;
+            
+            if (material.standard) {
+                detailsHtml += `<div><strong>Стандарт:</strong> ${escapeHtml(material.standard)}</div>`;
+            }
+            if (material.grade_spec) {
+                detailsHtml += `<div><strong>Марка/спецификация:</strong> ${escapeHtml(material.grade_spec)}</div>`;
+            }
+            if (material.purpose) {
+                detailsHtml += `<div style="grid-column: span 2;"><strong>Назначение:</strong><br>${escapeHtml(material.purpose)}</div>`;
+            }
+            if (material.weight) {
+                detailsHtml += `<div><strong>Вес единицы:</strong> ${material.weight} кг</div>`;
+            }
+            if (material.length) {
+                detailsHtml += `<div><strong>Длина:</strong> ${material.length} м</div>`;
+            }
+            if (material.width) {
+                detailsHtml += `<div><strong>Ширина:</strong> ${material.width} мм</div>`;
+            }
+            if (material.thickness) {
+                detailsHtml += `<div><strong>Толщина:</strong> ${material.thickness} мм</div>`;
+            }
+            if (material.diameter) {
+                detailsHtml += `<div><strong>Диаметр:</strong> ${material.diameter} мм</div>`;
+            }
+            if (material.voltage_rating) {
+                detailsHtml += `<div><strong>Класс напряжения:</strong> ${escapeHtml(material.voltage_rating)}</div>`;
+            }
+            if (material.temperature_class) {
+                detailsHtml += `<div><strong>Класс нагревостойкости:</strong> ${escapeHtml(material.temperature_class)}</div>`;
+            }
+            if (material.ip_rating) {
+                detailsHtml += `<div><strong>Степень защиты:</strong> ${escapeHtml(material.ip_rating)}</div>`;
+            }
+            if (material.storage_conditions) {
+                detailsHtml += `<div style="grid-column: span 2;"><strong>Условия хранения:</strong><br>${escapeHtml(material.storage_conditions)}</div>`;
+            }
+            if (material.shelf_life_months) {
+                detailsHtml += `<div><strong>Срок годности:</strong> ${material.shelf_life_months} мес.</div>`;
+            }
+            if (material.supplier) {
+                detailsHtml += `<div><strong>Поставщик:</strong> ${escapeHtml(material.supplier)}</div>`;
+            }
+            if (material.zone_name) {
+                detailsHtml += `<div><strong>Зона хранения:</strong> ${escapeHtml(material.zone_name)}</div>`;
+            }
+            
+            detailsHtml += `</div></div>`;
+            
+            showModal('materialDetailsModal', detailsHtml);
+        }
+        
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Show generic modal with content
+        function showModal(modalId, content) {
+            // Create modal if it doesn't exist
+            let modal = document.getElementById(modalId);
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = modalId;
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 800px;">
+                        <div class="modal-header">
+                            <h2>Подробная информация</h2>
+                            <button class="modal-close">&times;</button>
+                        </div>
+                        <div class="modal-body" id="${modalId}Body"></div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" onclick="closeModal('${modalId}')">Закрыть</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                
+                // Add close button handler
+                modal.querySelector('.modal-close').addEventListener('click', () => closeModal(modalId));
+            }
+            
+            document.getElementById(modalId + 'Body').innerHTML = content;
+            modal.style.display = 'block';
         }
         
         // Update product info when selecting product
