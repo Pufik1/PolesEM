@@ -117,75 +117,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $pdo->beginTransaction();
             
-            // Создаем документ приема
-            $stmt = $pdo->prepare("INSERT INTO goods_receipt_documents 
-                                   (receipt_number, receipt_date, receipt_type, warehouse_id, total_items, total_quantity, status, notes, created_by) 
-                                   VALUES (:receipt_number, CURRENT_DATE, 'from_supplier', 1, 1, :quantity, 'confirmed', :notes, :user_id)");
-            $stmt->execute([
-                ':receipt_number' => $document_number,
-                ':quantity' => $quantity,
-                ':notes' => $notes,
-                ':user_id' => $_SESSION['user_id']
-            ]);
-            $receipt_id = $pdo->lastInsertId();
-            
-            // Получаем данные о материале для позиции
-            $stmt = $pdo->prepare("SELECT name, unit, price_per_unit FROM materials WHERE id = :material_id");
-            $stmt->execute([':material_id' => $material_id]);
-            $materialData = $stmt->fetch();
-            
-            // Добавляем позицию в документ приема
-            $stmt = $pdo->prepare("INSERT INTO goods_receipt_items 
-                                   (receipt_id, item_type, product_id, item_name, item_sku, item_unit, quantity_received, batch_number, storage_zone) 
-                                   VALUES (:receipt_id, 'material', NULL, :item_name, :item_sku, :item_unit, :quantity, :batch_number, 'А1')");
-            $stmt->execute([
-                ':receipt_id' => $receipt_id,
-                ':item_name' => $materialData['name'],
-                ':item_sku' => $materialData['sku'] ?? $materialData['unit'],
-                ':item_unit' => $materialData['unit'],
-                ':quantity' => $quantity,
-                ':batch_number' => $batch_number
-            ]);
-            
-            // Добавляем операцию прихода материала со ссылкой на документ
-            $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, material_id, quantity, warehouse_to, user_id, document_number, batch_number, quality_cert, expiry_date, notes, receipt_id) 
-                                   VALUES ('income', :material_id, :quantity, 1, :user_id, :document_number, :batch_number, :quality_cert, :expiry_date, :notes, :receipt_id)");
-            $stmt->execute([
-                ':material_id' => $material_id,
-                ':quantity' => $quantity,
-                ':user_id' => $_SESSION['user_id'],
-                ':document_number' => $document_number,
-                ':batch_number' => $batch_number,
-                ':quality_cert' => $quality_cert,
-                ':expiry_date' => $expiry_date,
-                ':notes' => $notes,
-                ':receipt_id' => $receipt_id
-            ]);
-            
-            // Добавляем запись в движения материалов
-            $stmt = $pdo->prepare("INSERT INTO material_stock_movements 
-                                   (material_id, operation_type, quantity, warehouse_to, user_id, document_number, batch_number, notes) 
-                                   VALUES (:material_id, 'income', :quantity, 1, :user_id, :document_number, :batch_number, :notes)");
-            $stmt->execute([
-                ':material_id' => $material_id,
-                ':quantity' => $quantity,
-                ':user_id' => $_SESSION['user_id'],
-                ':document_number' => $document_number,
-                ':batch_number' => $batch_number,
-                ':notes' => $notes
-            ]);
-            
-            // Обновляем остаток материала
-            $stmt = $pdo->prepare("UPDATE materials SET current_stock = current_stock + :quantity WHERE id = :material_id");
-            $stmt->execute([
-                ':quantity' => $quantity,
-                ':material_id' => $material_id
-            ]);
-            
-            $pdo->commit();
-            logActivity($pdo, $_SESSION['user_id'], 'Приход материалов', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Материалы успешно оприходованы. Документ: ' . htmlspecialchars($document_number);
+            try {
+                // Создаем документ приема
+                $stmt = $pdo->prepare("INSERT INTO goods_receipt_documents 
+                                       (receipt_number, receipt_date, receipt_type, warehouse_id, total_items, total_quantity, status, notes, created_by) 
+                                       VALUES (:receipt_number, CURRENT_DATE, 'from_supplier', 1, 1, :quantity, 'confirmed', :notes, :user_id)");
+                $stmt->execute([
+                    ':receipt_number' => $document_number,
+                    ':quantity' => $quantity,
+                    ':notes' => $notes,
+                    ':user_id' => $_SESSION['user_id']
+                ]);
+                $receipt_id = $pdo->lastInsertId();
+                
+                // Получаем данные о материале для позиции
+                $stmt = $pdo->prepare("SELECT name, sku, unit FROM materials WHERE id = :material_id");
+                $stmt->execute([':material_id' => $material_id]);
+                $materialData = $stmt->fetch();
+                
+                if (!$materialData) {
+                    throw new Exception('Материал не найден');
+                }
+                
+                // Добавляем позицию в документ приема
+                $stmt = $pdo->prepare("INSERT INTO goods_receipt_items 
+                                       (receipt_id, item_type, product_id, item_name, item_sku, item_unit, quantity_received, batch_number, storage_zone) 
+                                       VALUES (:receipt_id, 'material', NULL, :item_name, :item_sku, :item_unit, :quantity, :batch_number, 'А1')");
+                $stmt->execute([
+                    ':receipt_id' => $receipt_id,
+                    ':item_name' => $materialData['name'],
+                    ':item_sku' => $materialData['sku'] ?? '',
+                    ':item_unit' => $materialData['unit'],
+                    ':quantity' => $quantity,
+                    ':batch_number' => $batch_number
+                ]);
+                
+                // Добавляем операцию прихода материала со ссылкой на документ
+                // Важно: явно указываем product_id = NULL для материалов
+                $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
+                                       (operation_type, product_id, material_id, quantity, warehouse_to, user_id, document_number, batch_number, quality_cert, expiry_date, notes, receipt_id) 
+                                       VALUES ('income', NULL, :material_id, :quantity, 1, :user_id, :document_number, :batch_number, :quality_cert, :expiry_date, :notes, :receipt_id)");
+                $stmt->execute([
+                    ':material_id' => $material_id,
+                    ':quantity' => $quantity,
+                    ':user_id' => $_SESSION['user_id'],
+                    ':document_number' => $document_number,
+                    ':batch_number' => $batch_number,
+                    ':quality_cert' => $quality_cert,
+                    ':expiry_date' => $expiry_date,
+                    ':notes' => $notes,
+                    ':receipt_id' => $receipt_id
+                ]);
+                
+                // Добавляем запись в движения материалов
+                $stmt = $pdo->prepare("INSERT INTO material_stock_movements 
+                                       (material_id, operation_type, quantity, warehouse_to, user_id, document_number, batch_number, notes) 
+                                       VALUES (:material_id, 'income', :quantity, 1, :user_id, :document_number, :batch_number, :notes)");
+                $stmt->execute([
+                    ':material_id' => $material_id,
+                    ':quantity' => $quantity,
+                    ':user_id' => $_SESSION['user_id'],
+                    ':document_number' => $document_number,
+                    ':batch_number' => $batch_number,
+                    ':notes' => $notes
+                ]);
+                
+                // Обновляем остаток материала
+                $stmt = $pdo->prepare("UPDATE materials SET current_stock = current_stock + :quantity WHERE id = :material_id");
+                $stmt->execute([
+                    ':quantity' => $quantity,
+                    ':material_id' => $material_id
+                ]);
+                
+                $pdo->commit();
+                logActivity($pdo, $_SESSION['user_id'], 'Приход материалов', 'warehouse_operations', $pdo->lastInsertId());
+                $success = 'Материалы успешно оприходованы. Документ: ' . htmlspecialchars($document_number);
+                
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $error = 'Ошибка при оприходовании материалов: ' . $e->getMessage();
+            }
             
         } elseif ($action === 'ship_product') {
             // Отгрузка готовой продукции клиенту с созданием накладной
@@ -1623,42 +1634,59 @@ try {
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                        <small class="form-hint">Выберите материал из справочника</small>
                     </div>
                     
                     <div class="form-row">
                         <div class="form-group">
                             <label for="income_material_quantity">Количество *</label>
                             <input type="number" id="income_material_quantity" name="quantity" required min="0.01" step="0.01" value="1">
+                            <small class="form-hint">Укажите количество поступающего материала</small>
                         </div>
                         
                         <div class="form-group">
                             <label for="income_material_batch_number">Номер партии</label>
-                            <input type="text" id="income_material_batch_number" name="batch_number" placeholder="Например: М-2024-001">
+                            <input type="text" id="income_material_batch_number" name="batch_number" placeholder="Например: П-2024-001">
+                            <small class="form-hint">Номер партии от производителя</small>
                         </div>
                     </div>
                     
                     <div class="form-row">
                         <div class="form-group">
                             <label for="income_material_quality_cert">Сертификат качества</label>
-                            <input type="text" id="income_material_quality_cert" name="quality_cert" placeholder="№ сертификата">
+                            <input type="text" id="income_material_quality_cert" name="quality_cert" placeholder="№ сертификата соответствия">
+                            <small class="form-hint">Номер документа о качестве (если есть)</small>
                         </div>
                         
                         <div class="form-group">
                             <label for="income_material_expiry_date">Срок годности</label>
                             <input type="date" id="income_material_expiry_date" name="expiry_date">
+                            <small class="form-hint">Для материалов с ограниченным сроком хранения</small>
                         </div>
                     </div>
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="income_material_document_number">Накладная №</label>
-                            <input type="text" id="income_material_document_number" name="document_number" placeholder="Например: М-15 №123">
+                            <label for="income_material_document_number">Входящая накладная № *</label>
+                            <input type="text" id="income_material_document_number" name="document_number" required placeholder="Например: М-15 №123">
+                            <small class="form-hint">Номер накладной поставщика (ТОРГ-12, ТН и т.д.)</small>
                         </div>
                     </div>
                     
                     <div class="form-group">
                         <label for="income_material_notes">Комментарий</label>
-                        <textarea id="income_material_notes" name="notes" rows="2" placeholder="Дополнительная информация"></textarea>
+                        <textarea id="income_material_notes" name="notes" rows="2" placeholder="Дополнительная информация о поступлении"></textarea>
+                    </div>
+                    
+                    <div class="info-box" style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin-top: 15px;">
+                        <strong>ℹ️ Как заполнять:</strong>
+                        <ul style="margin: 10px 0 0 20px; font-size: 0.9em;">
+                            <li><strong>Материал</strong> — выберите из списка материалов</li>
+                            <li><strong>Количество</strong> — укажите фактическое количество received</li>
+                            <li><strong>Номер партии</strong> — указывается производителем на упаковке</li>
+                            <li><strong>Сертификат качества</strong> — номер сопроводительного документа о качестве</li>
+                            <li><strong>Входящая накладная</strong> — номер документа от поставщика (обязательно)</li>
+                        </ul>
                     </div>
                 </div>
                 <div class="modal-footer">
