@@ -25,26 +25,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     try {
         if ($action === 'income_product') {
-            // Приход готовой продукции на склад
+            // Приход готовой продукции на склад с созданием документа приема
             $product_id = (int)$_POST['product_id'];
             $quantity = (int)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
             $batch_number = trim($_POST['batch_number']);
             $notes = trim($_POST['notes']);
             
+            // Генерируем номер акта приема если не указан
+            if (empty($document_number)) {
+                $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(receipt_number, '-', -1) AS UNSIGNED)) as max_num FROM goods_receipt_documents WHERE receipt_number LIKE 'ПР-%'");
+                $result = $stmt->fetch();
+                $next_num = ($result['max_num'] ?? 0) + 1;
+                $document_number = 'ПР-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
+            }
+            
             $pdo->beginTransaction();
             
-            // Добавляем операцию прихода
+            // Создаем документ приема
+            $stmt = $pdo->prepare("INSERT INTO goods_receipt_documents 
+                                   (receipt_number, receipt_date, receipt_type, production_order_id, warehouse_id, total_items, total_quantity, status, notes, created_by) 
+                                   VALUES (:receipt_number, CURRENT_DATE, 'from_production', NULL, 1, 1, :quantity, 'confirmed', :notes, :user_id)");
+            $stmt->execute([
+                ':receipt_number' => $document_number,
+                ':quantity' => $quantity,
+                ':notes' => $notes,
+                ':user_id' => $_SESSION['user_id']
+            ]);
+            $receipt_id = $pdo->lastInsertId();
+            
+            // Получаем данные о продукте для позиции
+            $stmt = $pdo->prepare("SELECT product_name, product_code FROM products WHERE id = :product_id");
+            $stmt->execute([':product_id' => $product_id]);
+            $product = $stmt->fetch();
+            
+            // Добавляем позицию в документ приема
+            $stmt = $pdo->prepare("INSERT INTO goods_receipt_items 
+                                   (receipt_id, item_type, product_id, item_name, item_sku, item_unit, quantity_received, batch_number, storage_zone) 
+                                   VALUES (:receipt_id, 'product', :product_id, :item_name, :item_sku, 'шт', :quantity, :batch_number, 'А1')");
+            $stmt->execute([
+                ':receipt_id' => $receipt_id,
+                ':product_id' => $product_id,
+                ':item_name' => $product['product_name'],
+                ':item_sku' => $product['product_code'],
+                ':quantity' => $quantity,
+                ':batch_number' => $batch_number
+            ]);
+            
+            // Добавляем операцию прихода со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, product_id, quantity, warehouse_to, user_id, document_number, batch_number, notes) 
-                                   VALUES ('income', :product_id, :quantity, 1, :user_id, :document_number, :batch_number, :notes)");
+                                   (operation_type, product_id, quantity, warehouse_to, user_id, document_number, batch_number, notes, receipt_id) 
+                                   VALUES ('income', :product_id, :quantity, 1, :user_id, :document_number, :batch_number, :notes, :receipt_id)");
             $stmt->execute([
                 ':product_id' => $product_id,
                 ':quantity' => $quantity,
                 ':user_id' => $_SESSION['user_id'],
                 ':document_number' => $document_number,
                 ':batch_number' => $batch_number,
-                ':notes' => $notes
+                ':notes' => $notes,
+                ':receipt_id' => $receipt_id
             ]);
             
             // Обновляем остаток товара
@@ -56,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'Приход готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Готовая продукция успешно оприходована';
+            $success = 'Готовая продукция успешно оприходована. Документ: ' . htmlspecialchars($document_number);
             
         } elseif ($action === 'income_material') {
             // Приход материалов на склад
@@ -110,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = 'Материалы успешно оприходованы';
             
         } elseif ($action === 'outcome_product') {
-            // Расход готовой продукции со склада
+            // Расход готовой продукции со склада (отгрузка) с созданием накладной
             $product_id = (int)$_POST['product_id'];
             $quantity = (int)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
@@ -125,18 +164,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Недостаточно товара на складе');
             }
             
+            // Генерируем номер накладной если не указан
+            if (empty($document_number)) {
+                $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(shipment_number, '-', -1) AS UNSIGNED)) as max_num FROM shipment_documents WHERE shipment_number LIKE 'ТН-%'");
+                $result = $stmt->fetch();
+                $next_num = ($result['max_num'] ?? 0) + 1;
+                $document_number = 'ТН-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
+            }
+            
             $pdo->beginTransaction();
             
-            // Добавляем операцию расхода
+            // Получаем данные о продукте для позиции
+            $stmt = $pdo->prepare("SELECT product_name, product_code, price FROM products WHERE id = :product_id");
+            $stmt->execute([':product_id' => $product_id]);
+            $productData = $stmt->fetch();
+            
+            // Создаем документ отгрузки
+            $stmt = $pdo->prepare("INSERT INTO shipment_documents 
+                                   (shipment_number, shipment_date, shipment_type, customer_id, customer_name, warehouse_from_id, total_items, total_quantity, total_cost, status, notes, created_by) 
+                                   VALUES (:shipment_number, CURRENT_DATE, 'to_customer', NULL, 'Прямая продажа', 1, 1, :quantity, :total_cost, 'shipped', :notes, :user_id)");
+            $total_cost = $productData['price'] * $quantity;
+            $stmt->execute([
+                ':shipment_number' => $document_number,
+                ':quantity' => $quantity,
+                ':total_cost' => $total_cost,
+                ':notes' => $notes,
+                ':user_id' => $_SESSION['user_id']
+            ]);
+            $shipment_id = $pdo->lastInsertId();
+            
+            // Добавляем позицию в документ отгрузки
+            $vat_rate = 20;
+            $line_total = $productData['price'] * $quantity;
+            $vat_amount = $line_total * ($vat_rate / 100);
+            $line_total_with_vat = $line_total + $vat_amount;
+            
+            $stmt = $pdo->prepare("INSERT INTO shipment_items 
+                                   (shipment_id, product_id, item_name, item_sku, item_unit, quantity_ordered, quantity_shipped, unit_price, vat_rate, line_total, vat_amount, line_total_with_vat) 
+                                   VALUES (:shipment_id, :product_id, :item_name, :item_sku, 'шт', :quantity, :quantity, :unit_price, :vat_rate, :line_total, :vat_amount, :line_total_with_vat)");
+            $stmt->execute([
+                ':shipment_id' => $shipment_id,
+                ':product_id' => $product_id,
+                ':item_name' => $productData['product_name'],
+                ':item_sku' => $productData['product_code'],
+                ':quantity' => $quantity,
+                ':unit_price' => $productData['price'],
+                ':vat_rate' => $vat_rate,
+                ':line_total' => $line_total,
+                ':vat_amount' => $vat_amount,
+                ':line_total_with_vat' => $line_total_with_vat
+            ]);
+            
+            // Добавляем операцию расхода со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, product_id, quantity, warehouse_from, user_id, document_number, notes) 
-                                   VALUES ('outcome', :product_id, :quantity, 1, :user_id, :document_number, :notes)");
+                                   (operation_type, product_id, quantity, warehouse_from, user_id, document_number, notes, shipment_id) 
+                                   VALUES ('outcome', :product_id, :quantity, 1, :user_id, :document_number, :notes, :shipment_id)");
             $stmt->execute([
                 ':product_id' => $product_id,
                 ':quantity' => $quantity,
                 ':user_id' => $_SESSION['user_id'],
                 ':document_number' => $document_number,
-                ':notes' => $notes
+                ':notes' => $notes,
+                ':shipment_id' => $shipment_id
             ]);
             
             // Обновляем остаток товара
@@ -147,8 +236,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             
             $pdo->commit();
-            logActivity($pdo, $_SESSION['user_id'], 'Расход готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Готовая продукция успешно отгружена';
+            logActivity($pdo, $_SESSION['user_id'], 'Отгрузка готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
+            $success = 'Готовая продукция успешно отгружена. Документ: ' . htmlspecialchars($document_number);
             
         } elseif ($action === 'outcome_material') {
             // Расход материалов со склада (в производство)

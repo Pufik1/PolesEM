@@ -68,6 +68,7 @@ $menuItems = [
         ],
         'operations' => [
             ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
+            ['icon' => 'fa-file-alt', 'text' => 'Документы', 'url' => 'modules/warehouse/documents.php'],
         ],
     ],
     'accountant' => [
