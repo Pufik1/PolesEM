@@ -1475,7 +1475,7 @@ try {
                 <button class="modal-close">&times;</button>
             </div>
             <form method="POST" action="">
-                <input type="hidden" name="action" value="write_off">
+                <input type="hidden" name="action" value="write_off_product">
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="writeoff_product_id">Товар *</label>
