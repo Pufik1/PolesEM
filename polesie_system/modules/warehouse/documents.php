@@ -160,20 +160,7 @@ try {
             padding: 20px !important;
         }
         
-        /* Стили для кнопки "глазик" - сделать более выразительной */
-        .view-btn {
-            border: 2px solid #17a2b8;
-            background-color: #e0f7fa;
-            font-weight: bold;
-            transition: all 0.2s ease;
-        }
-        
-        .view-btn:hover {
-            background-color: #17a2b8;
-            color: white;
-            border-color: #17a2b8;
-            transform: scale(1.05);
-        }
+        /* Стили для кнопки "глазик" удалены - кнопка больше не используется */
     </style>
 </head>
 <body>
@@ -355,11 +342,11 @@ try {
                                 </td>
                                 <td><?php echo htmlspecialchars($doc['created_by_name']); ?></td>
                                 <td>
-                                    <a href="print_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-primary" target="_blank" title="Печать">
+                                    <a href="print_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
                                         <i class="fas fa-print"></i>
                                     </a>
-                                    <a href="#" class="btn btn-sm btn-info view-btn" title="Просмотр" onclick="viewReceiptDetails(<?php echo $doc['id']; ?>)">
-                                        <i class="fas fa-eye"></i>
+                                    <a href="edit_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-warning" title="Редактировать">
+                                        <i class="fas fa-edit"></i>
                                     </a>
                                 </td>
                             </tr>
@@ -435,11 +422,11 @@ try {
                                 </td>
                                 <td><?php echo htmlspecialchars($doc['created_by_name']); ?></td>
                                 <td>
-                                    <a href="print_shipment.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-primary" target="_blank" title="Печать">
+                                    <a href="print_shipment.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
                                         <i class="fas fa-print"></i>
                                     </a>
-                                    <a href="#" class="btn btn-sm btn-info view-btn" title="Просмотр" onclick="viewShipmentDetails(<?php echo $doc['id']; ?>)">
-                                        <i class="fas fa-eye"></i>
+                                    <a href="edit_shipment.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-warning" title="Редактировать">
+                                        <i class="fas fa-edit"></i>
                                     </a>
                                 </td>
                             </tr>
@@ -462,13 +449,7 @@ try {
             
             <script src="../../assets/js/main.js"></script>
             <script>
-            function viewReceiptDetails(id) {
-                window.open('print_receipt.php?id=' + id, '_blank', 'width=1000,height=700');
-            }
-
-            function viewShipmentDetails(id) {
-                window.open('print_shipment.php?id=' + id, '_blank', 'width=1000,height=700');
-            }
+            // Удалены функции viewReceiptDetails и viewShipmentDetails так как кнопка "глазик" удалена
             </script>
             
         </div>
