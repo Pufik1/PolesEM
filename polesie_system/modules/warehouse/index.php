@@ -662,7 +662,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->commit();
                 logActivity($pdo, $_SESSION['user_id'], 'Списание материалов', 'warehouse_operations', $pdo->lastInsertId());
                 $success = 'Материалы успешно списаны. Документ: ' . htmlspecialchars($document_number);
-            }
+        }
     } catch (Exception $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
