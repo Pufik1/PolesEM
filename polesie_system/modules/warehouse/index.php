@@ -130,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $receipt_id = $pdo->lastInsertId();
             
             // Получаем данные о материале для позиции
-            $stmt = $pdo->prepare("SELECT name, unit, cost_price FROM materials WHERE id = :material_id");
+            $stmt = $pdo->prepare("SELECT name, unit, price_per_unit FROM materials WHERE id = :material_id");
             $stmt->execute([':material_id' => $material_id]);
             $materialData = $stmt->fetch();
             
@@ -141,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([
                 ':receipt_id' => $receipt_id,
                 ':item_name' => $materialData['name'],
-                ':item_sku' => $materialData['unit'],
+                ':item_sku' => $materialData['sku'] ?? $materialData['unit'],
                 ':item_unit' => $materialData['unit'],
                 ':quantity' => $quantity,
                 ':batch_number' => $batch_number
