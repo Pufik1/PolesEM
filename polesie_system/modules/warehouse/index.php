@@ -143,6 +143,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Ошибка: Не выбран материал';
             } elseif ($quantity <= 0) {
                 $error = 'Ошибка: Количество должно быть больше нуля';
+            } elseif (empty($document_number)) {
+                $error = 'Ошибка: Не указан номер входящей накладной поставщика';
             } else {
                 // Получаем данные о материале
                 $stmt = $pdo->prepare("SELECT name, sku, unit FROM materials WHERE id = :material_id");
@@ -152,13 +154,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$materialData) {
                     $error = 'Материал не найден';
                 } else {
-                    // Генерируем номер накладной если не указан
-                    if (empty($document_number)) {
-                        $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(receipt_number, '-', -1) AS UNSIGNED)) as max_num FROM goods_receipt_documents WHERE receipt_number LIKE 'ПР-М-%'");
-                        $result = $stmt->fetch();
-                        $next_num = ($result['max_num'] ?? 0) + 1;
-                        $document_number = 'ПР-М-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
-                    }
+                    // Генерируем номер акта приема если не указан (для внутреннего использования)
+                    $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(receipt_number, '-', -1) AS UNSIGNED)) as max_num FROM goods_receipt_documents WHERE receipt_number LIKE 'ПР-М-%'");
+                    $result = $stmt->fetch();
+                    $next_num = ($result['max_num'] ?? 0) + 1;
+                    $internal_receipt_number = 'ПР-М-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
                     
                     $pdo->beginTransaction();
                     
@@ -167,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                            (receipt_number, receipt_date, receipt_type, warehouse_id, total_items, total_quantity, status, notes, created_by) 
                                            VALUES (:receipt_number, CURRENT_DATE, 'from_supplier', 1, 1, :total_quantity, 'confirmed', :notes, :created_by)");
                     $stmt->execute([
-                        ':receipt_number' => $document_number,
+                        ':receipt_number' => $internal_receipt_number,
                         ':total_quantity' => $quantity,
                         ':notes' => $notes,
                         ':created_by' => $_SESSION['user_id']
@@ -226,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $pdo->commit();
                     logActivity($pdo, $_SESSION['user_id'], 'Приход материалов', 'warehouse_operations', $operation_id);
-                    $success = 'Материалы успешно оприходованы. Документ: ' . htmlspecialchars($document_number);
+                    $success = 'Материалы успешно оприходованы. Документ: ' . htmlspecialchars($internal_receipt_number) . ' (накладная №' . htmlspecialchars($document_number) . ')';
                 }
             }
             
@@ -1635,7 +1635,7 @@ try {
                 <h2>Поступление материалов от поставщика</h2>
                 <button class="modal-close">&times;</button>
             </div>
-            <form method="POST" action="">
+            <form method="POST" action="" onsubmit="return validateIncomeMaterialForm(this);">
                 <input type="hidden" name="action" value="income_material">
                 <div class="modal-body">
                     <div class="form-group">
@@ -1684,12 +1684,6 @@ try {
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="income_material_batch_number">Номер партии</label>
-                            <input type="text" id="income_material_batch_number" name="batch_number" placeholder="Например: П-2024-001">
-                            <small class="form-hint">Номер партии производителя для отслеживания</small>
-                        </div>
-                        
-                        <div class="form-group">
                             <label for="income_material_document_number">Входящая накладная № *</label>
                             <input type="text" id="income_material_document_number" name="document_number" required placeholder="Например: М-15 №123">
                             <small class="form-hint">Номер товарной накладной поставщика (ТОРГ-12, ТН) - обязательное поле</small>
@@ -1700,24 +1694,10 @@ try {
                         <label for="income_material_notes">Комментарий</label>
                         <textarea id="income_material_notes" name="notes" rows="2" placeholder="Дополнительная информация о поступлении"></textarea>
                     </div>
-                    
-                    <div class="info-box" style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin-top: 15px;">
-                        <strong>ℹ️ Как заполнять поля:</strong>
-                        <ul style="margin: 10px 0 0 20px; font-size: 0.9em;">
-                            <li><strong>Материал *</strong> — выберите материал из справочника (обязательное поле)</li>
-                            <li><strong>Количество *</strong> — укажите фактическое количество поступающего материала в единицах измерения (шт, кг, м и т.д.)</li>
-                            <li><strong>Номер партии</strong> — номер партии производителя для отслеживания качества и происхождения материала</li>
-                            <li><strong>Сертификат качества</strong> — номер и дата сертификата соответствия или паспорта качества от поставщика (заполняется при наличии документа)</li>
-                            <li><strong>Срок годности</strong> — дата окончания срока годности (только для материалов с ограниченным сроком хранения)</li>
-                            <li><strong>Входящая накладная № *</strong> — номер товарной накладной поставщика (форма ТОРГ-12, ТН или другой сопроводительный документ). Обязательное поле!</li>
-                            <li><strong>Комментарий</strong> — дополнительная информация о поступлении (состояние упаковки, замечания и т.п.)</li>
-                        </ul>
-                        <p style="margin-top: 10px; font-weight: bold; color: #d9534f;">⚠️ После нажатия кнопки "Оприходовать" будет создан документ приема и обновлены складские остатки.</p>
-                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('incomeMaterialModal')">Отмена</button>
-                    <button type="submit" class="btn btn-success">
+                    <button type="submit" class="btn btn-success" id="incomeMaterialSubmitBtn">
                         <i class="fas fa-plus"></i> Оприходовать
                     </button>
                 </div>
@@ -2225,6 +2205,37 @@ try {
             // Initialize filters on page load
             applyFilters();
         });
+        
+        // Validate income material form before submission
+        function validateIncomeMaterialForm(form) {
+            const materialId = form.querySelector('[name="material_id"]').value;
+            const quantity = form.querySelector('[name="quantity"]').value;
+            const documentNumber = document.getElementById('income_material_document_number').value.trim();
+            
+            if (!materialId || materialId === '') {
+                alert('Ошибка: Пожалуйста, выберите материал из справочника');
+                return false;
+            }
+            
+            if (!quantity || parseFloat(quantity) <= 0) {
+                alert('Ошибка: Количество должно быть больше нуля');
+                return false;
+            }
+            
+            if (!documentNumber) {
+                alert('Ошибка: Введите номер входящей накладной поставщика (обязательное поле)');
+                return false;
+            }
+            
+            // Disable submit button to prevent double submission
+            const submitBtn = document.getElementById('incomeMaterialSubmitBtn');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Обработка...';
+            }
+            
+            return true;
+        }
     </script>
 </body>
 </html>
