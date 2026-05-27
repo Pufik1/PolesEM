@@ -487,12 +487,14 @@ body {
 /* Tables */
 .table-responsive {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .data-table {
     width: 100%;
     border-collapse: collapse;
     background-color: var(--card-bg);
+    table-layout: fixed;
 }
 
 .data-table thead {
@@ -501,9 +503,12 @@ body {
 
 .data-table th,
 .data-table td {
-    padding: 15px;
+    padding: 12px 10px;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
 }
 
 .data-table th {
@@ -521,6 +526,17 @@ body {
 .data-table tbody tr:last-child td {
     border-bottom: none;
 }
+
+/* Table column widths for materials */
+.data-table th:nth-child(1), .data-table td:nth-child(1) { width: 12%; } /* Артикул */
+.data-table th:nth-child(2), .data-table td:nth-child(2) { width: 25%; } /* Наименование */
+.data-table th:nth-child(3), .data-table td:nth-child(3) { width: 18%; } /* Категория */
+.data-table th:nth-child(4), .data-table td:nth-child(4) { width: 10%; } /* Зона */
+.data-table th:nth-child(5), .data-table td:nth-child(5) { width: 8%; } /* Ед.изм */
+.data-table th:nth-child(6), .data-table td:nth-child(6) { width: 10%; } /* Остаток */
+.data-table th:nth-child(7), .data-table td:nth-child(7) { width: 10%; } /* Мин.запас */
+.data-table th:nth-child(8), .data-table td:nth-child(8) { width: 12%; } /* Статус */
+.data-table th:nth-child(9), .data-table td:nth-child(9) { width: 10%; } /* Действия */
 
 /* Badges */
 .badge {
@@ -636,6 +652,7 @@ body {
     cursor: pointer;
     color: var(--text-secondary);
     transition: var(--transition);
+    z-index: 1001;
 }
 
 .modal-close:hover {

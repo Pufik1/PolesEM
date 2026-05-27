@@ -1355,17 +1355,19 @@ try {
                 
                 // Power filter
                 if (showRow && powerFilter) {
-                    const parts = powerFilter.split('-');
-                    if (parts.length === 2) {
-                        const minPower = parseFloat(parts[0]);
-                        const maxPower = parseFloat(parts[1]);
-                        if (power < minPower || power > maxPower) {
-                            showRow = false;
-                        }
-                    } else if (powerFilter.endsWith('+')) {
+                    if (powerFilter.endsWith('+')) {
                         const minPower = parseFloat(powerFilter);
                         if (power <= minPower) {
                             showRow = false;
+                        }
+                    } else {
+                        const parts = powerFilter.split('-');
+                        if (parts.length === 2) {
+                            const minPower = parseFloat(parts[0]);
+                            const maxPower = parseFloat(parts[1]);
+                            if (power < minPower || power > maxPower) {
+                                showRow = false;
+                            }
                         }
                     }
                 }
@@ -1376,7 +1378,7 @@ try {
                 }
                 
                 // Voltage filter
-                if (showRow && voltageFilter && !voltage.includes(voltageFilter)) {
+                if (showRow && voltageFilter && voltage !== voltageFilter) {
                     showRow = false;
                 }
                 
@@ -1562,19 +1564,19 @@ try {
             if (material.purpose) {
                 detailsHtml += `<div style="grid-column: span 2;"><strong>Назначение:</strong><br>${escapeHtml(material.purpose)}</div>`;
             }
-            if (material.weight) {
+            if (material.weight && material.weight > 0) {
                 detailsHtml += `<div><strong>Вес единицы:</strong> ${material.weight} кг</div>`;
             }
-            if (material.length) {
+            if (material.length && material.length > 0) {
                 detailsHtml += `<div><strong>Длина:</strong> ${material.length} м</div>`;
             }
-            if (material.width) {
+            if (material.width && material.width > 0) {
                 detailsHtml += `<div><strong>Ширина:</strong> ${material.width} мм</div>`;
             }
-            if (material.thickness) {
+            if (material.thickness && material.thickness > 0) {
                 detailsHtml += `<div><strong>Толщина:</strong> ${material.thickness} мм</div>`;
             }
-            if (material.diameter) {
+            if (material.diameter && material.diameter > 0) {
                 detailsHtml += `<div><strong>Диаметр:</strong> ${material.diameter} мм</div>`;
             }
             if (material.voltage_rating) {
@@ -1624,7 +1626,7 @@ try {
                     <div class="modal-content" style="max-width: 800px;">
                         <div class="modal-header">
                             <h2>Подробная информация</h2>
-                            <button class="modal-close">&times;</button>
+                            <button class="modal-close" id="${modalId}CloseBtn">&times;</button>
                         </div>
                         <div class="modal-body" id="${modalId}Body"></div>
                         <div class="modal-footer">
@@ -1635,11 +1637,24 @@ try {
                 document.body.appendChild(modal);
                 
                 // Add close button handler
-                modal.querySelector('.modal-close').addEventListener('click', () => closeModal(modalId));
+                const closeBtn = document.getElementById(modalId + 'CloseBtn');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        closeModal(modalId);
+                    });
+                }
+                
+                // Add click outside to close
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                        closeModal(modalId);
+                    }
+                });
             }
             
             document.getElementById(modalId + 'Body').innerHTML = content;
-            modal.style.display = 'block';
+            modal.style.display = 'flex';
         }
         
         // Close modal function
@@ -1654,7 +1669,7 @@ try {
         function openModal(modalId, productId = null) {
             const modal = document.getElementById(modalId);
             if (modal) {
-                modal.style.display = 'block';
+                modal.style.display = 'flex';
                 
                 // Auto-select product if passed
                 if (productId) {
@@ -1667,16 +1682,19 @@ try {
                 // Add close button handler if not already added
                 const closeBtn = modal.querySelector('.modal-close');
                 if (closeBtn && !closeBtn.dataset.handlerAdded) {
-                    closeBtn.addEventListener('click', () => closeModal(modalId));
+                    closeBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        closeModal(modalId);
+                    });
                     closeBtn.dataset.handlerAdded = 'true';
                 }
                 
                 // Add click outside to close
-                window.onclick = function(event) {
-                    if (event.target === modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
                         closeModal(modalId);
                     }
-                };
+                });
             }
         }
         
@@ -1711,6 +1729,9 @@ try {
                     }
                 });
             }
+            
+            // Initialize filters on page load
+            applyFilters();
         });
     </script>
 </body>
