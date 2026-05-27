@@ -319,9 +319,28 @@ try {
         .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 10%; text-align: center; padding-left: 20px; } /* Позиций */
         .documents-table th:nth-child(5), .documents-table td:nth-child(5) { width: 12%; } /* Количество */
         .documents-table th:nth-child(6), .documents-table td:nth-child(6) { width: 15%; } /* Склад/Сумма */
-        .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 10%; } /* Статус */
-        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 16%; font-size: 12px; } /* Кем создан */
-        .documents-table th:nth-child(9), .documents-table td:nth-child(9) { width: 18%; } /* Действия */
+        .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 12%; min-width: 120px; } /* Статус */
+        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 18%; min-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* Кем создан */
+        .documents-table th:nth-child(9), .documents-table td:nth-child(9) { width: 18%; min-width: 180px; } /* Действия */
+        
+        /* Status badge styling to prevent overlap */
+        .documents-table td:nth-child(7) .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+        
+        /* Created by cell styling */
+        .documents-table td:nth-child(8) {
+            font-size: 13px;
+            color: #6b7280;
+            padding: 12px 8px;
+        }
         
         /* Actions cell styling for vertical alignment */
         .actions-cell {
