@@ -49,6 +49,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
     }
+    
+    if ($_POST['action'] === 'delete_shipment' && hasRole(['admin', 'director', 'manager'])) {
+        $shipmentId = (int)($_POST['shipment_id'] ?? 0);
+        if ($shipmentId > 0) {
+            try {
+                $stmt = $pdo->prepare("SELECT status FROM shipment_documents WHERE id = :id");
+                $stmt->execute([':id' => $shipmentId]);
+                $doc = $stmt->fetch();
+                
+                if ($doc) {
+                    if ($doc['status'] === 'shipped' || $doc['status'] === 'delivered') {
+                        $error = 'Нельзя удалить отгруженный или доставленный документ.';
+                    } else {
+                        $stmt = $pdo->prepare("DELETE FROM shipment_items WHERE shipment_id = :id");
+                        $stmt->execute([':id' => $shipmentId]);
+                        
+                        $stmt = $pdo->prepare("DELETE FROM shipment_documents WHERE id = :id");
+                        $stmt->execute([':id' => $shipmentId]);
+                        
+                        logActivity($pdo, $_SESSION['user_id'], 'Удаление накладной на отгрузку', 'shipment_documents', $shipmentId);
+                        $success = 'Документ успешно удален';
+                    }
+                } else {
+                    $error = 'Документ не найден';
+                }
+            } catch (Exception $e) {
+                $error = 'Ошибка при удалении: ' . $e->getMessage();
+            }
+        }
+    }
 }
 
 // Get filter parameters
@@ -221,11 +251,23 @@ try {
         .documents-table th:nth-child(1), .documents-table td:nth-child(1) { width: 15%; } /* № документа */
         .documents-table th:nth-child(2), .documents-table td:nth-child(2) { width: 12%; } /* Дата */
         .documents-table th:nth-child(3), .documents-table td:nth-child(3) { width: 15%; } /* Тип/Клиент */
-        .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 10%; } /* Позиций */
+        .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 12%; padding-left: 15px; } /* Позиций */
         .documents-table th:nth-child(5), .documents-table td:nth-child(5) { width: 12%; } /* Количество */
         .documents-table th:nth-child(6), .documents-table td:nth-child(6) { width: 15%; } /* Склад/Сумма */
         .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 13%; } /* Статус */
-        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 18%; } /* Действия */
+        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 18%; } /* Кем создан */
+        .documents-table th:nth-child(9), .documents-table td:nth-child(9) { width: 18%; } /* Действия */
+        
+        /* Actions cell styling for vertical alignment */
+        .actions-cell {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .actions-cell form {
+            display: inline;
+        }
         
         /* Badge styling for professional look */
         .badge {
@@ -441,21 +483,23 @@ try {
                                 </td>
                                 <td><?php echo htmlspecialchars($doc['created_by_name'] ?? '-'); ?></td>
                                 <td>
-                                    <a href="edit_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-warning" title="Редактировать">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <a href="print_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
-                                        <i class="fas fa-print"></i>
-                                    </a>
-                                    <?php if (hasRole(['admin', 'director', 'manager'])): ?>
-                                    <form method="POST" action="" style="display: inline;" onsubmit="return confirm('Вы уверены, что хотите удалить этот документ?');">
-                                        <input type="hidden" name="action" value="delete_receipt">
-                                        <input type="hidden" name="receipt_id" value="<?php echo $doc['id']; ?>">
-                                        <button type="submit" class="btn btn-sm btn-icon btn-danger" title="Удалить">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
-                                    <?php endif; ?>
+                                    <div class="actions-cell">
+                                        <a href="edit_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-warning" title="Редактировать">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="print_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
+                                            <i class="fas fa-print"></i>
+                                        </a>
+                                        <?php if (hasRole(['admin', 'director', 'manager'])): ?>
+                                        <form method="POST" action="" style="display: inline;" onsubmit="return confirm('Вы уверены, что хотите удалить этот документ?');">
+                                            <input type="hidden" name="action" value="delete_receipt">
+                                            <input type="hidden" name="receipt_id" value="<?php echo $doc['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-icon btn-danger" title="Удалить">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -530,9 +574,23 @@ try {
                                 </td>
                                 <td><?php echo htmlspecialchars($doc['created_by_name'] ?? '-'); ?></td>
                                 <td>
-                                    <a href="print_shipment.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
-                                        <i class="fas fa-print"></i>
-                                    </a>
+                                    <div class="actions-cell">
+                                        <a href="edit_shipment.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-warning" title="Редактировать">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="print_shipment.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
+                                            <i class="fas fa-print"></i>
+                                        </a>
+                                        <?php if (hasRole(['admin', 'director', 'manager'])): ?>
+                                        <form method="POST" action="" style="display: inline;" onsubmit="return confirm('Вы уверены, что хотите удалить этот документ?');">
+                                            <input type="hidden" name="action" value="delete_shipment">
+                                            <input type="hidden" name="shipment_id" value="<?php echo $doc['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-icon btn-danger" title="Удалить">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
