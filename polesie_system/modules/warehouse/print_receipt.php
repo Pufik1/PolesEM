@@ -268,8 +268,7 @@ try {
                 <th style="width: 50px;">№</th>
                 <th>Наименование</th>
                 <th>Артикул</th>
-                <th style="width: 80px;">Ед.</th>
-                <th style="width: 80px;">Количество</th>
+                <th style="width: 120px;">Количество</th>
                 <th>Серия/Партия</th>
                 <th>Зона хранения</th>
             </tr>
@@ -284,8 +283,7 @@ try {
                 <td class="num"><?php echo $index + 1; ?></td>
                 <td><?php echo htmlspecialchars($item['item_name']); ?></td>
                 <td><?php echo htmlspecialchars($item['item_sku']); ?></td>
-                <td><?php echo htmlspecialchars($item['item_unit']); ?></td>
-                <td class="num"><strong><?php echo number_format($item['quantity_received'], 2); ?></strong></td>
+                <td class="num"><strong><?php echo number_format($item['quantity_received'], 2); ?> <?php echo htmlspecialchars($item['item_unit']); ?></strong></td>
                 <td><?php echo htmlspecialchars($item['batch_number'] ?? '-'); ?></td>
                 <td><?php echo htmlspecialchars($item['storage_zone'] ?? '-'); ?></td>
             </tr>
@@ -293,8 +291,8 @@ try {
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="4" style="text-align: right;"><strong>Итого:</strong></td>
-                <td class="num"><strong><?php echo number_format($totalQuantity, 2); ?></strong></td>
+                <td colspan="3" style="text-align: right;"><strong>Итого:</strong></td>
+                <td class="num"><strong><?php echo number_format($totalQuantity, 2); ?> <?php echo count($items) > 0 ? htmlspecialchars($items[0]['item_unit']) : 'шт'; ?></strong></td>
                 <td colspan="2"></td>
             </tr>
         </tfoot>

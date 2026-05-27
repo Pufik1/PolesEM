@@ -275,8 +275,7 @@ try {
                 <th style="width: 50px;">№</th>
                 <th>Наименование</th>
                 <th>Артикул</th>
-                <th style="width: 60px;">Ед.</th>
-                <th style="width: 70px;">Кол-во</th>
+                <th style="width: 120px;">Кол-во</th>
                 <th style="width: 100px;">Цена</th>
                 <th style="width: 80px;">НДС %</th>
                 <th style="width: 120px;">Сумма</th>
@@ -296,8 +295,7 @@ try {
                 <td class="num"><?php echo $index + 1; ?></td>
                 <td><?php echo htmlspecialchars($item['item_name']); ?></td>
                 <td><?php echo htmlspecialchars($item['item_sku']); ?></td>
-                <td><?php echo htmlspecialchars($item['item_unit']); ?></td>
-                <td class="num"><strong><?php echo number_format($item['quantity_shipped'], 2); ?></strong></td>
+                <td class="num"><strong><?php echo number_format($item['quantity_shipped'], 2); ?> <?php echo htmlspecialchars($item['item_unit']); ?></strong></td>
                 <td class="num"><?php echo number_format($item['unit_price'], 2); ?> BYN</td>
                 <td class="num"><?php echo $item['vat_rate']; ?>%</td>
                 <td class="num"><?php echo number_format($item['line_total_with_vat'], 2); ?> BYN</td>
