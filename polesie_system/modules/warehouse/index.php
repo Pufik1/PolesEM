@@ -651,7 +651,7 @@ try {
                         </div>
                         <div class="stat-details">
                             <h3><?php echo count($activeTab === 'products' ? $lowStockProducts : $lowStockMaterials); ?></h3>
-                            <p>Товаров с низким запасом</p>
+                            <p><?php echo $activeTab === 'products' ? 'Продукции с низким запасом' : 'Материалов с низким запасом'; ?></p>
                         </div>
                     </div>
                 </div>
@@ -697,11 +697,11 @@ try {
                 </div>
                 
                 <!-- Low Stock Alert -->
-                <?php if (!empty($lowStockProducts)): ?>
+                <?php if ($activeTab === 'products' && !empty($lowStockProducts)): ?>
                 <div class="card" style="margin-bottom: 30px;">
                     <div class="card-header">
                         <h2 class="card-title" style="color: #ef4444;">
-                            <i class="fas fa-exclamation-triangle"></i> Товары с низким запасом
+                            <i class="fas fa-exclamation-triangle"></i> Продукция с низким запасом
                         </h2>
                     </div>
                     <div class="table-responsive">
@@ -728,6 +728,49 @@ try {
                                         <td><?php echo $product['min_stock_level']; ?> шт.</td>
                                         <td>
                                             <button class="btn btn-sm btn-success" onclick="openModal('incomeModal', <?php echo $product['id']; ?>)">
+                                                <i class="fas fa-plus"></i> Пополнить
+                                            </button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <!-- Low Stock Materials Alert -->
+                <?php if ($activeTab === 'materials' && !empty($lowStockMaterials)): ?>
+                <div class="card" style="margin-bottom: 30px;">
+                    <div class="card-header">
+                        <h2 class="card-title" style="color: #ef4444;">
+                            <i class="fas fa-exclamation-triangle"></i> Материалы с низким запасом
+                        </h2>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Артикул</th>
+                                    <th>Наименование</th>
+                                    <th>Категория</th>
+                                    <th>Остаток</th>
+                                    <th>Мин. запас</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($lowStockMaterials as $material): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($material['sku']); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($material['name']); ?></td>
+                                        <td><?php echo htmlspecialchars($material['category_name'] ?? 'Не указана'); ?></td>
+                                        <td>
+                                            <span class="badge badge-danger"><?php echo $material['current_stock']; ?> <?php echo htmlspecialchars($material['unit']); ?></span>
+                                        </td>
+                                        <td><?php echo $material['min_stock_level']; ?> <?php echo htmlspecialchars($material['unit']); ?></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-success" onclick="openModal('incomeModal', <?php echo $material['id']; ?>)">
                                                 <i class="fas fa-plus"></i> Пополнить
                                             </button>
                                         </td>
@@ -1597,6 +1640,44 @@ try {
             
             document.getElementById(modalId + 'Body').innerHTML = content;
             modal.style.display = 'block';
+        }
+        
+        // Close modal function
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // Open modal function for income/outcome/transfer/writeoff modals
+        function openModal(modalId, productId = null) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'block';
+                
+                // Auto-select product if passed
+                if (productId) {
+                    const select = modal.querySelector('select[name="product_id"], select[name="material_id"]');
+                    if (select) {
+                        select.value = productId;
+                    }
+                }
+                
+                // Add close button handler if not already added
+                const closeBtn = modal.querySelector('.modal-close');
+                if (closeBtn && !closeBtn.dataset.handlerAdded) {
+                    closeBtn.addEventListener('click', () => closeModal(modalId));
+                    closeBtn.dataset.handlerAdded = 'true';
+                }
+                
+                // Add click outside to close
+                window.onclick = function(event) {
+                    if (event.target === modal) {
+                        closeModal(modalId);
+                    }
+                };
+            }
         }
         
         // Update product info when selecting product
