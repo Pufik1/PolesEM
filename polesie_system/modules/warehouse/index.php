@@ -395,7 +395,7 @@ try {
     ";
     $productParams = [];
     
-    if ($filterCategory && $activeTab === 'products') {
+    if ($filterCategory && $activeTab === 'products' && $filterCategory !== 'all') {
         $productQuery .= " AND p.category_id = :category_id";
         $productParams[':category_id'] = $filterCategory;
     }
@@ -425,7 +425,7 @@ try {
     ";
     $materialParams = [];
     
-    if ($filterCategory && $activeTab === 'materials') {
+    if ($filterCategory && $activeTab === 'materials' && $filterCategory !== 'all') {
         $materialQuery .= " AND m.category_id = :category_id";
         $materialParams[':category_id'] = $filterCategory;
     }
@@ -1353,8 +1353,8 @@ try {
                     showRow = false;
                 }
                 
-                // Power filter
-                if (showRow && powerFilter) {
+                // Power filter - check for empty string first
+                if (showRow && powerFilter !== '' && powerFilter !== 'all') {
                     if (powerFilter.endsWith('+')) {
                         const minPower = parseFloat(powerFilter);
                         if (power <= minPower) {
@@ -1373,17 +1373,17 @@ try {
                 }
                 
                 // Frame size filter
-                if (showRow && frameFilter && frame !== frameFilter) {
+                if (showRow && frameFilter !== '' && frameFilter !== 'all' && frame !== frameFilter) {
                     showRow = false;
                 }
                 
                 // Voltage filter
-                if (showRow && voltageFilter && voltage !== voltageFilter) {
+                if (showRow && voltageFilter !== '' && voltageFilter !== 'all' && voltage !== voltageFilter) {
                     showRow = false;
                 }
                 
                 // Protection filter
-                if (showRow && protectionFilter && protection !== protectionFilter) {
+                if (showRow && protectionFilter !== '' && protectionFilter !== 'all' && protection !== protectionFilter) {
                     showRow = false;
                 }
                 
