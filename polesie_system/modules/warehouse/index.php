@@ -455,6 +455,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'Перемещение материалов', 'warehouse_operations', $pdo->lastInsertId());
             $success = 'Материалы успешно перемещены';
+            }
             
         } elseif ($action === 'write_off_product') {
             // Списание готовой продукции с созданием документа акта списания
