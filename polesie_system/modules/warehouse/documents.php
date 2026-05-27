@@ -320,7 +320,7 @@ try {
         .documents-table th:nth-child(5), .documents-table td:nth-child(5) { width: 12%; } /* Количество */
         .documents-table th:nth-child(6), .documents-table td:nth-child(6) { width: 15%; } /* Склад/Сумма */
         .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 10%; } /* Статус */
-        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 11%; } /* Кем создан */
+        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 5%; } /* Кем создан */
         .documents-table th:nth-child(9), .documents-table td:nth-child(9) { width: 18%; } /* Действия */
         
         /* Actions cell styling for vertical alignment */
