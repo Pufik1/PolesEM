@@ -675,26 +675,44 @@ try {
                     </div>
                 </div>
                 
-                <!-- Action Buttons -->
+                <!-- Action Buttons for Products Tab -->
+                <?php if ($activeTab === 'products'): ?>
                 <div class="card" style="margin-bottom: 30px;">
                     <div class="card-header">
-                        <h2 class="card-title">Операции со складом</h2>
+                        <h2 class="card-title">Операции с готовой продукцией</h2>
                     </div>
                     <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                        <button class="btn btn-success" onclick="openModal('incomeModal')">
-                            <i class="fas fa-plus"></i> Приход товара
+                        <button class="btn btn-success" onclick="openModal('incomeProductModal')">
+                            <i class="fas fa-plus"></i> Оприходование из производства
                         </button>
-                        <button class="btn btn-danger" onclick="openModal('outcomeModal')">
-                            <i class="fas fa-minus"></i> Расход товара
+                        <button class="btn btn-info" onclick="openModal('shipmentModal')">
+                            <i class="fas fa-truck"></i> Отгрузка клиенту
                         </button>
-                        <button class="btn btn-primary" onclick="openModal('transferModal')">
-                            <i class="fas fa-exchange-alt"></i> Перемещение
-                        </button>
-                        <button class="btn btn-warning" onclick="openModal('writeOffModal')">
-                            <i class="fas fa-trash"></i> Списание
+                        <button class="btn btn-warning" onclick="openModal('writeOffProductModal')">
+                            <i class="fas fa-trash"></i> Списание (брак/повреждение)
                         </button>
                     </div>
                 </div>
+                
+                <!-- Action Buttons for Materials Tab -->
+                <?php elseif ($activeTab === 'materials'): ?>
+                <div class="card" style="margin-bottom: 30px;">
+                    <div class="card-header">
+                        <h2 class="card-title">Операции с материалами</h2>
+                    </div>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <button class="btn btn-success" onclick="openModal('incomeMaterialModal')">
+                            <i class="fas fa-plus"></i> Поступление от поставщика
+                        </button>
+                        <button class="btn btn-primary" onclick="openModal('issueToProductionModal')">
+                            <i class="fas fa-industry"></i> Выдача в производство
+                        </button>
+                        <button class="btn btn-warning" onclick="openModal('writeOffMaterialModal')">
+                            <i class="fas fa-trash"></i> Списание (брак/истечение срока)
+                        </button>
+                    </div>
+                </div>
+                <?php endif; ?>
                 
                 <!-- Low Stock Alert -->
                 <?php if ($activeTab === 'products' && !empty($lowStockProducts)): ?>
@@ -1193,6 +1211,364 @@ try {
         </div>
     </div>
     
+    <!-- Income Product Modal (from production) -->
+    <div id="incomeProductModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Оприходование готовой продукции из производства</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="income_product">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="income_product_product_id">Продукция *</label>
+                        <select id="income_product_product_id" name="product_id" required onchange="updateProductInfo('income_product')">
+                            <option value="">Выберите продукцию</option>
+                            <?php foreach ($products as $product): ?>
+                                <option value="<?php echo $product['id']; ?>" 
+                                        data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
+                                        data-stock="<?php echo $product['stock_quantity']; ?>">
+                                    <?php echo htmlspecialchars($product['product_code'] . ' - ' . $product['product_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="income_product_quantity">Количество *</label>
+                            <input type="number" id="income_product_quantity" name="quantity" required min="1" value="1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="income_product_batch_number">Номер партии</label>
+                            <input type="text" id="income_product_batch_number" name="batch_number" placeholder="Например: П-2024-001">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="income_product_document_number">Номер документа</label>
+                            <input type="text" id="income_product_document_number" name="document_number" placeholder="Например: МХ-18 №123">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="income_product_notes">Комментарий</label>
+                        <textarea id="income_product_notes" name="notes" rows="2" placeholder="Дополнительная информация"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('incomeProductModal')">Отмена</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Оприходовать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Shipment Modal (to customer) -->
+    <div id="shipmentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Отгрузка готовой продукции клиенту</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="outcome_product">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="shipment_product_id">Продукция *</label>
+                        <select id="shipment_product_id" name="product_id" required onchange="updateProductInfo('shipment')">
+                            <option value="">Выберите продукцию</option>
+                            <?php foreach ($products as $product): ?>
+                                <option value="<?php echo $product['id']; ?>" 
+                                        data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
+                                        data-stock="<?php echo $product['stock_quantity']; ?>">
+                                    <?php echo htmlspecialchars($product['product_code'] . ' - ' . $product['product_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="shipment_quantity">Количество *</label>
+                            <input type="number" id="shipment_quantity" name="quantity" required min="1" value="1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="shipment_document_number">Накладная №</label>
+                            <input type="text" id="shipment_document_number" name="document_number" placeholder="Например: ТОРГ-12 №456">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="shipment_notes">Комментарий</label>
+                        <textarea id="shipment_notes" name="notes" rows="2" placeholder="Информация об отгрузке"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('shipmentModal')">Отмена</button>
+                    <button type="submit" class="btn btn-info">
+                        <i class="fas fa-truck"></i> Отгрузить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Write Off Product Modal -->
+    <div id="writeOffProductModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Списание готовой продукции</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="write_off_product">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="writeoff_product_product_id">Продукция *</label>
+                        <select id="writeoff_product_product_id" name="product_id" required onchange="updateProductInfo('writeoff_product')">
+                            <option value="">Выберите продукцию</option>
+                            <?php foreach ($products as $product): ?>
+                                <option value="<?php echo $product['id']; ?>" 
+                                        data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
+                                        data-stock="<?php echo $product['stock_quantity']; ?>">
+                                    <?php echo htmlspecialchars($product['product_code'] . ' - ' . $product['product_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="writeoff_product_quantity">Количество *</label>
+                            <input type="number" id="writeoff_product_quantity" name="quantity" required min="1" value="1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="writeoff_product_document_number">Номер акта</label>
+                            <input type="text" id="writeoff_product_document_number" name="document_number" placeholder="Например: Акт №789">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="writeoff_product_notes">Причина списания *</label>
+                        <textarea id="writeoff_product_notes" name="notes" rows="3" required placeholder="Укажите причину списания (брак, повреждение при хранении, истечение срока годности и т.д.)"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('writeOffProductModal')">Отмена</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-trash"></i> Списать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Income Material Modal (from supplier) -->
+    <div id="incomeMaterialModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Поступление материалов от поставщика</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="income_material">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="income_material_material_id">Материал *</label>
+                        <select id="income_material_material_id" name="material_id" required onchange="updateMaterialInfo('income_material')">
+                            <option value="">Выберите материал</option>
+                            <?php foreach ($materials as $material): ?>
+                                <option value="<?php echo $material['id']; ?>" 
+                                        data-sku="<?php echo htmlspecialchars($material['sku']); ?>"
+                                        data-stock="<?php echo $material['current_stock']; ?>"
+                                        data-unit="<?php echo htmlspecialchars($material['unit']); ?>">
+                                    <?php echo htmlspecialchars($material['sku'] . ' - ' . $material['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="income_material_quantity">Количество *</label>
+                            <input type="number" id="income_material_quantity" name="quantity" required min="0.01" step="0.01" value="1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="income_material_batch_number">Номер партии</label>
+                            <input type="text" id="income_material_batch_number" name="batch_number" placeholder="Например: М-2024-001">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="income_material_quality_cert">Сертификат качества</label>
+                            <input type="text" id="income_material_quality_cert" name="quality_cert" placeholder="№ сертификата">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="income_material_expiry_date">Срок годности</label>
+                            <input type="date" id="income_material_expiry_date" name="expiry_date">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="income_material_document_number">Накладная №</label>
+                            <input type="text" id="income_material_document_number" name="document_number" placeholder="Например: М-15 №123">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="income_material_notes">Комментарий</label>
+                        <textarea id="income_material_notes" name="notes" rows="2" placeholder="Дополнительная информация"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('incomeMaterialModal')">Отмена</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Оприходовать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Issue to Production Modal -->
+    <div id="issueToProductionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Выдача материалов в производство</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="outcome_material">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="issue_material_id">Материал *</label>
+                        <select id="issue_material_id" name="material_id" required onchange="updateMaterialInfo('issue')">
+                            <option value="">Выберите материал</option>
+                            <?php foreach ($materials as $material): ?>
+                                <option value="<?php echo $material['id']; ?>" 
+                                        data-sku="<?php echo htmlspecialchars($material['sku']); ?>"
+                                        data-stock="<?php echo $material['current_stock']; ?>"
+                                        data-unit="<?php echo htmlspecialchars($material['unit']); ?>">
+                                    <?php echo htmlspecialchars($material['sku'] . ' - ' . $material['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="issue_quantity">Количество *</label>
+                            <input type="number" id="issue_quantity" name="quantity" required min="0.01" step="0.01" value="1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="issue_production_order_id">Заказ-наряд</label>
+                            <select id="issue_production_order_id" name="production_order_id">
+                                <option value="">Не указан</option>
+                                <?php
+                                // Get active production orders
+                                try {
+                                    $stmt = $pdo->query("SELECT id, order_number, product_name FROM production_orders WHERE status IN ('in_progress', 'planned') ORDER BY created_at DESC LIMIT 10");
+                                    $productionOrders = $stmt->fetchAll();
+                                    foreach ($productionOrders as $po):
+                                ?>
+                                    <option value="<?php echo $po['id']; ?>">
+                                        <?php echo htmlspecialchars($po['order_number'] . ' - ' . $po['product_name']); ?>
+                                    </option>
+                                <?php 
+                                    endforeach;
+                                } catch(Exception $e) {}
+                                ?>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="issue_document_number">Требование-накладная №</label>
+                            <input type="text" id="issue_document_number" name="document_number" placeholder="Например: М-11 №456">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="issue_notes">Комментарий</label>
+                        <textarea id="issue_notes" name="notes" rows="2" placeholder="Информация о выдаче"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('issueToProductionModal')">Отмена</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-industry"></i> Выдать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Write Off Material Modal -->
+    <div id="writeOffMaterialModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Списание материалов</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="write_off_material">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="writeoff_material_material_id">Материал *</label>
+                        <select id="writeoff_material_material_id" name="material_id" required onchange="updateMaterialInfo('writeoff_material')">
+                            <option value="">Выберите материал</option>
+                            <?php foreach ($materials as $material): ?>
+                                <option value="<?php echo $material['id']; ?>" 
+                                        data-sku="<?php echo htmlspecialchars($material['sku']); ?>"
+                                        data-stock="<?php echo $material['current_stock']; ?>"
+                                        data-unit="<?php echo htmlspecialchars($material['unit']); ?>">
+                                    <?php echo htmlspecialchars($material['sku'] . ' - ' . $material['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="writeoff_material_quantity">Количество *</label>
+                            <input type="number" id="writeoff_material_quantity" name="quantity" required min="0.01" step="0.01" value="1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="writeoff_material_document_number">Номер акта</label>
+                            <input type="text" id="writeoff_material_document_number" name="document_number" placeholder="Например: Акт №789">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="writeoff_material_notes">Причина списания *</label>
+                        <textarea id="writeoff_material_notes" name="notes" rows="3" required placeholder="Укажите причину списания (брак, порча, истечение срока годности, потеря и т.д.)"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('writeOffMaterialModal')">Отмена</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-trash"></i> Списать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
     <script src="../../assets/js/main.js"></script>
     <script>
         // Product and Material details data
@@ -1512,15 +1888,36 @@ try {
         // Update product info when selecting product
         function updateProductInfo(modalPrefix) {
             const select = document.getElementById(modalPrefix + '_product_id');
+            if (!select) return;
+            
             const selectedOption = select.options[select.selectedIndex];
             const stock = selectedOption.getAttribute('data-stock');
             const code = selectedOption.getAttribute('data-code');
             
-            if (stock && modalPrefix !== 'transfer') {
+            if (stock && !modalPrefix.includes('transfer')) {
                 const quantityInput = document.getElementById(modalPrefix + '_quantity');
-                if (quantityInput && (modalPrefix === 'outcome' || modalPrefix === 'writeoff')) {
+                if (quantityInput && (modalPrefix.includes('outcome') || modalPrefix.includes('writeoff') || modalPrefix === 'shipment')) {
                     quantityInput.max = stock;
                     quantityInput.title = 'Доступно: ' + stock + ' шт.';
+                }
+            }
+        }
+        
+        // Update material info when selecting material
+        function updateMaterialInfo(modalPrefix) {
+            const select = document.getElementById(modalPrefix + '_material_id');
+            if (!select) return;
+            
+            const selectedOption = select.options[select.selectedIndex];
+            const stock = selectedOption.getAttribute('data-stock');
+            const unit = selectedOption.getAttribute('data-unit');
+            const sku = selectedOption.getAttribute('data-sku');
+            
+            if (stock && !modalPrefix.includes('transfer')) {
+                const quantityInput = document.getElementById(modalPrefix + '_quantity');
+                if (quantityInput && (modalPrefix.includes('outcome') || modalPrefix.includes('writeoff') || modalPrefix === 'issue')) {
+                    quantityInput.max = stock;
+                    quantityInput.title = 'Доступно: ' + stock + ' ' + unit;
                 }
             }
         }
