@@ -1,1 +1,1 @@
-Nothing should be ignored based on the provided file changes. The modified file 'polesie_system/modules/warehouse/documents.php' is a source code file that should not be added to .gitignore. Since there are no build artifacts, dependencies, or temporary files in the changes, no additional ignore rules are needed.
+Nothing needs to be added to the .gitignore file based on the provided changes. The modified file 'polesie_system/modules/warehouse/documents.php' is a PHP source code file that should not be ignored.
