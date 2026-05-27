@@ -569,7 +569,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logActivity($pdo, $_SESSION['user_id'], 'Списание готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
             $success = 'Готовая продукция успешно списана. Документ: ' . htmlspecialchars($document_number);
             }
-            
         } elseif ($action === 'write_off_material') {
             // Списание материалов с созданием документа акта списания
             $material_id = (int)$_POST['material_id'];
@@ -663,6 +662,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->commit();
                 logActivity($pdo, $_SESSION['user_id'], 'Списание материалов', 'warehouse_operations', $pdo->lastInsertId());
                 $success = 'Материалы успешно списаны. Документ: ' . htmlspecialchars($document_number);
+            }
         }
     } catch (Exception $e) {
         if ($pdo->inTransaction()) {
