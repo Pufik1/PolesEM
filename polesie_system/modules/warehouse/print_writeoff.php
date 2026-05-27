@@ -280,8 +280,8 @@ try {
             <tr>
                 <td class="num"><?php echo $index + 1; ?></td>
                 <td><?php echo htmlspecialchars($item['item_name']); ?></td>
-                <td><?php echo htmlspecialchars($item['item_sku']); ?></td>
-                <td class="num"><strong><?php echo number_format($item['quantity_written'], 2); ?></strong></td>
+                <td><?php echo htmlspecialchars($item['item_sku'] ?? ''); ?></td>
+                <td class="num"><strong><?php echo number_format($item['quantity_written'], 0); ?></strong></td>
                 <td class="num"><?php echo number_format($item['unit_cost'], 2); ?> BYN</td>
                 <td class="num"><?php echo number_format($item['line_total'], 2); ?> BYN</td>
             </tr>
