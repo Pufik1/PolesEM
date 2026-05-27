@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
             
             // Получаем данные о продукте для позиции
-            $stmt = $pdo->prepare("SELECT product_name, product_code, price FROM products WHERE id = :product_id");
+            $stmt = $pdo->prepare("SELECT product_name, product_code, base_price FROM products WHERE id = :product_id");
             $stmt->execute([':product_id' => $product_id]);
             $productData = $stmt->fetch();
             
@@ -183,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("INSERT INTO shipment_documents 
                                    (shipment_number, shipment_date, shipment_type, customer_id, customer_name, warehouse_from_id, total_items, total_quantity, total_cost, status, notes, created_by) 
                                    VALUES (:shipment_number, CURRENT_DATE, 'to_customer', NULL, 'Прямая продажа', 1, 1, :quantity, :total_cost, 'shipped', :notes, :user_id)");
-            $total_cost = $productData['price'] * $quantity;
+            $total_cost = $productData['base_price'] * $quantity;
             $stmt->execute([
                 ':shipment_number' => $document_number,
                 ':quantity' => $quantity,
@@ -208,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':item_name' => $productData['product_name'],
                 ':item_sku' => $productData['product_code'],
                 ':quantity' => $quantity,
-                ':unit_price' => $productData['price'],
+                ':unit_price' => $productData['base_price'],
                 ':vat_rate' => $vat_rate,
                 ':line_total' => $line_total,
                 ':vat_amount' => $vat_amount,
