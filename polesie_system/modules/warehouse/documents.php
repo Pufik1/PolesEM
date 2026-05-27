@@ -16,6 +16,7 @@ $error = '';
 $success = '';
 $userFullName = $_SESSION['full_name'];
 $userRole = $_SESSION['user_role'];
+$initials = strtoupper(substr($userFullName, 0, 1));
 
 // Get filter parameters
 $filterType = $_GET['type'] ?? 'all'; // all, receipt, shipment
@@ -103,86 +104,173 @@ try {
 } catch (Exception $e) {
     $error = 'Ошибка: ' . $e->getMessage();
 }
-
-$pageTitle = 'Документы склада';
-include '../../includes/header.php';
 ?>
-
-<div class="content-wrapper">
-    <div class="container-fluid">
-        <!-- Page Header -->
-        <div class="card" style="margin-bottom: 20px;">
-            <div class="card-header">
-                <h1 class="page-title">
-                    <i class="fas fa-file-alt"></i> Документы склада
-                </h1>
-                <p class="page-subtitle">Акты приема и накладные на отгрузку</p>
-            </div>
-        </div>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Документы склада - Полесьеэлектромаш</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .filter-form .form-group {
+            display: flex;
+            flex-direction: column;
+        }
         
-        <?php if ($error): ?>
-        <div class="alert alert-danger">
-            <i class="fas fa-exclamation-triangle"></i>
-            <?php echo htmlspecialchars($error); ?>
-        </div>
-        <?php endif; ?>
+        .filter-form label {
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #374151;
+        }
         
-        <?php if ($success): ?>
-        <div class="alert alert-success">
-            <i class="fas fa-check-circle"></i>
-            <?php echo htmlspecialchars($success); ?>
-        </div>
-        <?php endif; ?>
+        .filter-form .form-control {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
         
-        <!-- Filters -->
-        <div class="card" style="margin-bottom: 20px;">
-            <div class="card-header">
-                <h2 class="card-title">Фильтры</h2>
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .data-table th {
+            background-color: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .data-table tbody tr:hover {
+            background-color: #f9fafb;
+        }
+        
+        .text-center {
+            text-align: center;
+            color: #6b7280;
+            padding: 20px !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <div class="logo-text">
+                        <h2>Полесьеэлектромаш</h2>
+                        <p>Корпоративная система</p>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <form method="GET" action="" class="filter-form" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
-                    <div class="form-group" style="flex: 1; min-width: 150px;">
-                        <label for="filter_type">Тип документа</label>
-                        <select id="filter_type" name="type" class="form-control">
-                            <option value="all" <?php echo $filterType === 'all' ? 'selected' : ''; ?>>Все документы</option>
-                            <option value="receipt" <?php echo $filterType === 'receipt' ? 'selected' : ''; ?>>Прием на склад</option>
-                            <option value="shipment" <?php echo $filterType === 'shipment' ? 'selected' : ''; ?>>Отгрузка</option>
-                        </select>
+            
+            <?php 
+            $basePath = '../../';
+            include '../../includes/sidebar.php'; 
+            ?>
+        </aside>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <div class="header-title">
+                        <h1>Документы склада</h1>
                     </div>
-                    
-                    <div class="form-group" style="flex: 1; min-width: 150px;">
-                        <label for="filter_status">Статус</label>
-                        <select id="filter_status" name="status" class="form-control">
-                            <option value="all" <?php echo $filterStatus === 'all' ? 'selected' : ''; ?>>Все статусы</option>
-                            <option value="draft" <?php echo $filterStatus === 'draft' ? 'selected' : ''; ?>>Черновик</option>
-                            <option value="confirmed" <?php echo $filterStatus === 'confirmed' ? 'selected' : ''; ?>>Подтвержден</option>
-                            <option value="posted" <?php echo $filterStatus === 'posted' ? 'selected' : ''; ?>>Проведен</option>
-                            <option value="shipped" <?php echo $filterStatus === 'shipped' ? 'selected' : ''; ?>>Отгружен</option>
-                            <option value="delivered" <?php echo $filterStatus === 'delivered' ? 'selected' : ''; ?>>Доставлен</option>
-                            <option value="cancelled" <?php echo $filterStatus === 'cancelled' ? 'selected' : ''; ?>>Отменен</option>
-                        </select>
+                </div>
+                
+                <div class="header-right">
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            <?php echo $initials; ?>
+                        </div>
+                        <div class="user-details">
+                            <span class="user-name"><?php echo htmlspecialchars($userFullName); ?></span>
+                            <span class="user-role"><?php echo ucfirst($userRole); ?></span>
+                        </div>
                     </div>
-                    
-                    <div class="form-group" style="flex: 1; min-width: 150px;">
-                        <label for="filter_date_from">Дата с</label>
-                        <input type="date" id="filter_date_from" name="date_from" class="form-control" value="<?php echo htmlspecialchars($filterDateFrom); ?>">
+                </div>
+            </header>
+            
+            <!-- Content Area -->
+            <div class="content-area">
+                <?php if ($error): ?>
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <?php echo htmlspecialchars($error); ?>
+                </div>
+                <?php endif; ?>
+                
+                <?php if ($success): ?>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <?php echo htmlspecialchars($success); ?>
+                </div>
+                <?php endif; ?>
+                
+                <!-- Filters -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <div class="card-header">
+                        <h2 class="card-title">Фильтры</h2>
                     </div>
-                    
-                    <div class="form-group" style="flex: 1; min-width: 150px;">
-                        <label for="filter_date_to">Дата по</label>
-                        <input type="date" id="filter_date_to" name="date_to" class="form-control" value="<?php echo htmlspecialchars($filterDateTo); ?>">
+                    <div class="card-body">
+                        <form method="GET" action="" class="filter-form" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                            <div class="form-group" style="flex: 1; min-width: 150px;">
+                                <label for="filter_type">Тип документа</label>
+                                <select id="filter_type" name="type" class="form-control">
+                                    <option value="all" <?php echo $filterType === 'all' ? 'selected' : ''; ?>>Все документы</option>
+                                    <option value="receipt" <?php echo $filterType === 'receipt' ? 'selected' : ''; ?>>Прием на склад</option>
+                                    <option value="shipment" <?php echo $filterType === 'shipment' ? 'selected' : ''; ?>>Отгрузка</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group" style="flex: 1; min-width: 150px;">
+                                <label for="filter_status">Статус</label>
+                                <select id="filter_status" name="status" class="form-control">
+                                    <option value="all" <?php echo $filterStatus === 'all' ? 'selected' : ''; ?>>Все статусы</option>
+                                    <option value="draft" <?php echo $filterStatus === 'draft' ? 'selected' : ''; ?>>Черновик</option>
+                                    <option value="confirmed" <?php echo $filterStatus === 'confirmed' ? 'selected' : ''; ?>>Подтвержден</option>
+                                    <option value="posted" <?php echo $filterStatus === 'posted' ? 'selected' : ''; ?>>Проведен</option>
+                                    <option value="shipped" <?php echo $filterStatus === 'shipped' ? 'selected' : ''; ?>>Отгружен</option>
+                                    <option value="delivered" <?php echo $filterStatus === 'delivered' ? 'selected' : ''; ?>>Доставлен</option>
+                                    <option value="cancelled" <?php echo $filterStatus === 'cancelled' ? 'selected' : ''; ?>>Отменен</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group" style="flex: 1; min-width: 150px;">
+                                <label for="filter_date_from">Дата с</label>
+                                <input type="date" id="filter_date_from" name="date_from" class="form-control" value="<?php echo htmlspecialchars($filterDateFrom); ?>">
+                            </div>
+                            
+                            <div class="form-group" style="flex: 1; min-width: 150px;">
+                                <label for="filter_date_to">Дата по</label>
+                                <input type="date" id="filter_date_to" name="date_to" class="form-control" value="<?php echo htmlspecialchars($filterDateTo); ?>">
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter"></i> Применить
+                            </button>
+                            
+                            <a href="documents.php" class="btn btn-secondary">
+                                <i class="fas fa-redo"></i> Сбросить
+                            </a>
+                        </form>
                     </div>
-                    
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-filter"></i> Применить
-                    </button>
-                    
-                    <a href="documents.php" class="btn btn-secondary">
-                        <i class="fas fa-redo"></i> Сбросить
-                    </a>
-                </form>
-            </div>
-        </div>
+                </div>
         
         <!-- Goods Receipt Documents -->
         <?php if ($filterType === 'all' || $filterType === 'receipt'): ?>
@@ -348,66 +436,27 @@ include '../../includes/header.php';
         </div>
         <?php endif; ?>
         
+        <!-- Back to Warehouse button -->
+        <div style="margin-top: 20px;">
+            <a href="index.php" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Вернуться на склад
+            </a>
+        </div>
+        
+            </div>
+            
+            <script src="../../assets/js/main.js"></script>
+            <script>
+            function viewReceiptDetails(id) {
+                window.open('print_receipt.php?id=' + id, '_blank', 'width=1000,height=700');
+            }
+
+            function viewShipmentDetails(id) {
+                window.open('print_shipment.php?id=' + id, '_blank', 'width=1000,height=700');
+            }
+            </script>
+            
+        </div>
     </div>
-</div>
-
-<script src="../../assets/js/main.js"></script>
-<script>
-function viewReceiptDetails(id) {
-    window.open('print_receipt.php?id=' + id, '_blank', 'width=1000,height=700');
-}
-
-function viewShipmentDetails(id) {
-    window.open('print_shipment.php?id=' + id, '_blank', 'width=1000,height=700');
-}
-</script>
-
-<style>
-.filter-form .form-group {
-    display: flex;
-    flex-direction: column;
-}
-
-.filter-form label {
-    margin-bottom: 5px;
-    font-weight: 500;
-    color: #374151;
-}
-
-.filter-form .form-control {
-    padding: 8px 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 14px;
-}
-
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.data-table th,
-.data-table td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-.data-table th {
-    background-color: #f9fafb;
-    font-weight: 600;
-    color: #374151;
-}
-
-.data-table tbody tr:hover {
-    background-color: #f9fafb;
-}
-
-.text-center {
-    text-align: center;
-    color: #6b7280;
-    padding: 20px !important;
-}
-</style>
-
-<?php include '../../includes/footer.php'; ?>
+</body>
+</html>
