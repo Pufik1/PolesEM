@@ -187,24 +187,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logActivity($pdo, $_SESSION['user_id'], 'Приход материалов', 'warehouse_operations', $pdo->lastInsertId());
             $success = 'Материалы успешно оприходованы. Документ: ' . htmlspecialchars($document_number);
             
-        } elseif ($action === 'outcome_product') {
-            // Расход готовой продукции со склада (отгрузка) с созданием накладной
+        } elseif ($action === 'ship_product') {
+            // Отгрузка готовой продукции клиенту с созданием накладной
             $product_id = (int)$_POST['product_id'];
             $quantity = (int)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
             $notes = trim($_POST['notes']);
             
-            // Включаем подробный режим ошибок PDO для отладки
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            
             try {
                 // Проверяем достаточность количества
-                $stmt = $pdo->prepare("SELECT stock_quantity FROM products WHERE id = :product_id");
-                $stmt->execute([':product_id' => $product_id]);
+                $stmt = $pdo->prepare("SELECT stock_quantity, product_name, product_code, base_price FROM products WHERE id = :product_id");
+                $stmt->execute(['product_id' => $product_id]);
                 $product = $stmt->fetch();
                 
+                if (!$product) {
+                    throw new Exception('Товар не найден');
+                }
+                
                 if ($product['stock_quantity'] < $quantity) {
-                    throw new Exception('Недостаточно товара на складе');
+                    throw new Exception('Недостаточно товара на складе. Доступно: ' . $product['stock_quantity']);
                 }
                 
                 // Генерируем номер накладной если не указан
@@ -217,79 +218,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $pdo->beginTransaction();
                 
-                // Получаем данные о продукте для позиции
-                $stmt = $pdo->prepare("SELECT product_name, product_code, base_price FROM products WHERE id = :product_id");
-                $stmt->execute([':product_id' => $product_id]);
-                $productData = $stmt->fetch();
-                
-                // Вычисляем общую стоимость
-                $total_cost = $productData['base_price'] * $quantity;
-                
-                // Создаем документ отгрузки
-                $sql_shipment = "INSERT INTO shipment_documents 
-                                       (shipment_number, shipment_date, shipment_type, customer_id, customer_name, customer_inn, warehouse_from_id, total_items, total_quantity, total_cost, status, notes, created_by) 
-                                       VALUES (:shipment_number, CURRENT_DATE, 'to_customer', NULL, :customer_name, NULL, 1, 1, :quantity, :total_cost, 'shipped', :notes, :user_id)";
-                
-                $stmt = $pdo->prepare($sql_shipment);
-                $params_shipment = [
-                    ':shipment_number' => $document_number,
-                    ':customer_name' => 'Прямая продажа',
-                    ':quantity' => $quantity,
-                    ':total_cost' => $total_cost,
-                    ':notes' => $notes,
-                    ':user_id' => $_SESSION['user_id']
-                ];
-                $stmt->execute($params_shipment);
-                $shipment_id = $pdo->lastInsertId();
-                
-                // Добавляем позицию в документ отгрузки
+                // Вычисляем стоимость
+                $unit_price = $product['base_price'] ?? 0;
+                $total_cost = $unit_price * $quantity;
                 $vat_rate = 20;
-                $line_total = $productData['base_price'] * $quantity;
+                $line_total = $unit_price * $quantity;
                 $vat_amount = $line_total * ($vat_rate / 100);
                 $line_total_with_vat = $line_total + $vat_amount;
                 
-                $sql_items = "INSERT INTO shipment_items 
-                                       (shipment_id, product_id, item_name, item_sku, item_unit, quantity_ordered, quantity_shipped, unit_price, vat_rate, line_total, vat_amount, line_total_with_vat) 
-                                       VALUES (:shipment_id, :product_id, :item_name, :item_sku, 'шт', :quantity, :quantity, :unit_price, :vat_rate, :line_total, :vat_amount, :line_total_with_vat)";
+                // Создаем документ отгрузки (накладную)
+                $stmt = $pdo->prepare("INSERT INTO shipment_documents 
+                       (shipment_number, shipment_date, shipment_type, customer_name, warehouse_from_id, total_items, total_quantity, total_cost, status, notes, created_by) 
+                       VALUES (?, CURRENT_DATE, 'to_customer', 'Прямая продажа', 1, 1, ?, ?, 'shipped', ?, ?)");
+                $stmt->execute([
+                    $document_number,
+                    $quantity,
+                    $total_cost,
+                    $notes,
+                    $_SESSION['user_id']
+                ]);
+                $shipment_id = $pdo->lastInsertId();
                 
-                $stmt = $pdo->prepare($sql_items);
-                $params_items = [
-                    ':shipment_id' => $shipment_id,
-                    ':product_id' => $product_id,
-                    ':item_name' => $productData['product_name'],
-                    ':item_sku' => $productData['product_code'],
-                    ':quantity' => $quantity,
-                    ':unit_price' => $productData['base_price'],
-                    ':vat_rate' => $vat_rate,
-                    ':line_total' => $line_total,
-                    ':vat_amount' => $vat_amount,
-                    ':line_total_with_vat' => $line_total_with_vat
-                ];
-                $stmt->execute($params_items);
+                // Добавляем позицию в документ отгрузки
+                $stmt = $pdo->prepare("INSERT INTO shipment_items 
+                       (shipment_id, product_id, item_name, item_sku, item_unit, quantity_ordered, quantity_shipped, unit_price, vat_rate, line_total, vat_amount, line_total_with_vat) 
+                       VALUES (?, ?, ?, ?, 'шт', ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    $shipment_id,
+                    $product_id,
+                    $product['product_name'],
+                    $product['product_code'],
+                    $quantity,
+                    $quantity,
+                    $unit_price,
+                    $vat_rate,
+                    $line_total,
+                    $vat_amount,
+                    $line_total_with_vat
+                ]);
                 
                 // Добавляем операцию расхода со ссылкой на документ
-                $sql_operation = "INSERT INTO warehouse_operations 
-                                       (operation_type, product_id, quantity, warehouse_from, user_id, document_number, notes, shipment_id) 
-                                       VALUES ('outcome', :product_id, :quantity, :warehouse_from, :user_id, :document_number, :notes, :shipment_id)";
-                
-                $stmt = $pdo->prepare($sql_operation);
-                $params_operation = [
-                    ':product_id' => $product_id,
-                    ':quantity' => $quantity,
-                    ':warehouse_from' => 1,
-                    ':user_id' => $_SESSION['user_id'],
-                    ':document_number' => $document_number,
-                    ':notes' => $notes,
-                    ':shipment_id' => $shipment_id
-                ];
-                $stmt->execute($params_operation);
+                $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
+                       (operation_type, product_id, quantity, warehouse_from, user_id, document_number, notes, shipment_id, operation_date) 
+                       VALUES ('outcome', ?, ?, 1, ?, ?, ?, ?, NOW())");
+                $stmt->execute([
+                    $product_id,
+                    $quantity,
+                    $_SESSION['user_id'],
+                    $document_number,
+                    $notes,
+                    $shipment_id
+                ]);
                 
                 // Обновляем остаток товара
-                $stmt = $pdo->prepare("UPDATE products SET stock_quantity = stock_quantity - :quantity WHERE id = :product_id");
-                $stmt->execute([
-                    ':quantity' => $quantity,
-                    ':product_id' => $product_id
-                ]);
+                $stmt = $pdo->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?");
+                $stmt->execute([$quantity, $product_id]);
                 
                 $pdo->commit();
                 logActivity($pdo, $_SESSION['user_id'], 'Отгрузка готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
@@ -299,24 +282,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
                 }
-                // Детальная информация об ошибке
-                $error = 'Ошибка базы данных: ' . $e->getMessage();
-                $error .= '<br>SQL Query: ' . ($sql_operation ?? 'N/A');
-                $error .= '<br>Parameters: ' . print_r($params_operation ?? [], true);
-                error_log("Warehouse outcome_product error: " . $e->getMessage() . "\nSQL: " . ($sql_operation ?? 'N/A') . "\nParams: " . print_r($params_operation ?? [], true));
+                error_log("Warehouse ship_product PDO error: " . $e->getMessage() . "\nTrace: " . $e->getTraceAsString());
+                $error = 'Ошибка базы данных при отгрузке: ' . $e->getMessage();
             } catch (Exception $e) {
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
                 }
-                // Детальная информация об ошибке
-                $error = 'Ошибка: ' . $e->getMessage();
-                if (isset($sql_operation)) {
-                    $error .= '<br>SQL Query: ' . $sql_operation;
-                }
-                if (isset($params_operation)) {
-                    $error .= '<br>Parameters: ' . print_r($params_operation, true);
-                }
-                error_log("Warehouse outcome_product error: " . $e->getMessage());
+                error_log("Warehouse ship_product error: " . $e->getMessage());
+                $error = 'Ошибка при отгрузке: ' . $e->getMessage();
             }
             
         } elseif ($action === 'outcome_material') {
@@ -992,7 +965,7 @@ try {
                         <button class="btn btn-success" onclick="openModal('incomeProductModal')">
                             <i class="fas fa-plus"></i> Оприходование из производства
                         </button>
-                        <button class="btn btn-info" onclick="openModal('shipmentModal')">
+                        <button class="btn btn-info" onclick="openModal('outcomeModal')">
                             <i class="fas fa-truck"></i> Отгрузка клиенту
                         </button>
                         <button class="btn btn-warning" onclick="openModal('writeOffProductModal')">
@@ -1349,16 +1322,16 @@ try {
     <div id="outcomeModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Расход товара со склада</h2>
+                <h2>Отгрузка готовой продукции клиенту</h2>
                 <button class="modal-close">&times;</button>
             </div>
             <form method="POST" action="">
-                <input type="hidden" name="action" value="outcome_product">
+                <input type="hidden" name="action" value="ship_product">
                 <div class="modal-body">
                     <div class="form-group">
-                        <label for="outcome_product_id">Товар *</label>
-                        <select id="outcome_product_id" name="product_id" required onchange="updateProductInfo('outcome')">
-                            <option value="">Выберите товар</option>
+                        <label for="outcome_product_id">Продукция *</label>
+                        <select id="outcome_product_id" name="product_id" required onchange="updateProductInfo('shipment')">
+                            <option value="">Выберите продукцию</option>
                             <?php foreach ($products as $product): ?>
                                 <option value="<?php echo $product['id']; ?>" 
                                         data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
@@ -1376,20 +1349,20 @@ try {
                         </div>
                         
                         <div class="form-group">
-                            <label for="outcome_document_number">Номер документа</label>
-                            <input type="text" id="outcome_document_number" name="document_number" placeholder="Например: ТОРГ-12 №123">
+                            <label for="outcome_document_number">Накладная №</label>
+                            <input type="text" id="outcome_document_number" name="document_number" placeholder="Например: ТН-2024-001">
                         </div>
                     </div>
                     
                     <div class="form-group">
                         <label for="outcome_notes">Комментарий</label>
-                        <textarea id="outcome_notes" name="notes" rows="2" placeholder="Дополнительная информация"></textarea>
+                        <textarea id="outcome_notes" name="notes" rows="2" placeholder="Информация об отгрузке"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('outcomeModal')">Отмена</button>
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-minus"></i> Списать
+                    <button type="submit" class="btn btn-info">
+                        <i class="fas fa-truck"></i> Отгрузить
                     </button>
                 </div>
             </form>
@@ -1570,57 +1543,6 @@ try {
                     <button type="button" class="btn btn-secondary" onclick="closeModal('incomeProductModal')">Отмена</button>
                     <button type="submit" class="btn btn-success">
                         <i class="fas fa-plus"></i> Оприходовать
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Shipment Modal (to customer) -->
-    <div id="shipmentModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Отгрузка готовой продукции клиенту</h2>
-                <button class="modal-close">&times;</button>
-            </div>
-            <form method="POST" action="">
-                <input type="hidden" name="action" value="outcome_product">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="shipment_product_id">Продукция *</label>
-                        <select id="shipment_product_id" name="product_id" required onchange="updateProductInfo('shipment')">
-                            <option value="">Выберите продукцию</option>
-                            <?php foreach ($products as $product): ?>
-                                <option value="<?php echo $product['id']; ?>" 
-                                        data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
-                                        data-stock="<?php echo $product['stock_quantity']; ?>">
-                                    <?php echo htmlspecialchars($product['product_code'] . ' - ' . $product['product_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="shipment_quantity">Количество *</label>
-                            <input type="number" id="shipment_quantity" name="quantity" required min="1" value="1">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="shipment_document_number">Накладная №</label>
-                            <input type="text" id="shipment_document_number" name="document_number" placeholder="Например: ТОРГ-12 №456">
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="shipment_notes">Комментарий</label>
-                        <textarea id="shipment_notes" name="notes" rows="2" placeholder="Информация об отгрузке"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('shipmentModal')">Отмена</button>
-                    <button type="submit" class="btn btn-info">
-                        <i class="fas fa-truck"></i> Отгрузить
                     </button>
                 </div>
             </form>
@@ -2235,12 +2157,13 @@ try {
             const productId = urlParams.get('product_id');
             
             if (productId) {
-                const selects = ['income_product_id', 'outcome_product_id', 'writeoff_product_id'];
+                const selects = ['income_product_id', 'outcome_product_id', 'writeoff_product_id', 'writeoff_product_product_id'];
                 selects.forEach(selectId => {
                     const select = document.getElementById(selectId);
                     if (select) {
                         select.value = productId;
-                        updateProductInfo(selectId.replace('_product_id', ''));
+                        const prefix = selectId.replace('_product_id', '');
+                        updateProductInfo(prefix);
                     }
                 });
             }
