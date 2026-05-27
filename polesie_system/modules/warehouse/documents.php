@@ -61,11 +61,9 @@ try {
     // Build query for goods receipt documents
     $receiptQuery = "
         SELECT grd.*, 
-               u.full_name as created_by_name,
                p.production_number as production_order_number,
                wc.center_name as warehouse_name
         FROM goods_receipt_documents grd
-        LEFT JOIN users u ON grd.created_by = u.id
         LEFT JOIN production_orders p ON grd.production_order_id = p.id
         LEFT JOIN work_centers wc ON grd.warehouse_id = wc.id
         WHERE 1=1
@@ -98,12 +96,10 @@ try {
     // Build query for shipment documents
     $shipmentQuery = "
         SELECT sd.*, 
-               u.full_name as created_by_name,
                o.order_number as order_number,
                c.company_name as customer_name,
                wc.center_name as warehouse_name
         FROM shipment_documents sd
-        LEFT JOIN users u ON sd.created_by = u.id
         LEFT JOIN orders o ON sd.order_id = o.id
         LEFT JOIN clients c ON sd.customer_id = c.id
         LEFT JOIN work_centers wc ON sd.warehouse_from_id = wc.id
@@ -193,23 +189,72 @@ try {
             padding: 20px !important;
         }
         
-        /* Стили для кнопки "глазик" удалены - кнопка больше не используется */
+        /* Professional document table styling */
+        .documents-table {
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
         
-        /* Column widths for documents table */
-        .documents-table th:nth-child(1), .documents-table td:nth-child(1) { width: 12%; } /* № документа */
-        .documents-table th:nth-child(2), .documents-table td:nth-child(2) { width: 10%; } /* Дата */
-        .documents-table th:nth-child(3), .documents-table td:nth-child(3) { width: 12%; } /* Тип */
-        .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 8%; } /* Позиций */
-        .documents-table th:nth-child(5), .documents-table td:nth-child(5) { width: 10%; } /* Количество */
-        .documents-table th:nth-child(6), .documents-table td:nth-child(6) { width: 15%; } /* Склад */
-        .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 12%; } /* Статус */
-        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 15%; } /* Создан */
-        .documents-table th:nth-child(9), .documents-table td:nth-child(9) { width: 16%; } /* Действия */
+        .documents-table th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            color: #374151;
+            border-bottom: 2px solid #d1d5db;
+        }
         
-        /* Fix badge overflow in status column */
-        .documents-table td:nth-child(7) .badge {
-            max-width: 100%;
-            white-space: nowrap;
+        .documents-table td {
+            vertical-align: middle;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .documents-table tbody tr:hover {
+            background-color: #f9fafb;
+        }
+        
+        .documents-table th:nth-child(1), .documents-table td:nth-child(1) { width: 15%; } /* № документа */
+        .documents-table th:nth-child(2), .documents-table td:nth-child(2) { width: 12%; } /* Дата */
+        .documents-table th:nth-child(3), .documents-table td:nth-child(3) { width: 15%; } /* Тип/Клиент */
+        .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 10%; } /* Позиций */
+        .documents-table th:nth-child(5), .documents-table td:nth-child(5) { width: 12%; } /* Количество */
+        .documents-table th:nth-child(6), .documents-table td:nth-child(6) { width: 15%; } /* Склад/Сумма */
+        .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 13%; } /* Статус */
+        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 18%; } /* Действия */
+        
+        /* Badge styling for professional look */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 500;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        /* Button icon styling */
+        .btn-icon {
+            min-width: 32px;
+            height: 32px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-icon:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-icon + .btn-icon,
+        .btn-icon + form,
+        form + .btn-icon {
+            margin-left: 4px;
         }
     </style>
 </head>
@@ -347,14 +392,13 @@ try {
                             <th>Количество</th>
                             <th>Склад</th>
                             <th>Статус</th>
-                            <th>Создан</th>
                             <th>Действия</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($receiptDocuments)): ?>
                         <tr>
-                            <td colspan="9" class="text-center">Документы не найдены</td>
+                            <td colspan="8" class="text-center">Документы не найдены</td>
                         </tr>
                         <?php else: ?>
                             <?php foreach ($receiptDocuments as $doc): ?>
@@ -390,7 +434,6 @@ try {
                                         <?php echo $statusLabels[$doc['status']] ?? $doc['status']; ?>
                                     </span>
                                 </td>
-                                <td><?php echo htmlspecialchars($doc['created_by_name']); ?></td>
                                 <td>
                                     <a href="edit_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-warning" title="Редактировать">
                                         <i class="fas fa-edit"></i>
@@ -440,14 +483,13 @@ try {
                             <th>Количество</th>
                             <th>Сумма</th>
                             <th>Статус</th>
-                            <th>Создан</th>
                             <th>Действия</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($shipmentDocuments)): ?>
                         <tr>
-                            <td colspan="9" class="text-center">Документы не найдены</td>
+                            <td colspan="8" class="text-center">Документы не найдены</td>
                         </tr>
                         <?php else: ?>
                             <?php foreach ($shipmentDocuments as $doc): ?>
@@ -479,13 +521,9 @@ try {
                                         <?php echo $shipmentStatusLabels[$doc['status']] ?? $doc['status']; ?>
                                     </span>
                                 </td>
-                                <td><?php echo htmlspecialchars($doc['created_by_name']); ?></td>
                                 <td>
                                     <a href="print_shipment.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
                                         <i class="fas fa-print"></i>
-                                    </a>
-                                    <a href="edit_shipment.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-warning" title="Редактировать">
-                                        <i class="fas fa-edit"></i>
                                     </a>
                                 </td>
                             </tr>
