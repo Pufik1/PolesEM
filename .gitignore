@@ -1,1 +1,1 @@
-Nothing should be ignored based on the provided file changes, as they only include PHP source files (.php) which are not build artifacts, dependencies, or temporary files.
+Nothing should be ignored based on the provided file changes. The modified file 'polesie_system/modules/warehouse/documents.php' is a source code file that should be tracked in version control. No build artifacts, dependencies, or temporary files were detected in the changes.
