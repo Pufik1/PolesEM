@@ -24,7 +24,7 @@ try {
         SELECT sd.*, 
                u.full_name as created_by_name,
                o.order_number as order_number,
-               c.client_name as customer_name,
+               c.company_name as customer_name,
                wc.center_name as warehouse_name
         FROM shipment_documents sd
         LEFT JOIN users u ON sd.created_by = u.id
