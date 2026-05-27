@@ -815,60 +815,6 @@ try {
                                     <option value="<?php echo $cat['id']; ?>" <?php echo $filterCategory == $cat['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($cat['category_name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <select id="standardFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
-                                <option value="">Все стандарты</option>
-                                <?php 
-                                $standards = $pdo->query("SELECT DISTINCT standard FROM materials WHERE standard IS NOT NULL AND standard != '' ORDER BY standard")->fetchAll(PDO::FETCH_COLUMN);
-                                foreach ($standards as $std): ?>
-                                    <option value="<?php echo htmlspecialchars($std); ?>"><?php echo htmlspecialchars($std); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select id="gradeFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
-                                <option value="">Все марки</option>
-                                <?php 
-                                $grades = $pdo->query("SELECT DISTINCT grade_spec FROM materials WHERE grade_spec IS NOT NULL AND grade_spec != '' ORDER BY grade_spec")->fetchAll(PDO::FETCH_COLUMN);
-                                foreach ($grades as $grade): ?>
-                                    <option value="<?php echo htmlspecialchars($grade); ?>"><?php echo htmlspecialchars($grade); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select id="diameterFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
-                                <option value="">Любой диаметр</option>
-                                <option value="0-5">до 5 мм</option>
-                                <option value="5-10">5 - 10 мм</option>
-                                <option value="10-20">10 - 20 мм</option>
-                                <option value="20-50">20 - 50 мм</option>
-                                <option value="50+">более 50 мм</option>
-                            </select>
-                            <select id="thicknessFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
-                                <option value="">Любая толщина</option>
-                                <option value="0-0.5">до 0.5 мм</option>
-                                <option value="0.5-1">0.5 - 1 мм</option>
-                                <option value="1-3">1 - 3 мм</option>
-                                <option value="3-5">3 - 5 мм</option>
-                                <option value="5+">более 5 мм</option>
-                            </select>
-                            <select id="voltageRatingFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
-                                <option value="">Любое напряжение</option>
-                                <option value="220V">220 В</option>
-                                <option value="380V">380 В</option>
-                                <option value="660V">660 В</option>
-                                <option value="1000V">1000 В</option>
-                            </select>
-                            <select id="tempClassFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
-                                <option value="">Любой класс нагревостойкости</option>
-                                <option value="A">A (105°C)</option>
-                                <option value="E">E (120°C)</option>
-                                <option value="B">B (130°C)</option>
-                                <option value="F">F (155°C)</option>
-                                <option value="H">H (180°C)</option>
-                            </select>
-                            <select id="ipRatingFilter" onchange="applyFilters()" style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px;">
-                                <option value="">Любая степень защиты</option>
-                                <option value="IP44">IP44</option>
-                                <option value="IP54">IP54</option>
-                                <option value="IP55">IP55</option>
-                                <option value="IP65">IP65</option>
-                            </select>
                         <?php endif; ?>
                     </div>
                     
@@ -879,10 +825,6 @@ try {
                                     <th>Артикул</th>
                                     <th>Наименование</th>
                                     <th>Категория</th>
-                                    <?php if ($activeTab === 'materials'): ?>
-                                    <th>Зона</th>
-                                    <th>Ед.изм.</th>
-                                    <?php endif; ?>
                                     <th>Остаток</th>
                                     <th>Мин. запас</th>
                                     <th>Статус</th>
@@ -928,26 +870,15 @@ try {
                                 <?php else: ?>
                                     <?php if (empty($materials)): ?>
                                         <tr>
-                                            <td colspan="8" class="text-center">Материалы не найдены</td>
+                                            <td colspan="7" class="text-center">Материалы не найдены</td>
                                         </tr>
                                     <?php else: ?>
                                         <?php foreach ($materials as $material): ?>
                                             <tr data-material-id="<?php echo $material['id']; ?>" 
-                                                data-category="<?php echo $material['category_id'] ?? ''; ?>"
-                                                data-zone="<?php echo $material['storage_zone'] ?? ''; ?>"
-                                                data-unit="<?php echo $material['unit'] ?? ''; ?>"
-                                                data-standard="<?php echo htmlspecialchars($material['standard'] ?? ''); ?>"
-                                                data-grade="<?php echo htmlspecialchars($material['grade_spec'] ?? ''); ?>"
-                                                data-diameter="<?php echo $material['diameter'] ?? 0; ?>"
-                                                data-thickness="<?php echo $material['thickness'] ?? 0; ?>"
-                                                data-voltage-rating="<?php echo htmlspecialchars($material['voltage_rating'] ?? ''); ?>"
-                                                data-temp-class="<?php echo $material['temperature_class'] ?? ''; ?>"
-                                                data-ip-rating="<?php echo $material['ip_rating'] ?? ''; ?>">
+                                                data-category="<?php echo $material['category_id'] ?? ''; ?>">
                                                 <td><strong><?php echo htmlspecialchars($material['sku']); ?></strong></td>
                                                 <td><?php echo htmlspecialchars($material['name']); ?></td>
                                                 <td><?php echo htmlspecialchars($material['category_name'] ?? 'Не указана'); ?></td>
-                                                <td><?php echo htmlspecialchars($material['zone_name'] ?? '-'); ?></td>
-                                                <td><?php echo htmlspecialchars($material['unit']); ?></td>
                                                 <td><?php echo $material['current_stock']; ?> <?php echo htmlspecialchars($material['unit']); ?></td>
                                                 <td><?php echo $material['min_stock_level']; ?> <?php echo htmlspecialchars($material['unit']); ?></td>
                                                 <td>
@@ -1325,34 +1256,19 @@ try {
         
         function filterMaterialsTable(searchFilter) {
             const categoryFilter = document.getElementById('materialCategoryFilter').value;
-            const standardFilter = document.getElementById('standardFilter').value;
-            const gradeFilter = document.getElementById('gradeFilter').value;
-            const diameterFilter = document.getElementById('diameterFilter').value;
-            const thicknessFilter = document.getElementById('thicknessFilter').value;
-            const voltageRatingFilter = document.getElementById('voltageRatingFilter').value;
-            const tempClassFilter = document.getElementById('tempClassFilter').value;
-            const ipRatingFilter = document.getElementById('ipRatingFilter').value;
             
             const table = document.getElementById('inventoryTable');
             const tr = table.getElementsByTagName('tr');
             
             for (let i = 1; i < tr.length; i++) {
                 const row = tr[i];
-                const materialId = row.getAttribute('data-material-id');
                 const category = row.getAttribute('data-category');
-                const standard = row.getAttribute('data-standard');
-                const grade = row.getAttribute('data-grade');
-                const diameter = parseFloat(row.getAttribute('data-diameter')) || 0;
-                const thickness = parseFloat(row.getAttribute('data-thickness')) || 0;
-                const voltageRating = row.getAttribute('data-voltage-rating');
-                const tempClass = row.getAttribute('data-temp-class');
-                const ipRating = row.getAttribute('data-ip-rating');
                 
                 const tdSku = row.getElementsByTagName('td')[0];
                 const tdName = row.getElementsByTagName('td')[1];
                 const tdCategory = row.getElementsByTagName('td')[2];
-                const tdStock = row.getElementsByTagName('td')[5];
-                const tdMinStock = row.getElementsByTagName('td')[6];
+                const tdStock = row.getElementsByTagName('td')[3];
+                const tdMinStock = row.getElementsByTagName('td')[4];
                 
                 let showRow = true;
                 
@@ -1371,69 +1287,6 @@ try {
                 
                 // Category filter
                 if (showRow && categoryFilter && category !== categoryFilter) {
-                    showRow = false;
-                }
-                
-                // Standard filter
-                if (showRow && standardFilter && standard !== standardFilter) {
-                    showRow = false;
-                }
-                
-                // Grade filter
-                if (showRow && gradeFilter && grade !== gradeFilter) {
-                    showRow = false;
-                }
-                
-                // Diameter filter
-                if (showRow && diameterFilter !== '' && diameterFilter !== 'all') {
-                    if (diameterFilter.endsWith('+')) {
-                        const minDiameter = parseFloat(diameterFilter);
-                        if (diameter <= minDiameter) {
-                            showRow = false;
-                        }
-                    } else {
-                        const parts = diameterFilter.split('-');
-                        if (parts.length === 2) {
-                            const minDiameter = parseFloat(parts[0]);
-                            const maxDiameter = parseFloat(parts[1]);
-                            if (diameter < minDiameter || diameter > maxDiameter) {
-                                showRow = false;
-                            }
-                        }
-                    }
-                }
-                
-                // Thickness filter
-                if (showRow && thicknessFilter !== '' && thicknessFilter !== 'all') {
-                    if (thicknessFilter.endsWith('+')) {
-                        const minThickness = parseFloat(thicknessFilter);
-                        if (thickness <= minThickness) {
-                            showRow = false;
-                        }
-                    } else {
-                        const parts = thicknessFilter.split('-');
-                        if (parts.length === 2) {
-                            const minThickness = parseFloat(parts[0]);
-                            const maxThickness = parseFloat(parts[1]);
-                            if (thickness < minThickness || thickness > maxThickness) {
-                                showRow = false;
-                            }
-                        }
-                    }
-                }
-                
-                // Voltage rating filter
-                if (showRow && voltageRatingFilter && voltageRating !== voltageRatingFilter) {
-                    showRow = false;
-                }
-                
-                // Temperature class filter
-                if (showRow && tempClassFilter && tempClass !== tempClassFilter) {
-                    showRow = false;
-                }
-                
-                // IP rating filter
-                if (showRow && ipRatingFilter && ipRating !== ipRatingFilter) {
                     showRow = false;
                 }
                 
