@@ -79,6 +79,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
     }
+    
+    if ($_POST['action'] === 'delete_writeoff' && hasRole(['admin', 'director', 'manager'])) {
+        $writeoffId = (int)($_POST['writeoff_id'] ?? 0);
+        if ($writeoffId > 0) {
+            try {
+                $stmt = $pdo->prepare("SELECT status FROM material_writeoff_documents WHERE id = :id");
+                $stmt->execute([':id' => $writeoffId]);
+                $doc = $stmt->fetch();
+                
+                if ($doc) {
+                    if ($doc['status'] === 'posted') {
+                        $error = 'Нельзя удалить проведенный документ. Сначала отмените проведение.';
+                    } else {
+                        $stmt = $pdo->prepare("DELETE FROM material_writeoff_items WHERE writeoff_id = :id");
+                        $stmt->execute([':id' => $writeoffId]);
+                        
+                        $stmt = $pdo->prepare("DELETE FROM material_writeoff_documents WHERE id = :id");
+                        $stmt->execute([':id' => $writeoffId]);
+                        
+                        logActivity($pdo, $_SESSION['user_id'], 'Удаление акта списания', 'material_writeoff_documents', $writeoffId);
+                        $success = 'Документ успешно удален';
+                    }
+                } else {
+                    $error = 'Документ не найден';
+                }
+            } catch (Exception $e) {
+                $error = 'Ошибка при удалении: ' . $e->getMessage();
+            }
+        }
+    }
 }
 
 // Get filter parameters
@@ -162,6 +192,41 @@ try {
         $shipmentDocuments = $stmt->fetchAll();
     } else {
         $shipmentDocuments = [];
+    }
+    
+    // Build query for write-off documents
+    $writeoffQuery = "
+        SELECT wd.*, 
+               wc.center_name as warehouse_name,
+               u.full_name as created_by_name
+        FROM material_writeoff_documents wd
+        LEFT JOIN work_centers wc ON wd.warehouse_id = wc.id
+        LEFT JOIN users u ON wd.created_by = u.id
+        WHERE 1=1
+    ";
+    $writeoffParams = [];
+    
+    if ($filterType === 'writeoff' || $filterType === 'all') {
+        if ($filterStatus !== 'all') {
+            $writeoffQuery .= " AND wd.status = :status";
+            $writeoffParams[':status'] = $filterStatus;
+        }
+        if (!empty($filterDateFrom)) {
+            $writeoffQuery .= " AND wd.document_date >= :date_from";
+            $writeoffParams[':date_from'] = $filterDateFrom;
+        }
+        if (!empty($filterDateTo)) {
+            $writeoffQuery .= " AND wd.document_date <= :date_to";
+            $writeoffParams[':date_to'] = $filterDateTo;
+        }
+        
+        $writeoffQuery .= " ORDER BY wd.created_at DESC LIMIT 50";
+        
+        $stmt = $pdo->prepare($writeoffQuery);
+        $stmt->execute($writeoffParams);
+        $writeoffDocuments = $stmt->fetchAll();
+    } else {
+        $writeoffDocuments = [];
     }
     
 } catch (Exception $e) {
@@ -378,6 +443,7 @@ try {
                                     <option value="all" <?php echo $filterType === 'all' ? 'selected' : ''; ?>>Все документы</option>
                                     <option value="receipt" <?php echo $filterType === 'receipt' ? 'selected' : ''; ?>>Прием на склад</option>
                                     <option value="shipment" <?php echo $filterType === 'shipment' ? 'selected' : ''; ?>>Отгрузка</option>
+                                    <option value="writeoff" <?php echo $filterType === 'writeoff' ? 'selected' : ''; ?>>Списание</option>
                                 </select>
                             </div>
                             
@@ -585,6 +651,98 @@ try {
                                         <form method="POST" action="" style="display: inline;" onsubmit="return confirm('Вы уверены, что хотите удалить этот документ?');">
                                             <input type="hidden" name="action" value="delete_shipment">
                                             <input type="hidden" name="shipment_id" value="<?php echo $doc['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-icon btn-danger" title="Удалить">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <!-- Write-off Documents -->
+        <?php if ($filterType === 'all' || $filterType === 'writeoff'): ?>
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <i class="fas fa-trash-alt" style="color: #dc3545;"></i> Акты списания
+                </h2>
+                <a href="../warehouse/index.php#writeoff" class="btn btn-sm btn-danger" style="float: right;">
+                    <i class="fas fa-plus"></i> Создать списание
+                </a>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="data-table documents-table">
+                    <thead>
+                        <tr>
+                            <th>№ документа</th>
+                            <th>Дата</th>
+                            <th>Тип</th>
+                            <th>Позиций</th>
+                            <th>Количество</th>
+                            <th>Сумма</th>
+                            <th>Статус</th>
+                            <th>Кем создан</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($writeoffDocuments)): ?>
+                        <tr>
+                            <td colspan="9" class="text-center">Документы не найдены</td>
+                        </tr>
+                        <?php else: ?>
+                            <?php foreach ($writeoffDocuments as $doc): ?>
+                            <tr>
+                                <td><strong><?php echo htmlspecialchars($doc['document_number']); ?></strong></td>
+                                <td><?php echo date('d.m.Y', strtotime($doc['document_date'])); ?></td>
+                                <td>
+                                    <?php if ($doc['writeoff_type'] === 'material'): ?>
+                                        <span class="badge badge-warning">Материалы</span>
+                                    <?php else: ?>
+                                        <span class="badge badge-danger">Продукция</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo $doc['total_items']; ?></td>
+                                <td><?php echo $doc['total_quantity']; ?></td>
+                                <td><?php echo number_format($doc['total_cost'] ?? 0, 2); ?> BYN</td>
+                                <td>
+                                    <?php
+                                    $writeoffStatusBadges = [
+                                        'draft' => 'badge-secondary',
+                                        'confirmed' => 'badge-info',
+                                        'posted' => 'badge-success',
+                                        'cancelled' => 'badge-danger'
+                                    ];
+                                    $writeoffStatusLabels = [
+                                        'draft' => 'Черновик',
+                                        'confirmed' => 'Подтвержден',
+                                        'posted' => 'Проведен',
+                                        'cancelled' => 'Отменен'
+                                    ];
+                                    ?>
+                                    <span class="badge <?php echo $writeoffStatusBadges[$doc['status']] ?? 'badge-secondary'; ?>">
+                                        <?php echo $writeoffStatusLabels[$doc['status']] ?? $doc['status']; ?>
+                                    </span>
+                                </td>
+                                <td><?php echo htmlspecialchars($doc['created_by_name'] ?? '-'); ?></td>
+                                <td>
+                                    <div class="actions-cell">
+                                        <a href="print_writeoff.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
+                                            <i class="fas fa-print"></i>
+                                        </a>
+                                        <?php if (hasRole(['admin', 'director', 'manager'])): ?>
+                                        <form method="POST" action="" style="display: inline;" onsubmit="return confirm('Вы уверены, что хотите удалить этот документ?');">
+                                            <input type="hidden" name="action" value="delete_writeoff">
+                                            <input type="hidden" name="writeoff_id" value="<?php echo $doc['id']; ?>">
                                             <button type="submit" class="btn btn-sm btn-icon btn-danger" title="Удалить">
                                                 <i class="fas fa-trash"></i>
                                             </button>

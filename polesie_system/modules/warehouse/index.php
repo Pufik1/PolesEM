@@ -355,11 +355,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Создаем документ списания
             $stmt = $pdo->prepare("INSERT INTO material_writeoff_documents 
-                                   (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, status, reason, created_by) 
-                                   VALUES (:document_number, CURRENT_DATE, 'material', 1, 1, :quantity, 'confirmed', :reason, :user_id)");
+                                   (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, total_cost, status, reason, created_by) 
+                                   VALUES (:document_number, CURRENT_DATE, 'material', 1, 1, :quantity, :total_cost, 'confirmed', :reason, :user_id)");
             $stmt->execute([
                 ':document_number' => $document_number,
                 ':quantity' => $quantity,
+                ':total_cost' => $line_total,
                 ':reason' => $notes,
                 ':user_id' => $_SESSION['user_id']
             ]);
@@ -522,11 +523,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Создаем документ списания
             $stmt = $pdo->prepare("INSERT INTO material_writeoff_documents 
-                                   (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, status, reason, created_by) 
-                                   VALUES (:document_number, CURRENT_DATE, 'product', 1, 1, :quantity, 'confirmed', :reason, :user_id)");
+                                   (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, total_cost, status, reason, created_by) 
+                                   VALUES (:document_number, CURRENT_DATE, 'product', 1, 1, :quantity, :total_cost, 'confirmed', :reason, :user_id)");
             $stmt->execute([
                 ':document_number' => $document_number,
                 ':quantity' => $quantity,
+                ':total_cost' => $line_total,
                 ':reason' => $notes,
                 ':user_id' => $_SESSION['user_id']
             ]);
@@ -603,11 +605,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // Создаем документ списания
                 $stmt = $pdo->prepare("INSERT INTO material_writeoff_documents 
-                                       (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, status, reason, created_by) 
-                                       VALUES (:document_number, CURRENT_DATE, 'material', 1, 1, :quantity, 'confirmed', :reason, :user_id)");
+                                       (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, total_cost, status, reason, created_by) 
+                                       VALUES (:document_number, CURRENT_DATE, 'material', 1, 1, :quantity, :total_cost, 'confirmed', :reason, :user_id)");
                 $stmt->execute([
                     ':document_number' => $document_number,
                     ':quantity' => $quantity,
+                    ':total_cost' => $line_total,
                     ':reason' => $notes,
                     ':user_id' => $_SESSION['user_id']
                 ]);
