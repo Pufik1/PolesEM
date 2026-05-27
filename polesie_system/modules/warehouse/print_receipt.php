@@ -283,7 +283,7 @@ try {
                 <td class="num"><?php echo $index + 1; ?></td>
                 <td><?php echo htmlspecialchars($item['item_name']); ?></td>
                 <td><?php echo htmlspecialchars($item['item_sku'] ?? ''); ?></td>
-                <td class="num"><strong><?php echo number_format($item['quantity_received'], 0); ?></strong></td>
+                <td class="num"><strong><?php echo number_format($item['quantity_received'], 0); ?> шт</strong></td>
                 <td><?php echo htmlspecialchars($item['batch_number'] ?? '-'); ?></td>
                 <td><?php echo htmlspecialchars($item['storage_zone'] ?? '-'); ?></td>
             </tr>
@@ -292,7 +292,7 @@ try {
         <tfoot>
             <tr>
                 <td colspan="3" style="text-align: right;"><strong>Итого:</strong></td>
-                <td class="num"><strong><?php echo number_format($totalQuantity, 0); ?></strong></td>
+                <td class="num"><strong><?php echo number_format($totalQuantity, 0); ?> шт</strong></td>
                 <td colspan="2"></td>
             </tr>
         </tfoot>

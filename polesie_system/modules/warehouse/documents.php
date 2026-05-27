@@ -740,6 +740,9 @@ try {
                                             <i class="fas fa-print"></i>
                                         </a>
                                         <?php if (hasRole(['admin', 'director', 'manager'])): ?>
+                                        <a href="edit_writeoff.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-warning" title="Редактировать">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
                                         <form method="POST" action="" style="display: inline;" onsubmit="return confirm('Вы уверены, что хотите удалить этот документ?');">
                                             <input type="hidden" name="action" value="delete_writeoff">
                                             <input type="hidden" name="writeoff_id" value="<?php echo $doc['id']; ?>">
