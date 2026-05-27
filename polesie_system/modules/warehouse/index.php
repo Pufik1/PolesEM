@@ -260,10 +260,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Добавляем операцию расхода со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
                                    (operation_type, product_id, quantity, warehouse_from, user_id, document_number, notes, shipment_id) 
-                                   VALUES ('outcome', :product_id, :quantity, 1, :user_id, :document_number, :notes, :shipment_id)");
+                                   VALUES ('outcome', :product_id, :quantity, :warehouse_from, :user_id, :document_number, :notes, :shipment_id)");
             $stmt->execute([
                 ':product_id' => $product_id,
                 ':quantity' => $quantity,
+                ':warehouse_from' => 1,
                 ':user_id' => $_SESSION['user_id'],
                 ':document_number' => $document_number,
                 ':notes' => $notes,
