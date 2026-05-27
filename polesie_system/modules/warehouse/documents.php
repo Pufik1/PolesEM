@@ -62,10 +62,12 @@ try {
     $receiptQuery = "
         SELECT grd.*, 
                p.production_number as production_order_number,
-               wc.center_name as warehouse_name
+               wc.center_name as warehouse_name,
+               u.full_name as created_by_name
         FROM goods_receipt_documents grd
         LEFT JOIN production_orders p ON grd.production_order_id = p.id
         LEFT JOIN work_centers wc ON grd.warehouse_id = wc.id
+        LEFT JOIN users u ON grd.created_by = u.id
         WHERE 1=1
     ";
     $receiptParams = [];
@@ -98,11 +100,13 @@ try {
         SELECT sd.*, 
                o.order_number as order_number,
                c.company_name as customer_name,
-               wc.center_name as warehouse_name
+               wc.center_name as warehouse_name,
+               u.full_name as created_by_name
         FROM shipment_documents sd
         LEFT JOIN orders o ON sd.order_id = o.id
         LEFT JOIN clients c ON sd.customer_id = c.id
         LEFT JOIN work_centers wc ON sd.warehouse_from_id = wc.id
+        LEFT JOIN users u ON sd.created_by = u.id
         WHERE 1=1
     ";
     $shipmentParams = [];
@@ -392,13 +396,14 @@ try {
                             <th>Количество</th>
                             <th>Склад</th>
                             <th>Статус</th>
+                            <th>Кем создан</th>
                             <th>Действия</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($receiptDocuments)): ?>
                         <tr>
-                            <td colspan="8" class="text-center">Документы не найдены</td>
+                            <td colspan="9" class="text-center">Документы не найдены</td>
                         </tr>
                         <?php else: ?>
                             <?php foreach ($receiptDocuments as $doc): ?>
@@ -434,6 +439,7 @@ try {
                                         <?php echo $statusLabels[$doc['status']] ?? $doc['status']; ?>
                                     </span>
                                 </td>
+                                <td><?php echo htmlspecialchars($doc['created_by_name'] ?? '-'); ?></td>
                                 <td>
                                     <a href="edit_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-warning" title="Редактировать">
                                         <i class="fas fa-edit"></i>
@@ -483,13 +489,14 @@ try {
                             <th>Количество</th>
                             <th>Сумма</th>
                             <th>Статус</th>
+                            <th>Кем создан</th>
                             <th>Действия</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($shipmentDocuments)): ?>
                         <tr>
-                            <td colspan="8" class="text-center">Документы не найдены</td>
+                            <td colspan="9" class="text-center">Документы не найдены</td>
                         </tr>
                         <?php else: ?>
                             <?php foreach ($shipmentDocuments as $doc): ?>
@@ -521,6 +528,7 @@ try {
                                         <?php echo $shipmentStatusLabels[$doc['status']] ?? $doc['status']; ?>
                                     </span>
                                 </td>
+                                <td><?php echo htmlspecialchars($doc['created_by_name'] ?? '-'); ?></td>
                                 <td>
                                     <a href="print_shipment.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
                                         <i class="fas fa-print"></i>

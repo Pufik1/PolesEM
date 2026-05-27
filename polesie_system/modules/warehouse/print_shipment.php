@@ -22,12 +22,10 @@ try {
     // Get shipment document data
     $stmt = $pdo->prepare("
         SELECT sd.*, 
-               u.full_name as created_by_name,
                o.order_number as order_number,
                c.company_name as customer_name,
                wc.center_name as warehouse_name
         FROM shipment_documents sd
-        LEFT JOIN users u ON sd.created_by = u.id
         LEFT JOIN orders o ON sd.order_id = o.id
         LEFT JOIN clients c ON sd.customer_id = c.id
         LEFT JOIN work_centers wc ON sd.warehouse_from_id = wc.id
