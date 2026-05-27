@@ -107,8 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $stmt = $pdo->prepare("
                     INSERT INTO goods_receipt_items 
-                    (receipt_id, item_type, item_name, item_sku, item_unit, quantity_received, batch_number, storage_zone)
-                    VALUES (:receipt_id, 'product', :item_name, :item_sku, :item_unit, :quantity_received, :batch_number, :storage_zone)
+                    (receipt_id, item_type, product_id, item_name, item_sku, item_unit, quantity_received, batch_number, storage_zone)
+                    VALUES (:receipt_id, 'product', NULL, :item_name, :item_sku, :item_unit, :quantity_received, :batch_number, :storage_zone)
                 ");
                 $stmt->execute([
                     ':receipt_id' => $receiptId, ':item_name' => $itemNames[$index],
