@@ -29,7 +29,7 @@ try {
     $receiptQuery = "
         SELECT grd.*, 
                u.full_name as created_by_name,
-               p.order_number as production_order_number,
+               p.production_number as production_order_number,
                wc.center_name as warehouse_name
         FROM goods_receipt_documents grd
         LEFT JOIN users u ON grd.created_by = u.id
