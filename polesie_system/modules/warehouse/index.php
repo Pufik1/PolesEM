@@ -417,7 +417,7 @@ try {
     
     // Materials query with filters
     $materialQuery = "
-        SELECT m.*, mc.category_name, wz.zone_name
+        SELECT m.*, mc.category_name, mc.storage_zone as zone_code, wz.zone_name
         FROM materials m
         LEFT JOIN material_categories mc ON m.category_id = mc.id
         LEFT JOIN warehouse_zones wz ON mc.storage_zone = wz.zone_code
