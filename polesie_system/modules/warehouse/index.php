@@ -1353,7 +1353,7 @@ try {
                 <button class="modal-close">&times;</button>
             </div>
             <form method="POST" action="">
-                <input type="hidden" name="action" value="outcome">
+                <input type="hidden" name="action" value="outcome_product">
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="outcome_product_id">Товар *</label>
