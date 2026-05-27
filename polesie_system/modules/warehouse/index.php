@@ -5,6 +5,26 @@
  * Separated sections for Materials and Finished Products with advanced filtering
  */
 
+// Включаем отображение ошибок для отладки
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('log_errors', 1);
+ini_set('error_log', '../../logs/php_error.log');
+
+// Обработчик фатальных ошибок
+register_shutdown_function(function() {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        echo "<pre style='background:#fdd;padding:20px;border:1px solid red;'>";
+        echo "<h2 style='color:red;'>Фатальная ошибка PHP!</h2>";
+        echo "<strong>Тип ошибки:</strong> " . $error['type'] . "<br>";
+        echo "<strong>Сообщение:</strong> " . $error['message'] . "<br>";
+        echo "<strong>Файл:</strong> " . $error['file'] . "<br>";
+        echo "<strong>Строка:</strong> " . $error['line'] . "<br>";
+        echo "</pre>";
+    }
+});
+
 require_once '../../includes/config.php';
 
 // Check if user is logged in
