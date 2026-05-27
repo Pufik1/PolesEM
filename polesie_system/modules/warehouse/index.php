@@ -320,12 +320,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $writeoff_id = $pdo->lastInsertId();
             
             // Получаем данные о материале для позиции
-            $stmt = $pdo->prepare("SELECT name, unit, cost_price FROM materials WHERE id = :material_id");
+            $stmt = $pdo->prepare("SELECT name, unit, price_per_unit FROM materials WHERE id = :material_id");
             $stmt->execute([':material_id' => $material_id]);
             $materialData = $stmt->fetch();
             
             // Добавляем позицию в документ списания
-            $line_total = $materialData['cost_price'] * $quantity;
+            $line_total = $materialData['price_per_unit'] * $quantity;
             $stmt = $pdo->prepare("INSERT INTO material_writeoff_items 
                                    (writeoff_id, item_type, material_id, item_name, item_sku, item_unit, quantity_written, unit_cost, line_total) 
                                    VALUES (:writeoff_id, 'material', :material_id, :item_name, :item_sku, :item_unit, :quantity, :unit_cost, :line_total)");
@@ -336,7 +336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':item_sku' => $materialData['unit'],
                 ':item_unit' => $materialData['unit'],
                 ':quantity' => $quantity,
-                ':unit_cost' => $materialData['cost_price'],
+                ':unit_cost' => $materialData['price_per_unit'],
                 ':line_total' => $line_total
             ]);
             
@@ -568,12 +568,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $writeoff_id = $pdo->lastInsertId();
             
             // Получаем данные о материале для позиции
-            $stmt = $pdo->prepare("SELECT name, unit, cost_price FROM materials WHERE id = :material_id");
+            $stmt = $pdo->prepare("SELECT name, unit, price_per_unit FROM materials WHERE id = :material_id");
             $stmt->execute([':material_id' => $material_id]);
             $materialData = $stmt->fetch();
             
             // Добавляем позицию в документ списания
-            $line_total = $materialData['cost_price'] * $quantity;
+            $line_total = $materialData['price_per_unit'] * $quantity;
             $stmt = $pdo->prepare("INSERT INTO material_writeoff_items 
                                    (writeoff_id, item_type, material_id, item_name, item_sku, item_unit, quantity_written, unit_cost, line_total) 
                                    VALUES (:writeoff_id, 'material', :material_id, :item_name, :item_sku, :item_unit, :quantity, :unit_cost, :line_total)");
@@ -584,7 +584,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':item_sku' => $materialData['unit'],
                 ':item_unit' => $materialData['unit'],
                 ':quantity' => $quantity,
-                ':unit_cost' => $materialData['cost_price'],
+                ':unit_cost' => $materialData['price_per_unit'],
                 ':line_total' => $line_total
             ]);
             
