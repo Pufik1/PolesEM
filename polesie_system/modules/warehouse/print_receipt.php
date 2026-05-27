@@ -22,11 +22,9 @@ try {
     // Get receipt document data
     $stmt = $pdo->prepare("
         SELECT grd.*, 
-               u.full_name as created_by_name,
                p.production_number as production_order_number,
                wc.center_name as warehouse_name
         FROM goods_receipt_documents grd
-        LEFT JOIN users u ON grd.created_by = u.id
         LEFT JOIN production_orders p ON grd.production_order_id = p.id
         LEFT JOIN work_centers wc ON grd.warehouse_id = wc.id
         WHERE grd.id = :id

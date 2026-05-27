@@ -22,10 +22,8 @@ try {
     // Get write-off document data
     $stmt = $pdo->prepare("
         SELECT wd.*, 
-               u.full_name as created_by_name,
                wc.center_name as warehouse_name
         FROM material_writeoff_documents wd
-        LEFT JOIN users u ON wd.created_by = u.id
         LEFT JOIN work_centers wc ON wd.warehouse_id = wc.id
         WHERE wd.id = :id
     ");
