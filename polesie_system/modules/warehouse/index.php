@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = 'Готовая продукция успешно оприходована. Документ: ' . htmlspecialchars($document_number);
             
         } elseif ($action === 'income_material') {
-            // Приход материалов на склад
+            // Приход материалов на склад с созданием документа приема
             $material_id = (int)$_POST['material_id'];
             $quantity = (float)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
@@ -107,12 +107,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $expiry_date = !empty($_POST['expiry_date']) ? $_POST['expiry_date'] : null;
             $notes = trim($_POST['notes']);
             
+            // Генерируем номер акта приема если не указан
+            if (empty($document_number)) {
+                $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(receipt_number, '-', -1) AS UNSIGNED)) as max_num FROM goods_receipt_documents WHERE receipt_number LIKE 'ПР-М-%'");
+                $result = $stmt->fetch();
+                $next_num = ($result['max_num'] ?? 0) + 1;
+                $document_number = 'ПР-М-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
+            }
+            
             $pdo->beginTransaction();
             
-            // Добавляем операцию прихода материала
+            // Создаем документ приема
+            $stmt = $pdo->prepare("INSERT INTO goods_receipt_documents 
+                                   (receipt_number, receipt_date, receipt_type, warehouse_id, total_items, total_quantity, status, notes, created_by) 
+                                   VALUES (:receipt_number, CURRENT_DATE, 'from_supplier', NULL, 1, 1, :quantity, 'confirmed', :notes, :user_id)");
+            $stmt->execute([
+                ':receipt_number' => $document_number,
+                ':quantity' => $quantity,
+                ':notes' => $notes,
+                ':user_id' => $_SESSION['user_id']
+            ]);
+            $receipt_id = $pdo->lastInsertId();
+            
+            // Получаем данные о материале для позиции
+            $stmt = $pdo->prepare("SELECT material_name, unit, cost_price FROM materials WHERE id = :material_id");
+            $stmt->execute([':material_id' => $material_id]);
+            $materialData = $stmt->fetch();
+            
+            // Добавляем позицию в документ приема
+            $stmt = $pdo->prepare("INSERT INTO goods_receipt_items 
+                                   (receipt_id, item_type, product_id, item_name, item_sku, item_unit, quantity_received, batch_number, storage_zone) 
+                                   VALUES (:receipt_id, 'material', NULL, :item_name, :item_sku, :item_unit, :quantity, :batch_number, 'А1')");
+            $stmt->execute([
+                ':receipt_id' => $receipt_id,
+                ':item_name' => $materialData['material_name'],
+                ':item_sku' => $materialData['unit'],
+                ':item_unit' => $materialData['unit'],
+                ':quantity' => $quantity,
+                ':batch_number' => $batch_number
+            ]);
+            
+            // Добавляем операцию прихода материала со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, material_id, quantity, warehouse_to, user_id, document_number, batch_number, quality_cert, expiry_date, notes) 
-                                   VALUES ('income', :material_id, :quantity, 1, :user_id, :document_number, :batch_number, :quality_cert, :expiry_date, :notes)");
+                                   (operation_type, material_id, quantity, warehouse_to, user_id, document_number, batch_number, quality_cert, expiry_date, notes, receipt_id) 
+                                   VALUES ('income', :material_id, :quantity, 1, :user_id, :document_number, :batch_number, :quality_cert, :expiry_date, :notes, :receipt_id)");
             $stmt->execute([
                 ':material_id' => $material_id,
                 ':quantity' => $quantity,
@@ -121,7 +159,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':batch_number' => $batch_number,
                 ':quality_cert' => $quality_cert,
                 ':expiry_date' => $expiry_date,
-                ':notes' => $notes
+                ':notes' => $notes,
+                ':receipt_id' => $receipt_id
             ]);
             
             // Добавляем запись в движения материалов
@@ -146,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'Приход материалов', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Материалы успешно оприходованы';
+            $success = 'Материалы успешно оприходованы. Документ: ' . htmlspecialchars($document_number);
             
         } elseif ($action === 'outcome_product') {
             // Расход готовой продукции со склада (отгрузка) с созданием накладной
@@ -240,7 +279,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = 'Готовая продукция успешно отгружена. Документ: ' . htmlspecialchars($document_number);
             
         } elseif ($action === 'outcome_material') {
-            // Расход материалов со склада (в производство)
+            // Расход материалов со склада (в производство) с созданием документа списания
             $material_id = (int)$_POST['material_id'];
             $quantity = (float)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
@@ -256,18 +295,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Недостаточно материала на складе');
             }
             
+            // Генерируем номер акта списания если не указан
+            if (empty($document_number)) {
+                $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(document_number, '-', -1) AS UNSIGNED)) as max_num FROM material_writeoff_documents WHERE document_number LIKE 'СП-М-%'");
+                $result = $stmt->fetch();
+                $next_num = ($result['max_num'] ?? 0) + 1;
+                $document_number = 'СП-М-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
+            }
+            
             $pdo->beginTransaction();
             
-            // Добавляем операцию расхода материала
+            // Создаем документ списания
+            $stmt = $pdo->prepare("INSERT INTO material_writeoff_documents 
+                                   (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, status, reason, created_by) 
+                                   VALUES (:document_number, CURRENT_DATE, 'material', 1, 1, :quantity, 'confirmed', :reason, :user_id)");
+            $stmt->execute([
+                ':document_number' => $document_number,
+                ':quantity' => $quantity,
+                ':reason' => $notes,
+                ':user_id' => $_SESSION['user_id']
+            ]);
+            $writeoff_id = $pdo->lastInsertId();
+            
+            // Получаем данные о материале для позиции
+            $stmt = $pdo->prepare("SELECT material_name, unit, cost_price FROM materials WHERE id = :material_id");
+            $stmt->execute([':material_id' => $material_id]);
+            $materialData = $stmt->fetch();
+            
+            // Добавляем позицию в документ списания
+            $line_total = $materialData['cost_price'] * $quantity;
+            $stmt = $pdo->prepare("INSERT INTO material_writeoff_items 
+                                   (writeoff_id, item_type, material_id, item_name, item_sku, item_unit, quantity_written, unit_cost, line_total) 
+                                   VALUES (:writeoff_id, 'material', :material_id, :item_name, :item_sku, :item_unit, :quantity, :unit_cost, :line_total)");
+            $stmt->execute([
+                ':writeoff_id' => $writeoff_id,
+                ':material_id' => $material_id,
+                ':item_name' => $materialData['material_name'],
+                ':item_sku' => $materialData['unit'],
+                ':item_unit' => $materialData['unit'],
+                ':quantity' => $quantity,
+                ':unit_cost' => $materialData['cost_price'],
+                ':line_total' => $line_total
+            ]);
+            
+            // Добавляем операцию расхода материала со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, material_id, quantity, warehouse_from, user_id, document_number, notes) 
-                                   VALUES ('outcome', :material_id, :quantity, 1, :user_id, :document_number, :notes)");
+                                   (operation_type, material_id, quantity, warehouse_from, user_id, document_number, notes, writeoff_id) 
+                                   VALUES ('outcome', :material_id, :quantity, 1, :user_id, :document_number, :notes, :writeoff_id)");
             $stmt->execute([
                 ':material_id' => $material_id,
                 ':quantity' => $quantity,
                 ':user_id' => $_SESSION['user_id'],
                 ':document_number' => $document_number,
-                ':notes' => $notes
+                ':notes' => $notes,
+                ':writeoff_id' => $writeoff_id
             ]);
             
             // Добавляем запись в движения материалов
@@ -292,7 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'Расход материалов', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Материалы успешно списаны';
+            $success = 'Материалы успешно выданы в производство. Документ: ' . htmlspecialchars($document_number);
             
         } elseif ($action === 'transfer_product') {
             // Перемещение готовой продукции между складами
@@ -365,7 +446,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = 'Материалы успешно перемещены';
             
         } elseif ($action === 'write_off_product') {
-            // Списание готовой продукции
+            // Списание готовой продукции с созданием документа акта списания
             $product_id = (int)$_POST['product_id'];
             $quantity = (int)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
@@ -380,17 +461,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Недостаточно товара на складе');
             }
             
+            // Генерируем номер акта списания если не указан
+            if (empty($document_number)) {
+                $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(document_number, '-', -1) AS UNSIGNED)) as max_num FROM material_writeoff_documents WHERE document_number LIKE 'СП-П-%'");
+                $result = $stmt->fetch();
+                $next_num = ($result['max_num'] ?? 0) + 1;
+                $document_number = 'СП-П-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
+            }
+            
             $pdo->beginTransaction();
             
+            // Создаем документ списания
+            $stmt = $pdo->prepare("INSERT INTO material_writeoff_documents 
+                                   (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, status, reason, created_by) 
+                                   VALUES (:document_number, CURRENT_DATE, 'product', 1, 1, :quantity, 'confirmed', :reason, :user_id)");
+            $stmt->execute([
+                ':document_number' => $document_number,
+                ':quantity' => $quantity,
+                ':reason' => $notes,
+                ':user_id' => $_SESSION['user_id']
+            ]);
+            $writeoff_id = $pdo->lastInsertId();
+            
+            // Получаем данные о продукте для позиции
+            $stmt = $pdo->prepare("SELECT product_name, product_code, base_price FROM products WHERE id = :product_id");
+            $stmt->execute([':product_id' => $product_id]);
+            $productData = $stmt->fetch();
+            
+            // Добавляем позицию в документ списания
+            $line_total = $productData['base_price'] * $quantity;
+            $stmt = $pdo->prepare("INSERT INTO material_writeoff_items 
+                                   (writeoff_id, item_type, product_id, item_name, item_sku, item_unit, quantity_written, unit_cost, line_total) 
+                                   VALUES (:writeoff_id, 'product', :product_id, :item_name, :item_sku, 'шт', :quantity, :unit_cost, :line_total)");
+            $stmt->execute([
+                ':writeoff_id' => $writeoff_id,
+                ':product_id' => $product_id,
+                ':item_name' => $productData['product_name'],
+                ':item_sku' => $productData['product_code'],
+                ':quantity' => $quantity,
+                ':unit_cost' => $productData['base_price'],
+                ':line_total' => $line_total
+            ]);
+            
+            // Добавляем операцию списания со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, product_id, quantity, warehouse_from, user_id, document_number, notes) 
-                                   VALUES ('write_off', :product_id, :quantity, 1, :user_id, :document_number, :notes)");
+                                   (operation_type, product_id, quantity, warehouse_from, user_id, document_number, notes, writeoff_id) 
+                                   VALUES ('write_off', :product_id, :quantity, 1, :user_id, :document_number, :notes, :writeoff_id)");
             $stmt->execute([
                 ':product_id' => $product_id,
                 ':quantity' => $quantity,
                 ':user_id' => $_SESSION['user_id'],
                 ':document_number' => $document_number,
-                ':notes' => $notes
+                ':notes' => $notes,
+                ':writeoff_id' => $writeoff_id
             ]);
             
             // Обновляем остаток товара
@@ -402,10 +525,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'Списание готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Готовая продукция успешно списана';
+            $success = 'Готовая продукция успешно списана. Документ: ' . htmlspecialchars($document_number);
             
         } elseif ($action === 'write_off_material') {
-            // Списание материалов
+            // Списание материалов с созданием документа акта списания
             $material_id = (int)$_POST['material_id'];
             $quantity = (float)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
@@ -420,17 +543,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Недостаточно материала на складе');
             }
             
+            // Генерируем номер акта списания если не указан
+            if (empty($document_number)) {
+                $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(document_number, '-', -1) AS UNSIGNED)) as max_num FROM material_writeoff_documents WHERE document_number LIKE 'СП-М-%'");
+                $result = $stmt->fetch();
+                $next_num = ($result['max_num'] ?? 0) + 1;
+                $document_number = 'СП-М-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
+            }
+            
             $pdo->beginTransaction();
             
+            // Создаем документ списания
+            $stmt = $pdo->prepare("INSERT INTO material_writeoff_documents 
+                                   (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, status, reason, created_by) 
+                                   VALUES (:document_number, CURRENT_DATE, 'material', 1, 1, :quantity, 'confirmed', :reason, :user_id)");
+            $stmt->execute([
+                ':document_number' => $document_number,
+                ':quantity' => $quantity,
+                ':reason' => $notes,
+                ':user_id' => $_SESSION['user_id']
+            ]);
+            $writeoff_id = $pdo->lastInsertId();
+            
+            // Получаем данные о материале для позиции
+            $stmt = $pdo->prepare("SELECT material_name, unit, cost_price FROM materials WHERE id = :material_id");
+            $stmt->execute([':material_id' => $material_id]);
+            $materialData = $stmt->fetch();
+            
+            // Добавляем позицию в документ списания
+            $line_total = $materialData['cost_price'] * $quantity;
+            $stmt = $pdo->prepare("INSERT INTO material_writeoff_items 
+                                   (writeoff_id, item_type, material_id, item_name, item_sku, item_unit, quantity_written, unit_cost, line_total) 
+                                   VALUES (:writeoff_id, 'material', :material_id, :item_name, :item_sku, :item_unit, :quantity, :unit_cost, :line_total)");
+            $stmt->execute([
+                ':writeoff_id' => $writeoff_id,
+                ':material_id' => $material_id,
+                ':item_name' => $materialData['material_name'],
+                ':item_sku' => $materialData['unit'],
+                ':item_unit' => $materialData['unit'],
+                ':quantity' => $quantity,
+                ':unit_cost' => $materialData['cost_price'],
+                ':line_total' => $line_total
+            ]);
+            
+            // Добавляем операцию списания со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, material_id, quantity, warehouse_from, user_id, document_number, notes) 
-                                   VALUES ('write_off', :material_id, :quantity, 1, :user_id, :document_number, :notes)");
+                                   (operation_type, material_id, quantity, warehouse_from, user_id, document_number, notes, writeoff_id) 
+                                   VALUES ('write_off', :material_id, :quantity, 1, :user_id, :document_number, :notes, :writeoff_id)");
             $stmt->execute([
                 ':material_id' => $material_id,
                 ':quantity' => $quantity,
                 ':user_id' => $_SESSION['user_id'],
                 ':document_number' => $document_number,
-                ':notes' => $notes
+                ':notes' => $notes,
+                ':writeoff_id' => $writeoff_id
             ]);
             
             // Добавляем запись в движения материалов
@@ -454,7 +620,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'Списание материалов', 'warehouse_operations', $pdo->lastInsertId());
-            $success = 'Материалы успешно списаны';
+            $success = 'Материалы успешно списаны. Документ: ' . htmlspecialchars($document_number);
         }
     } catch (Exception $e) {
         if ($pdo->inTransaction()) {
