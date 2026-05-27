@@ -331,7 +331,7 @@ try {
     
     <div class="signatures">
         <div class="signature-block">
-            <p>Отпустил:</p>
+            <p>Отгрузил:</p>
             <p>_____________________</p>
             <p>(_____________________)</p>
         </div>
