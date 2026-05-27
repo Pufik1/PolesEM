@@ -50,8 +50,8 @@ CREATE TABLE IF NOT EXISTS material_writeoff_items (
     
     -- Item identification
     item_type ENUM('material', 'product') NOT NULL COMMENT 'Тип позиции: материал / продукция',
-    material_id INT NULL COMMENT 'ID материала',
-    product_id INT NULL COMMENT 'ID готовой продукции',
+    material_id INT NULL DEFAULT NULL COMMENT 'ID материала',
+    product_id INT NULL DEFAULT NULL COMMENT 'ID готовой продукции',
     
     -- Item details
     item_name VARCHAR(200) NOT NULL COMMENT 'Наименование (копия на момент создания)',
