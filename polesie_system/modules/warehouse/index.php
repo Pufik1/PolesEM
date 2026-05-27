@@ -224,9 +224,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Создаем документ отгрузки
             $stmt = $pdo->prepare("INSERT INTO shipment_documents 
                                    (shipment_number, shipment_date, shipment_type, customer_id, customer_name, customer_inn, warehouse_from_id, total_items, total_quantity, total_cost, status, notes, created_by) 
-                                   VALUES (:shipment_number, CURRENT_DATE, 'to_customer', NULL, 'Прямая продажа', NULL, 1, 1, :quantity, :total_cost, 'shipped', :notes, :user_id)");
+                                   VALUES (:shipment_number, CURRENT_DATE, 'to_customer', NULL, :customer_name, NULL, 1, 1, :quantity, :total_cost, 'shipped', :notes, :user_id)");
             $stmt->execute([
                 ':shipment_number' => $document_number,
+                ':customer_name' => 'Прямая продажа',
                 ':quantity' => $quantity,
                 ':total_cost' => $total_cost,
                 ':notes' => $notes,
@@ -258,8 +259,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Добавляем операцию расхода со ссылкой на документ
             $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
-                                   (operation_type, product_id, quantity, warehouse_from, user_id, document_number, batch_number, expiry_date, quality_cert, notes, shipment_id) 
-                                   VALUES ('outcome', :product_id, :quantity, 1, :user_id, :document_number, NULL, NULL, NULL, :notes, :shipment_id)");
+                                   (operation_type, product_id, quantity, warehouse_from, user_id, document_number, notes, shipment_id) 
+                                   VALUES ('outcome', :product_id, :quantity, 1, :user_id, :document_number, :notes, :shipment_id)");
             $stmt->execute([
                 ':product_id' => $product_id,
                 ':quantity' => $quantity,
