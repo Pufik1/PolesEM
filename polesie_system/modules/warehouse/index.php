@@ -75,11 +75,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Создаем документ приема
             $stmt = $pdo->prepare("INSERT INTO goods_receipt_documents 
-                                   (receipt_number, receipt_date, receipt_type, production_order_id, warehouse_id, total_items, total_quantity, status, notes, created_by) 
-                                   VALUES (:receipt_number, CURRENT_DATE, 'from_production', NULL, 1, 1, :quantity, 'confirmed', :notes, :user_id)");
+                                   (receipt_number, receipt_date, receipt_type, production_order_id, warehouse_id, total_items, total_quantity, total_cost, status, notes, created_by) 
+                                   VALUES (:receipt_number, CURRENT_DATE, 'from_production', NULL, 1, 1, :quantity, :total_cost, 'confirmed', :notes, :user_id)");
             $stmt->execute([
                 ':receipt_number' => $document_number,
                 ':quantity' => $quantity,
+                ':total_cost' => 0,
                 ':notes' => $notes,
                 ':user_id' => $_SESSION['user_id']
             ]);
@@ -163,11 +164,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         // 1. Создаем документ приема (goods_receipt_documents)
                         $stmt = $pdo->prepare("INSERT INTO goods_receipt_documents 
-                                               (receipt_number, receipt_date, receipt_type, warehouse_id, total_items, total_quantity, status, notes, created_by) 
-                                               VALUES (:receipt_number, CURRENT_DATE, 'from_supplier', 1, 1, :total_quantity, 'confirmed', :notes, :created_by)");
+                                               (receipt_number, receipt_date, receipt_type, warehouse_id, total_items, total_quantity, total_cost, status, notes, created_by) 
+                                               VALUES (:receipt_number, CURRENT_DATE, 'from_supplier', 1, 1, :total_quantity, :total_cost, 'confirmed', :notes, :created_by)");
                         $stmt->execute([
                             ':receipt_number' => $internal_receipt_number,
                             ':total_quantity' => $quantity,
+                            ':total_cost' => 0,
                             ':notes' => $notes,
                             ':created_by' => $_SESSION['user_id']
                         ]);
@@ -380,7 +382,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':writeoff_id' => $writeoff_id,
                 ':material_id' => $material_id,
                 ':item_name' => $materialData['name'],
-                ':item_sku' => $materialData['unit'],
+                ':item_sku' => $materialData['sku'] ?? $materialData['name'],
                 ':item_unit' => $materialData['unit'],
                 ':quantity' => $quantity,
                 ':unit_cost' => $materialData['price_per_unit'],
@@ -630,7 +632,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':writeoff_id' => $writeoff_id,
                     ':material_id' => $material_id,
                     ':item_name' => $materialData['name'],
-                    ':item_sku' => $materialData['unit'],
+                    ':item_sku' => $materialData['sku'] ?? $materialData['name'],
                     ':item_unit' => $materialData['unit'],
                     ':quantity' => $quantity,
                     ':unit_cost' => $materialData['price_per_unit'],

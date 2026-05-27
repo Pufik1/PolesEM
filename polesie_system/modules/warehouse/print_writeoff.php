@@ -266,8 +266,7 @@ try {
                 <th style="width: 50px;">№</th>
                 <th>Наименование</th>
                 <th>Артикул</th>
-                <th style="width: 80px;">Ед.</th>
-                <th style="width: 80px;">Количество</th>
+                <th style="width: 120px;">Количество</th>
                 <th style="width: 100px;">Цена</th>
                 <th style="width: 120px;">Сумма</th>
             </tr>
@@ -282,8 +281,7 @@ try {
                 <td class="num"><?php echo $index + 1; ?></td>
                 <td><?php echo htmlspecialchars($item['item_name']); ?></td>
                 <td><?php echo htmlspecialchars($item['item_sku']); ?></td>
-                <td><?php echo htmlspecialchars($item['item_unit']); ?></td>
-                <td class="num"><strong><?php echo number_format($item['quantity_written'], 2); ?></strong></td>
+                <td class="num"><strong><?php echo number_format($item['quantity_written'], 2); ?> <?php echo htmlspecialchars($item['item_unit']); ?></strong></td>
                 <td class="num"><?php echo number_format($item['unit_cost'], 2); ?> BYN</td>
                 <td class="num"><?php echo number_format($item['line_total'], 2); ?> BYN</td>
             </tr>
@@ -291,7 +289,7 @@ try {
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="6" style="text-align: right;"><strong>Итого:</strong></td>
+                <td colspan="5" style="text-align: right;"><strong>Итого:</strong></td>
                 <td class="num"><strong><?php echo number_format($totalAmount, 2); ?> BYN</strong></td>
             </tr>
         </tfoot>
