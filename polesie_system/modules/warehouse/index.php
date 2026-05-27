@@ -568,6 +568,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'Списание готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
             $success = 'Готовая продукция успешно списана. Документ: ' . htmlspecialchars($document_number);
+            }
             
         } elseif ($action === 'write_off_material') {
             // Списание материалов с созданием документа акта списания
