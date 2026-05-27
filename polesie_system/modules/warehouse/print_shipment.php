@@ -62,63 +62,88 @@ try {
     <style>
         @media print {
             .no-print { display: none; }
-            body { margin: 0; padding: 20px; }
+            body { margin: 0; padding: 0; }
+            .header { border-bottom: 3px solid #000; }
+            .footer { border-top: 2px solid #000; }
         }
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Times New Roman', Times, serif;
             font-size: 14px;
-            line-height: 1.5;
-            max-width: 800px;
+            line-height: 1.6;
+            max-width: 210mm;
             margin: 0 auto;
-            padding: 20px;
+            padding: 20mm;
+            background: #fff;
         }
         .header {
             text-align: center;
-            border-bottom: 2px solid #333;
+            border-bottom: 3px solid #000;
             padding-bottom: 15px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
         .header h1 {
-            margin: 0 0 10px 0;
-            font-size: 24px;
+            margin: 0 0 8px 0;
+            font-size: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         .header p {
-            margin: 5px 0;
-            color: #666;
+            margin: 4px 0;
+            font-size: 14px;
+        }
+        .doc-title {
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            text-transform: uppercase;
+        }
+        .doc-number {
+            text-align: right;
+            margin-bottom: 20px;
+            font-size: 14px;
         }
         .doc-info {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
         .doc-info table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 13px;
         }
         .doc-info td {
-            padding: 8px;
-            border: 1px solid #ddd;
+            padding: 6px 4px;
+            border-bottom: 1px solid #ddd;
         }
         .doc-info td:first-child {
             font-weight: bold;
-            width: 200px;
-            background-color: #f5f5f5;
+            width: 180px;
+            color: #333;
         }
         .items-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            font-size: 13px;
         }
         .items-table th,
         .items-table td {
-            padding: 10px;
-            border: 1px solid #ddd;
+            padding: 8px 6px;
+            border: 1px solid #000;
             text-align: left;
         }
         .items-table th {
-            background-color: #f5f5f5;
+            background-color: #f0f0f0;
             font-weight: bold;
+            text-align: center;
+            font-size: 12px;
         }
         .items-table td.num {
             text-align: right;
+        }
+        .items-table td.center {
+            text-align: center;
         }
         .totals-section {
             margin-top: 20px;
@@ -127,29 +152,40 @@ try {
         .totals-table {
             display: inline-block;
             min-width: 300px;
+            font-size: 13px;
         }
         .totals-table td {
-            padding: 8px;
-            border: 1px solid #ddd;
+            padding: 6px;
+            border: 1px solid #000;
         }
         .totals-table td:first-child {
             font-weight: bold;
-            background-color: #f5f5f5;
+            background-color: #f0f0f0;
+            text-align: left;
+        }
+        .totals-table td.num {
+            text-align: right;
         }
         .footer {
-            margin-top: 30px;
-            border-top: 2px solid #333;
+            margin-top: 35px;
+            border-top: 2px solid #000;
             padding-top: 15px;
+            font-size: 13px;
         }
         .signatures {
             display: flex;
             justify-content: space-between;
-            margin-top: 30px;
+            margin-top: 40px;
+            page-break-inside: avoid;
         }
         .signature-block {
             width: 45%;
-            border-top: 1px solid #333;
+            border-top: 1px solid #000;
             padding-top: 10px;
+            font-size: 13px;
+        }
+        .signature-block p {
+            margin: 5px 0;
         }
         .btn-print {
             background-color: #007bff;
@@ -224,10 +260,6 @@ try {
                     echo $statusLabels[$shipment['status']] ?? $shipment['status'];
                     ?>
                 </td>
-            </tr>
-            <tr>
-                <td>Создан:</td>
-                <td><?php echo htmlspecialchars($shipment['created_by_name']); ?> (<?php echo date('d.m.Y H:i', strtotime($shipment['created_at'])); ?>)</td>
             </tr>
             <?php if ($shipment['notes']): ?>
             <tr>
