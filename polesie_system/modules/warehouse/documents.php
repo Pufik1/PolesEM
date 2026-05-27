@@ -319,8 +319,8 @@ try {
         .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 10%; text-align: center; padding-left: 20px; } /* Позиций */
         .documents-table th:nth-child(5), .documents-table td:nth-child(5) { width: 12%; } /* Количество */
         .documents-table th:nth-child(6), .documents-table td:nth-child(6) { width: 15%; } /* Склад/Сумма */
-        .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 13%; } /* Статус */
-        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 18%; } /* Кем создан */
+        .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 11%; } /* Статус */
+        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 20%; } /* Кем создан */
         .documents-table th:nth-child(9), .documents-table td:nth-child(9) { width: 18%; } /* Действия */
         
         /* Actions cell styling for vertical alignment */
