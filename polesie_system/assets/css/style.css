@@ -189,6 +189,15 @@ body {
     color: white;
 }
 
+.btn-warning {
+    background-color: #f59e0b;
+    color: white;
+}
+
+.btn-warning:hover {
+    background-color: #d97706;
+}
+
 .btn-danger {
     background-color: var(--danger-color);
     color: white;

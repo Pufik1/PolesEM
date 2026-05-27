@@ -342,6 +342,9 @@ try {
                                 </td>
                                 <td><?php echo htmlspecialchars($doc['created_by_name']); ?></td>
                                 <td>
+                                    <a href="edit_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-warning" title="Редактировать">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
                                     <a href="print_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
                                         <i class="fas fa-print"></i>
                                     </a>
