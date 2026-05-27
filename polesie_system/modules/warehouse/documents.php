@@ -159,6 +159,21 @@ try {
             color: #6b7280;
             padding: 20px !important;
         }
+        
+        /* Стили для кнопки "глазик" - сделать более выразительной */
+        .view-btn {
+            border: 2px solid #17a2b8;
+            background-color: #e0f7fa;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+        
+        .view-btn:hover {
+            background-color: #17a2b8;
+            color: white;
+            border-color: #17a2b8;
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
@@ -343,7 +358,7 @@ try {
                                     <a href="print_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-primary" target="_blank" title="Печать">
                                         <i class="fas fa-print"></i>
                                     </a>
-                                    <a href="#" class="btn btn-sm btn-info" title="Просмотр" onclick="viewReceiptDetails(<?php echo $doc['id']; ?>)">
+                                    <a href="#" class="btn btn-sm btn-info view-btn" title="Просмотр" onclick="viewReceiptDetails(<?php echo $doc['id']; ?>)">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                 </td>
@@ -423,7 +438,7 @@ try {
                                     <a href="print_shipment.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-primary" target="_blank" title="Печать">
                                         <i class="fas fa-print"></i>
                                     </a>
-                                    <a href="#" class="btn btn-sm btn-info" title="Просмотр" onclick="viewShipmentDetails(<?php echo $doc['id']; ?>)">
+                                    <a href="#" class="btn btn-sm btn-info view-btn" title="Просмотр" onclick="viewShipmentDetails(<?php echo $doc['id']; ?>)">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                 </td>
