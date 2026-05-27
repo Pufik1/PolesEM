@@ -473,6 +473,12 @@ $filterZone = $_GET['zone'] ?? '';
 $filterSearch = $_GET['search'] ?? '';
 $filterLowStock = isset($_GET['low_stock']) ? true : false;
 
+// Если активна вкладка документов, перенаправляем на documents.php
+if ($activeTab === 'documents') {
+    header('Location: documents.php');
+    exit;
+}
+
 // Get all products with filters
 try {
     // Products query with filters
@@ -757,8 +763,13 @@ try {
                             </a>
                             <a href="?tab=materials&category=<?php echo htmlspecialchars($filterCategory); ?>&zone=<?php echo htmlspecialchars($filterZone); ?>&search=<?php echo htmlspecialchars($filterSearch); ?>" 
                                class="btn <?php echo $activeTab === 'materials' ? 'btn-primary' : 'btn-secondary'; ?>" 
-                               style="padding: 8px 16px;">
+                               style="padding: 8px 16px; margin-right: 10px;">
                                 <i class="fas fa-cubes"></i> Материалы
+                            </a>
+                            <a href="documents.php" 
+                               class="btn <?php echo $activeTab === 'documents' ? 'btn-primary' : 'btn-secondary'; ?>" 
+                               style="padding: 8px 16px;">
+                                <i class="fas fa-file-alt"></i> Документы склада
                             </a>
                         </div>
                     </div>
