@@ -18,6 +18,39 @@ $userFullName = $_SESSION['full_name'];
 $userRole = $_SESSION['user_role'];
 $initials = strtoupper(substr($userFullName, 0, 1));
 
+// Handle delete action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] === 'delete_receipt' && hasRole(['admin', 'director', 'manager'])) {
+        $receiptId = (int)($_POST['receipt_id'] ?? 0);
+        if ($receiptId > 0) {
+            try {
+                $stmt = $pdo->prepare("SELECT status FROM goods_receipt_documents WHERE id = :id");
+                $stmt->execute([':id' => $receiptId]);
+                $doc = $stmt->fetch();
+                
+                if ($doc) {
+                    if ($doc['status'] === 'posted') {
+                        $error = 'Нельзя удалить проведенный документ. Сначала отмените проведение.';
+                    } else {
+                        $stmt = $pdo->prepare("DELETE FROM goods_receipt_items WHERE receipt_id = :id");
+                        $stmt->execute([':id' => $receiptId]);
+                        
+                        $stmt = $pdo->prepare("DELETE FROM goods_receipt_documents WHERE id = :id");
+                        $stmt->execute([':id' => $receiptId]);
+                        
+                        logActivity($pdo, $_SESSION['user_id'], 'Удаление акта приема', 'goods_receipt_documents', $receiptId);
+                        $success = 'Документ успешно удален';
+                    }
+                } else {
+                    $error = 'Документ не найден';
+                }
+            } catch (Exception $e) {
+                $error = 'Ошибка при удалении: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
 // Get filter parameters
 $filterType = $_GET['type'] ?? 'all'; // all, receipt, shipment
 $filterStatus = $_GET['status'] ?? 'all';
@@ -161,6 +194,23 @@ try {
         }
         
         /* Стили для кнопки "глазик" удалены - кнопка больше не используется */
+        
+        /* Column widths for documents table */
+        .documents-table th:nth-child(1), .documents-table td:nth-child(1) { width: 12%; } /* № документа */
+        .documents-table th:nth-child(2), .documents-table td:nth-child(2) { width: 10%; } /* Дата */
+        .documents-table th:nth-child(3), .documents-table td:nth-child(3) { width: 12%; } /* Тип */
+        .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 8%; } /* Позиций */
+        .documents-table th:nth-child(5), .documents-table td:nth-child(5) { width: 10%; } /* Количество */
+        .documents-table th:nth-child(6), .documents-table td:nth-child(6) { width: 15%; } /* Склад */
+        .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 12%; } /* Статус */
+        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 15%; } /* Создан */
+        .documents-table th:nth-child(9), .documents-table td:nth-child(9) { width: 16%; } /* Действия */
+        
+        /* Fix badge overflow in status column */
+        .documents-table td:nth-child(7) .badge {
+            max-width: 100%;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -287,7 +337,7 @@ try {
             </div>
             
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table documents-table">
                     <thead>
                         <tr>
                             <th>№ документа</th>
@@ -348,6 +398,15 @@ try {
                                     <a href="print_receipt.php?id=<?php echo $doc['id']; ?>" class="btn btn-sm btn-icon btn-primary" target="_blank" title="Печать">
                                         <i class="fas fa-print"></i>
                                     </a>
+                                    <?php if (hasRole(['admin', 'director', 'manager'])): ?>
+                                    <form method="POST" action="" style="display: inline;" onsubmit="return confirm('Вы уверены, что хотите удалить этот документ?');">
+                                        <input type="hidden" name="action" value="delete_receipt">
+                                        <input type="hidden" name="receipt_id" value="<?php echo $doc['id']; ?>">
+                                        <button type="submit" class="btn btn-sm btn-icon btn-danger" title="Удалить">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -371,7 +430,7 @@ try {
             </div>
             
             <div class="table-responsive">
-                <table class="data-table">
+                <table class="data-table documents-table">
                     <thead>
                         <tr>
                             <th>№ документа</th>
