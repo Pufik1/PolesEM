@@ -356,7 +356,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
             
             // Получаем данные о материале для позиции
-            $stmt = $pdo->prepare("SELECT name, unit, price_per_unit FROM materials WHERE id = :material_id");
+            $stmt = $pdo->prepare("SELECT name, sku, unit, price_per_unit FROM materials WHERE id = :material_id");
             $stmt->execute([':material_id' => $material_id]);
             $materialData = $stmt->fetch();
             
@@ -612,7 +612,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->beginTransaction();
                 
                 // Получаем данные о материале для позиции
-                $stmt = $pdo->prepare("SELECT name, unit, price_per_unit FROM materials WHERE id = :material_id");
+                $stmt = $pdo->prepare("SELECT name, sku, unit, price_per_unit FROM materials WHERE id = :material_id");
                 $stmt->execute([':material_id' => $material_id]);
                 $materialData = $stmt->fetch();
                 
