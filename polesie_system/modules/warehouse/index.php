@@ -355,6 +355,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $pdo->beginTransaction();
             
+            // Получаем данные о материале для позиции
+            $stmt = $pdo->prepare("SELECT name, unit, price_per_unit FROM materials WHERE id = :material_id");
+            $stmt->execute([':material_id' => $material_id]);
+            $materialData = $stmt->fetch();
+            
+            // Вычисляем стоимость списания
+            $unit_cost = $materialData['price_per_unit'] ?? 0;
+            $line_total = $unit_cost * $quantity;
+            
             // Создаем документ списания
             $stmt = $pdo->prepare("INSERT INTO material_writeoff_documents 
                                    (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, total_cost, status, reason, created_by) 
@@ -368,13 +377,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $writeoff_id = $pdo->lastInsertId();
             
-            // Получаем данные о материале для позиции
-            $stmt = $pdo->prepare("SELECT name, unit, price_per_unit FROM materials WHERE id = :material_id");
-            $stmt->execute([':material_id' => $material_id]);
-            $materialData = $stmt->fetch();
-            
             // Добавляем позицию в документ списания
-            $line_total = $materialData['price_per_unit'] * $quantity;
             $stmt = $pdo->prepare("INSERT INTO material_writeoff_items 
                                    (writeoff_id, item_type, material_id, product_id, item_name, item_sku, item_unit, quantity_written, unit_cost, line_total) 
                                    VALUES (:writeoff_id, 'material', :material_id, NULL, :item_name, :item_sku, :item_unit, :quantity, :unit_cost, :line_total)");
@@ -385,7 +388,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':item_sku' => $materialData['sku'] ?? $materialData['name'],
                 ':item_unit' => $materialData['unit'],
                 ':quantity' => $quantity,
-                ':unit_cost' => $materialData['price_per_unit'],
+                ':unit_cost' => $unit_cost,
                 ':line_total' => $line_total
             ]);
             
@@ -523,6 +526,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $pdo->beginTransaction();
             
+            // Получаем данные о продукте для позиции
+            $stmt = $pdo->prepare("SELECT product_name, product_code, base_price FROM products WHERE id = :product_id");
+            $stmt->execute([':product_id' => $product_id]);
+            $productData = $stmt->fetch();
+            
+            // Вычисляем стоимость списания
+            $unit_cost = $productData['base_price'] ?? 0;
+            $line_total = $unit_cost * $quantity;
+            
             // Создаем документ списания
             $stmt = $pdo->prepare("INSERT INTO material_writeoff_documents 
                                    (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, total_cost, status, reason, created_by) 
@@ -536,13 +548,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $writeoff_id = $pdo->lastInsertId();
             
-            // Получаем данные о продукте для позиции
-            $stmt = $pdo->prepare("SELECT product_name, product_code, base_price FROM products WHERE id = :product_id");
-            $stmt->execute([':product_id' => $product_id]);
-            $productData = $stmt->fetch();
-            
             // Добавляем позицию в документ списания
-            $line_total = $productData['base_price'] * $quantity;
             $stmt = $pdo->prepare("INSERT INTO material_writeoff_items 
                                    (writeoff_id, item_type, material_id, product_id, item_name, item_sku, item_unit, quantity_written, unit_cost, line_total) 
                                    VALUES (:writeoff_id, 'product', NULL, :product_id, :item_name, :item_sku, 'шт', :quantity, :unit_cost, :line_total)");
@@ -552,7 +558,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':item_name' => $productData['product_name'],
                 ':item_sku' => $productData['product_code'],
                 ':quantity' => $quantity,
-                ':unit_cost' => $productData['base_price'],
+                ':unit_cost' => $unit_cost,
                 ':line_total' => $line_total
             ]);
             
@@ -605,6 +611,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $pdo->beginTransaction();
                 
+                // Получаем данные о материале для позиции
+                $stmt = $pdo->prepare("SELECT name, unit, price_per_unit FROM materials WHERE id = :material_id");
+                $stmt->execute([':material_id' => $material_id]);
+                $materialData = $stmt->fetch();
+                
+                // Вычисляем стоимость списания
+                $unit_cost = $materialData['price_per_unit'] ?? 0;
+                $line_total = $unit_cost * $quantity;
+                
                 // Создаем документ списания
                 $stmt = $pdo->prepare("INSERT INTO material_writeoff_documents 
                                        (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, total_cost, status, reason, created_by) 
@@ -618,13 +633,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 $writeoff_id = $pdo->lastInsertId();
                 
-                // Получаем данные о материале для позиции
-                $stmt = $pdo->prepare("SELECT name, unit, price_per_unit FROM materials WHERE id = :material_id");
-                $stmt->execute([':material_id' => $material_id]);
-                $materialData = $stmt->fetch();
-                
                 // Добавляем позицию в документ списания
-                $line_total = $materialData['price_per_unit'] * $quantity;
                 $stmt = $pdo->prepare("INSERT INTO material_writeoff_items 
                                        (writeoff_id, item_type, material_id, product_id, item_name, item_sku, item_unit, quantity_written, unit_cost, line_total) 
                                        VALUES (:writeoff_id, 'material', :material_id, NULL, :item_name, :item_sku, :item_unit, :quantity, :unit_cost, :line_total)");
@@ -635,7 +644,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':item_sku' => $materialData['sku'] ?? $materialData['name'],
                     ':item_unit' => $materialData['unit'],
                     ':quantity' => $quantity,
-                    ':unit_cost' => $materialData['price_per_unit'],
+                    ':unit_cost' => $unit_cost,
                     ':line_total' => $line_total
                 ]);
                 
@@ -1104,9 +1113,9 @@ try {
                                         <td><?php echo htmlspecialchars($material['name']); ?></td>
                                         <td><?php echo htmlspecialchars($material['category_name'] ?? 'Не указана'); ?></td>
                                         <td>
-                                            <span class="badge badge-danger"><?php echo $material['current_stock']; ?> <?php echo htmlspecialchars($material['unit']); ?></span>
+                                            <span class="badge badge-danger"><?php echo $material['current_stock']; ?></span>
                                         </td>
-                                        <td><?php echo $material['min_stock_level']; ?> <?php echo htmlspecialchars($material['unit']); ?></td>
+                                        <td><?php echo $material['min_stock_level']; ?></td>
                                         <td>
                                             <button class="btn btn-sm btn-success" onclick="openModal('incomeModal', <?php echo $material['id']; ?>)">
                                                 <i class="fas fa-plus"></i> Пополнить
@@ -1217,8 +1226,8 @@ try {
                                                 <td><strong><?php echo htmlspecialchars($material['sku']); ?></strong></td>
                                                 <td><?php echo htmlspecialchars($material['name']); ?></td>
                                                 <td><?php echo htmlspecialchars($material['category_name'] ?? 'Не указана'); ?></td>
-                                                <td><?php echo $material['current_stock']; ?> <?php echo htmlspecialchars($material['unit']); ?></td>
-                                                <td><?php echo $material['min_stock_level']; ?> <?php echo htmlspecialchars($material['unit']); ?></td>
+                                                <td><?php echo $material['current_stock']; ?></td>
+                                                <td><?php echo $material['min_stock_level']; ?></td>
                                                 <td>
                                                     <?php if ($material['current_stock'] <= $material['min_stock_level']): ?>
                                                         <span class="badge badge-danger">Низкий запас</span>
