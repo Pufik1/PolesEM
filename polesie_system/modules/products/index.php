@@ -145,10 +145,40 @@ if ($viewAction === 'view' && $viewProductId) {
                 // Декодируем specifications из JSON строки в массив
                 $specs = json_decode($viewProduct['specifications'] ?? '{}', true);
                 $viewProduct['specifications'] = $specs;
-                
+
+                // Загружаем материалы для продукта (BOM - Bill of Materials)
+                $bomMaterials = [];
+                try {
+                    $bomStmt = $pdo->prepare("
+                        SELECT 
+                            pb.bom_version,
+                            m.id as material_id,
+                            m.sku,
+                            m.name as material_name,
+                            m.unit,
+                            pbi.quantity,
+                            pbi.waste_percent,
+                            pbi.sequence_order,
+                            pbi.notes,
+                            mc.category_name as material_category
+                        FROM product_bom pb
+                        INNER JOIN product_bom_items pbi ON pb.id = pbi.bom_id
+                        INNER JOIN materials m ON pbi.material_id = m.id
+                        LEFT JOIN material_categories mc ON m.category_id = mc.id
+                        WHERE pb.product_id = :product_id AND pb.is_active = 1
+                        ORDER BY pbi.sequence_order
+                    ");
+                    $bomStmt->execute([':product_id' => (int)$viewProductId]);
+                    $bomMaterials = $bomStmt->fetchAll();
+                } catch (PDOException $e) {
+                    // BOM table might not exist or no data
+                    $bomMaterials = [];
+                }
+
                 echo json_encode([
                     'success' => true,
-                    'product' => $viewProduct
+                    'product' => $viewProduct,
+                    'bom_materials' => $bomMaterials
                 ], JSON_UNESCAPED_UNICODE);
             } else {
                 echo json_encode([
