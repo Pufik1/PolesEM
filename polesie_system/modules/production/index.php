@@ -326,6 +326,7 @@ try {
                                     <th>Статус оплаты</th>
                                     <th>Статус производства</th>
                                     <th>Дата доставки</th>
+                                    <th>Действия</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -341,19 +342,45 @@ try {
                                     </td>
                                     <td>
                                         <?php if ($order['production_order_id']): ?>
-                                            <span class="badge badge-info">
-                                                <?php echo $order['production_status'] ?? 'В плане'; ?>
+                                            <span class="badge badge-<?php 
+                                                echo $order['production_status'] == 'completed' ? 'success' : 
+                                                    ($order['production_status'] == 'in_progress' ? 'info' : 'warning'); 
+                                            ?>">
+                                                <?php 
+                                                    $prodStatusLabels = [
+                                                        'planned' => 'Запланировано',
+                                                        'in_progress' => 'В производстве',
+                                                        'completed' => 'Готово',
+                                                        'cancelled' => 'Отменено'
+                                                    ];
+                                                    echo $prodStatusLabels[$order['production_status']] ?? 'В плане'; 
+                                                ?>
                                             </span>
                                         <?php else: ?>
                                             <span class="badge badge-warning">Требуется создание</span>
                                         <?php endif; ?>
                                     </td>
                                     <td><?php echo $order['delivery_date']; ?></td>
+                                    <td>
+                                        <?php if (!$order['production_order_id']): ?>
+                                            <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewOrderMaterials(<?php echo $order['id']; ?>)">
+                                                <i class="fas fa-boxes"></i> Материалы
+                                            </button>
+                                        <?php elseif ($order['production_status'] == 'in_progress'): ?>
+                                            <button class="btn btn-primary" style="padding: 4px 8px;" onclick="completeProduction(<?php echo $order['production_order_id']; ?>, <?php echo $order['order_quantity']; ?>)">
+                                                <i class="fas fa-check"></i> Завершить
+                                            </button>
+                                        <?php else: ?>
+                                            <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewBOM(<?php echo $order['production_order_id']; ?>)">
+                                                <i class="fas fa-list"></i> Спецификация
+                                            </button>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                                 <?php endforeach; ?>
                                 <?php if (empty($customerOrdersForProduction)): ?>
                                 <tr>
-                                    <td colspan="8" class="text-center">Заказов не найдено</td>
+                                    <td colspan="9" class="text-center">Заказов не найдено</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -365,7 +392,47 @@ try {
         </div>
     </div>
     <script src="../../assets/js/main.js"></script>
+    
+    <!-- Модальное окно для просмотра материалов и выдачи -->
+    <div id="materialsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+        <div style="background:white; margin:50px auto; padding:20px; border-radius:8px; max-width:900px; max-height:80vh; overflow-y:auto;">
+            <h3 id="modalTitle">Материалы для заказа</h3>
+            <div id="modalContent"></div>
+            <div style="margin-top:20px; text-align:right;">
+                <button class="btn" onclick="closeMaterialsModal()" style="background:#6b7280; color:white; margin-right:10px;">Закрыть</button>
+                <button class="btn btn-primary" onclick="issueMaterialsToProduction()">Выдать материалы</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно для завершения производства -->
+    <div id="completionModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+        <div style="background:white; margin:50px auto; padding:20px; border-radius:8px; max-width:500px;">
+            <h3>Завершение производства</h3>
+            <input type="hidden" id="completionProductionOrderId">
+            <div style="margin-bottom:15px;">
+                <label>Годных изделий:</label>
+                <input type="number" id="quantityCompleted" style="width:100%; padding:8px; margin-top:5px;" value="0">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label>Брак:</label>
+                <input type="number" id="quantityDefect" style="width:100%; padding:8px; margin-top:5px;" value="0">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label>Комментарий:</label>
+                <textarea id="completionNotes" style="width:100%; padding:8px; margin-top:5px;"></textarea>
+            </div>
+            <div style="text-align:right;">
+                <button class="btn" onclick="closeCompletionModal()" style="background:#6b7280; color:white; margin-right:10px;">Отмена</button>
+                <button class="btn btn-primary" onclick="submitCompletion()">Завершить</button>
+            </div>
+        </div>
+    </div>
+    
     <script>
+        let currentOrderId = null;
+        let currentMaterials = [];
+        
         function showTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
@@ -378,15 +445,149 @@ try {
         }
 
         function viewBOM(orderId) {
-            // Показываем спецификацию материалов для заказа
             fetch('api.php?action=get_bom&order_id=' + orderId)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Показать модальное окно со спецификацией
-                        alert('Спецификация: ' + JSON.stringify(data.bom_items));
+                        let html = '<table class="data-table"><thead><tr><th>Материал</th><th>Артикул</th><th>На ед.</th><th>Всего</th></tr></thead><tbody>';
+                        data.bom_items.forEach(item => {
+                            html += '<tr><td>' + item.material_name + '</td><td>' + item.sku + '</td><td>' + item.qty_per_unit + '</td><td>' + item.total_quantity + '</td></tr>';
+                        });
+                        html += '</tbody></table>';
+                        document.getElementById('modalTitle').innerText = 'Спецификация для заказа ' + data.order.production_number;
+                        document.getElementById('modalContent').innerHTML = html;
+                        document.getElementById('materialsModal').style.display = 'block';
                     }
                 });
+        }
+        
+        function viewOrderMaterials(orderId) {
+            currentOrderId = orderId;
+            fetch('api.php?action=get_customer_order_materials&order_id=' + orderId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        currentMaterials = data.materials;
+                        let html = '<p><strong>Заказ:</strong> ' + data.order.order_number + 
+                                   ' | <strong>Клиент:</strong> ' + data.order.customer_name + 
+                                   ' | <strong>Продукт:</strong> ' + data.order.product_name + 
+                                   ' | <strong>Количество:</strong> ' + data.order.order_quantity + '</p>';
+                        
+                        html += '<table class="data-table"><thead><tr>' +
+                                '<th>Материал</th><th>Артикул</th><th>На складе</th>' +
+                                '<th>Требуется</th><th>Уже выдано</th><th>К выдаче</th>' +
+                                '</tr></thead><tbody>';
+                        
+                        data.materials.forEach((mat, index) => {
+                            html += '<tr>' +
+                                    '<td>' + mat.material_name + '</td>' +
+                                    '<td>' + mat.sku + '</td>' +
+                                    '<td>' + mat.warehouse_stock + ' ' + mat.unit + '</td>' +
+                                    '<td>' + mat.total_required + ' ' + mat.unit + '</td>' +
+                                    '<td>' + mat.already_issued + ' ' + mat.unit + '</td>' +
+                                    '<td><input type="number" id="mat_qty_' + index + '" value="' + mat.to_issue + '" min="0" max="' + mat.warehouse_stock + '" style="width:80px; padding:4px;"> ' + mat.unit + '</td>' +
+                                    '</tr>';
+                        });
+                        
+                        html += '</tbody></table>';
+                        document.getElementById('modalTitle').innerText = 'Материалы для заказа ' + data.order.order_number;
+                        document.getElementById('modalContent').innerHTML = html;
+                        document.getElementById('materialsModal').style.display = 'block';
+                    } else {
+                        alert('Ошибка: ' + data.message);
+                    }
+                });
+        }
+        
+        function closeMaterialsModal() {
+            document.getElementById('materialsModal').style.display = 'none';
+        }
+        
+        function issueMaterialsToProduction() {
+            if (!currentOrderId) return;
+            
+            let materialsData = [];
+            currentMaterials.forEach((mat, index) => {
+                let qtyInput = document.getElementById('mat_qty_' + index);
+                let qty = parseFloat(qtyInput.value) || 0;
+                if (qty > 0) {
+                    materialsData.push({
+                        material_id: mat.material_id,
+                        quantity: qty
+                    });
+                }
+            });
+            
+            if (materialsData.length === 0) {
+                alert('Выберите материалы для выдачи');
+                return;
+            }
+            
+            let formData = new FormData();
+            formData.append('action', 'issue_materials');
+            formData.append('order_id', currentOrderId);
+            formData.append('materials_data', JSON.stringify(materialsData));
+            
+            fetch('api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    closeMaterialsModal();
+                    location.reload();
+                } else {
+                    alert('Ошибка: ' + data.message);
+                }
+            });
+        }
+        
+        function completeProduction(productionOrderId, orderQuantity) {
+            document.getElementById('completionProductionOrderId').value = productionOrderId;
+            document.getElementById('quantityCompleted').value = orderQuantity;
+            document.getElementById('quantityDefect').value = 0;
+            document.getElementById('completionNotes').value = '';
+            document.getElementById('completionModal').style.display = 'block';
+        }
+        
+        function closeCompletionModal() {
+            document.getElementById('completionModal').style.display = 'none';
+        }
+        
+        function submitCompletion() {
+            let productionOrderId = document.getElementById('completionProductionOrderId').value;
+            let quantityCompleted = parseInt(document.getElementById('quantityCompleted').value) || 0;
+            let quantityDefect = parseInt(document.getElementById('quantityDefect').value) || 0;
+            let notes = document.getElementById('completionNotes').value;
+            
+            if (quantityCompleted <= 0) {
+                alert('Укажите количество годных изделий');
+                return;
+            }
+            
+            let formData = new FormData();
+            formData.append('action', 'complete_production');
+            formData.append('production_order_id', productionOrderId);
+            formData.append('quantity_completed', quantityCompleted);
+            formData.append('quantity_defect', quantityDefect);
+            formData.append('notes', notes);
+            
+            fetch('api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    closeCompletionModal();
+                    location.reload();
+                } else {
+                    alert('Ошибка: ' + data.message);
+                }
+            });
         }
     </script>
 </body>
