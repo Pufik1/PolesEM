@@ -1,60 +1,65 @@
-# Database migration artifacts
-*.sql.bak
-*.sql~
+# SQL and database related
+*.sql
+*.db
+*.sqlite
+*.sqlite3
 
 # Dependencies
 node_modules/
 .venv/
 venv/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Build artifacts
+*.egg-info/
 dist/
 build/
 target/
-*.egg-info/
+.gradle/
 
-# Logs and temporary files
+# Logs and temp files
 *.log
 *.tmp
 *.temp
-*.bak
+*.swp
+*.swo
 
 # Environment variables
 .env
 .env.local
 .env.*
 
-# Editors
+# Editors and IDEs
 .vscode/
 .idea/
-*.swp
-*.swo
+*.sublime-project
+*.sublime-workspace
 
 # OS generated files
 .DS_Store
 Thumbs.db
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
+desktop.ini
 
 # Python specific
+*.pyc
+*.pyo
+*.pyd
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-.eggs/
-pip-log.txt
-pip-delete-this-directory.txt
+.coverage
+htmlcov/
+.mypy_cache/
+.pytest_cache/
 
-# Compression files
+# Build outputs
+*.class
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+coverage/
+
+# Compressed files
 *.zip
 *.gz
 *.tar
