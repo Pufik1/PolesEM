@@ -495,7 +495,7 @@ body {
 
 /* Tables */
 .table-responsive {
-    overflow-x: auto;
+    overflow-x: visible;
     -webkit-overflow-scrolling: touch;
 }
 
@@ -503,7 +503,7 @@ body {
     width: 100%;
     border-collapse: collapse;
     background-color: var(--card-bg);
-    table-layout: auto;
+    table-layout: fixed;
 }
 
 .data-table thead {

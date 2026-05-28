@@ -263,6 +263,7 @@ try {
         .data-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
         
         .data-table th,
@@ -282,6 +283,12 @@ try {
             background-color: #f9fafb;
         }
         
+        /* Override table-responsive to prevent horizontal scroll */
+        .table-responsive {
+            overflow-x: visible !important;
+            -webkit-overflow-scrolling: touch;
+        }
+        
         .text-center {
             text-align: center;
             color: #6b7280;
@@ -292,42 +299,48 @@ try {
         .documents-table {
             border: 1px solid #e5e7eb;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            table-layout: fixed;
+            width: 100%;
         }
         
         .documents-table th {
             background-color: #f3f4f6;
             font-weight: 600;
             text-transform: uppercase;
-            font-size: 12px;
+            font-size: 11px;
             letter-spacing: 0.5px;
             color: #374151;
             border-bottom: 2px solid #d1d5db;
+            padding: 10px 8px;
         }
         
         .documents-table td {
             vertical-align: middle;
             border-bottom: 1px solid #e5e7eb;
+            padding: 10px 8px;
+            font-size: 13px;
         }
         
         .documents-table tbody tr:hover {
             background-color: #f9fafb;
         }
         
-        .documents-table th:nth-child(1), .documents-table td:nth-child(1) { width: 10%; } /* № документа */
+        /* Compact column widths to fit within viewport */
+        .documents-table th:nth-child(1), .documents-table td:nth-child(1) { width: 11%; } /* № документа */
         .documents-table th:nth-child(2), .documents-table td:nth-child(2) { width: 9%; } /* Дата */
-        .documents-table th:nth-child(3), .documents-table td:nth-child(3) { width: 16%; } /* Тип/Клиент */
-        .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 7%; text-align: center; padding-left: 20px; } /* Позиций */
-        .documents-table th:nth-child(5), .documents-table td:nth-child(5) { width: 9%; } /* Количество */
-        .documents-table th:nth-child(6), .documents-table td:nth-child(6) { width: 11%; } /* Склад/Сумма */
-        .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 15%; min-width: 150px; } /* Статус */
-        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 22%; min-width: 200px; } /* Кем создан */
-        .documents-table th:nth-child(9), .documents-table td:nth-child(9) { width: 14%; min-width: 160px; } /* Действия */
+        .documents-table th:nth-child(3), .documents-table td:nth-child(3) { width: 13%; } /* Тип/Клиент */
+        .documents-table th:nth-child(4), .documents-table td:nth-child(4) { width: 7%; text-align: center; } /* Позиций */
+        .documents-table th:nth-child(5), .documents-table td:nth-child(5) { width: 8%; } /* Количество */
+        .documents-table th:nth-child(6), .documents-table td:nth-child(6) { width: 10%; } /* Склад/Сумма */
+        .documents-table th:nth-child(7), .documents-table td:nth-child(7) { width: 12%; } /* Статус */
+        .documents-table th:nth-child(8), .documents-table td:nth-child(8) { width: 15%; } /* Кем создан */
+        .documents-table th:nth-child(9), .documents-table td:nth-child(9) { width: 15%; } /* Действия */
         
         /* Status badge styling to prevent overlap */
         .documents-table td:nth-child(7) .badge {
             display: inline-block;
-            padding: 6px 12px;
-            font-size: 11px;
+            padding: 4px 8px;
+            font-size: 10px;
             font-weight: 600;
             border-radius: 4px;
             text-transform: uppercase;
@@ -336,15 +349,14 @@ try {
             line-height: 1.4;
         }
         
-        /* Created by cell styling - ensure full text is visible */
+        /* Created by cell styling - ensure full text is visible with truncation */
         .documents-table td:nth-child(8) {
-            font-size: 13px;
+            font-size: 12px;
             color: #6b7280;
-            padding: 12px 12px;
-            white-space: normal;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            max-width: none;
+            padding: 10px 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             line-height: 1.4;
         }
         
@@ -352,34 +364,26 @@ try {
         .actions-cell {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 2px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
         
         .actions-cell form {
             display: inline;
         }
         
-        /* Badge styling for professional look */
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            font-size: 12px;
-            font-weight: 500;
-            border-radius: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        
-        /* Button icon styling */
+        /* Compact button icon styling for actions */
         .btn-icon {
-            min-width: 32px;
-            height: 32px;
+            min-width: 28px;
+            height: 28px;
             padding: 0;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             border-radius: 4px;
             transition: all 0.2s ease;
+            font-size: 12px;
         }
         
         .btn-icon:hover {
@@ -387,10 +391,16 @@ try {
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
         
-        .btn-icon + .btn-icon,
-        .btn-icon + form,
-        form + .btn-icon {
-            margin-left: 4px;
+        /* Badge styling for professional look */
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            font-size: 10px;
+            font-weight: 500;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
         }
     </style>
 </head>
