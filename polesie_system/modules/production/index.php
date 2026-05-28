@@ -9,21 +9,6 @@ $userFullName = $_SESSION['full_name'];
 $userRole = $_SESSION['user_role'];
 $initials = strtoupper(substr($userFullName, 0, 1));
 
-// Получаем материалы доступные для производства
-$materialsForProduction = [];
-try {
-    $stmt = $pdo->query("
-        SELECT m.id, m.sku, m.name, m.current_stock, m.unit, mc.category_name
-        FROM materials m
-        LEFT JOIN material_categories mc ON m.category_id = mc.id
-        WHERE m.is_active = 1 AND m.current_stock > 0
-        ORDER BY mc.category_name, m.name
-    ");
-    $materialsForProduction = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    $error = 'Ошибка загрузки материалов: ' . $e->getMessage();
-}
-
 // Получаем производственные заказы (план производства)
 $productionOrders = [];
 try {
@@ -54,28 +39,23 @@ try {
     $error = 'Ошибка загрузки производственных заказов: ' . $e->getMessage();
 }
 
-// Получаем выданные материалы в производство
+// Получаем выданные материалы в производство (агрегированные по видам материалов)
 $issuedMaterials = [];
 try {
     $stmt = $pdo->query("
         SELECT 
-            pm.id,
-            pm.production_order_id,
-            po.production_number,
-            m.name as material_name,
+            m.id as material_id,
             m.sku,
-            pm.quantity_issued,
-            pm.quantity_used,
-            pm.unit,
-            pm.issue_date,
-            pm.status,
-            u.full_name as issued_by
+            m.name as material_name,
+            m.unit,
+            SUM(pm.quantity_issued) as total_issued,
+            SUM(pm.quantity_used) as total_used,
+            SUM(pm.quantity_issued) - SUM(pm.quantity_used) as available_on_production
         FROM production_materials pm
         JOIN materials m ON pm.material_id = m.id
-        JOIN production_orders po ON pm.production_order_id = po.id
-        LEFT JOIN users u ON pm.created_by = u.id
-        ORDER BY pm.issue_date DESC
-        LIMIT 50
+        WHERE pm.status IN ('issued', 'used')
+        GROUP BY m.id, m.sku, m.name, m.unit
+        ORDER BY m.name
     ");
     $issuedMaterials = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
@@ -200,10 +180,6 @@ try {
                         <h3><?php echo count($productionOrders); ?></h3>
                         <p>Производственных заказов</p>
                     </div>
-                    <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                        <h3><?php echo count($materialsForProduction); ?></h3>
-                        <p>Материалов на складе</p>
-                    </div>
                     <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                         <h3><?php echo count($customerOrdersForProduction); ?></h3>
                         <p>Заказов в производстве</p>
@@ -213,7 +189,6 @@ try {
                 <!-- Вкладки -->
                 <div class="tabs">
                     <button class="tab-button active" onclick="showTab('plan')">План производства</button>
-                    <button class="tab-button" onclick="showTab('materials')">Материалы</button>
                     <button class="tab-button" onclick="showTab('issued')">Выдано в производство</button>
                     <button class="tab-button" onclick="showTab('orders')">Заказы клиентов</button>
                 </div>
@@ -300,80 +275,36 @@ try {
                     </div>
                 </div>
 
-                <!-- Материалы для производства -->
-                <div id="materials" class="tab-content">
+                <!-- Выдано в производство -->
+                <div id="issued" class="tab-content">
                     <div class="card">
-                        <h2><i class="fas fa-boxes"></i> Материалы на складе</h2>
-                        <p style="color: #6b7280; margin-bottom: 20px;">Материалы доступные для выдачи в производство</p>
+                        <h2><i class="fas fa-dolly"></i> Материалы в производстве</h2>
+                        <p style="color: #6b7280; margin-bottom: 20px;">Материалы выданные со склада и находящиеся в производстве</p>
                         <table class="data-table">
                             <thead>
                                 <tr>
                                     <th>Артикул</th>
                                     <th>Наименование</th>
-                                    <th>Категория</th>
-                                    <th>Остаток</th>
-                                    <th>Ед. изм.</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($materialsForProduction as $material): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($material['sku']); ?></td>
-                                    <td><?php echo htmlspecialchars($material['name']); ?></td>
-                                    <td><?php echo htmlspecialchars($material['category_name'] ?? 'Без категории'); ?></td>
-                                    <td><strong><?php echo $material['current_stock']; ?></strong></td>
-                                    <td><?php echo htmlspecialchars($material['unit']); ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                                <?php if (empty($materialsForProduction)): ?>
-                                <tr>
-                                    <td colspan="5" class="text-center">Материалы не найдены</td>
-                                </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Выдано в производство -->
-                <div id="issued" class="tab-content">
-                    <div class="card">
-                        <h2><i class="fas fa-dolly"></i> Выдано в производство</h2>
-                        <p style="color: #6b7280; margin-bottom: 20px;">Материалы выданные со склада в производство</p>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>№ производственного заказа</th>
-                                    <th>Материал</th>
-                                    <th>Выдано</th>
+                                    <th>Выдано всего</th>
                                     <th>Использовано</th>
-                                    <th>Дата выдачи</th>
-                                    <th>Статус</th>
-                                    <th>Выдал</th>
+                                    <th>Доступно в производстве</th>
+                                    <th>Ед. изм.</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($issuedMaterials as $item): ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($item['production_number']); ?></td>
-                                    <td><?php echo htmlspecialchars($item['material_name']); ?> (<?php echo htmlspecialchars($item['sku']); ?>)</td>
-                                    <td><?php echo $item['quantity_issued'] . ' ' . $item['unit']; ?></td>
-                                    <td><?php echo $item['quantity_used'] . ' ' . $item['unit']; ?></td>
-                                    <td><?php echo $item['issue_date']; ?></td>
-                                    <td>
-                                        <span class="badge badge-<?php 
-                                            echo $item['status'] == 'used' ? 'success' : 
-                                                ($item['status'] == 'returned' ? 'warning' : 'info'); 
-                                        ?>">
-                                            <?php echo $item['status']; ?>
-                                        </span>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($item['issued_by'] ?? 'Н/Д'); ?></td>
+                                    <td><?php echo htmlspecialchars($item['sku']); ?></td>
+                                    <td><?php echo htmlspecialchars($item['material_name']); ?></td>
+                                    <td><?php echo $item['total_issued'] . ' ' . $item['unit']; ?></td>
+                                    <td><?php echo $item['total_used'] . ' ' . $item['unit']; ?></td>
+                                    <td><strong><?php echo $item['available_on_production'] . ' ' . $item['unit']; ?></strong></td>
+                                    <td><?php echo htmlspecialchars($item['unit']); ?></td>
                                 </tr>
                                 <?php endforeach; ?>
                                 <?php if (empty($issuedMaterials)): ?>
                                 <tr>
-                                    <td colspan="7" class="text-center">Материалы не выдавались</td>
+                                    <td colspan="6" class="text-center">Материалы не выдавались</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
