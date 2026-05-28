@@ -1123,9 +1123,9 @@ try {
                                         <td><?php echo htmlspecialchars($material['name']); ?></td>
                                         <td><?php echo htmlspecialchars($material['category_name'] ?? 'Не указана'); ?></td>
                                         <td>
-                                            <span class="badge badge-danger"><?php echo $material['current_stock']; ?></span>
+                                            <span class="badge badge-danger"><?php echo $material['current_stock']; ?> шт.</span>
                                         </td>
-                                        <td><?php echo $material['min_stock_level']; ?></td>
+                                        <td><?php echo $material['min_stock_level']; ?> шт.</td>
                                         <td>
                                             <button class="btn btn-sm btn-success" onclick="openModal('incomeModal', <?php echo $material['id']; ?>)">
                                                 <i class="fas fa-plus"></i> Пополнить
@@ -1236,8 +1236,8 @@ try {
                                                 <td><strong><?php echo htmlspecialchars($material['sku']); ?></strong></td>
                                                 <td><?php echo htmlspecialchars($material['name']); ?></td>
                                                 <td><?php echo htmlspecialchars($material['category_name'] ?? 'Не указана'); ?></td>
-                                                <td><?php echo $material['current_stock']; ?></td>
-                                                <td><?php echo $material['min_stock_level']; ?></td>
+                                                <td><?php echo $material['current_stock']; ?> шт.</td>
+                                                <td><?php echo $material['min_stock_level']; ?> шт.</td>
                                                 <td>
                                                     <?php if ($material['current_stock'] <= $material['min_stock_level']): ?>
                                                         <span class="badge badge-danger">Низкий запас</span>
@@ -2014,8 +2014,8 @@ try {
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
                         <div><strong>Категория:</strong> ${escapeHtml(material.category_name || 'Не указана')}</div>
                         <div><strong>Артикул:</strong> ${escapeHtml(material.sku)}</div>
-                        <div><strong>Текущий остаток:</strong> ${material.current_stock} ${escapeHtml(material.unit)}</div>
-                        <div><strong>Минимальный запас:</strong> ${material.min_stock_level} ${escapeHtml(material.unit)}</div>
+                        <div><strong>Текущий остаток:</strong> ${material.current_stock} шт.</div>
+                        <div><strong>Минимальный запас:</strong> ${material.min_stock_level} шт.</div>
                         <div><strong>Цена за единицу:</strong> ${material.price_per_unit} ${escapeHtml(material.currency || 'BYN')}</div>
                         <div><strong>Единица измерения:</strong> ${escapeHtml(material.unit)}</div>
             `;
@@ -2195,7 +2195,7 @@ try {
                 const quantityInput = document.getElementById(modalPrefix + '_quantity');
                 if (quantityInput && (modalPrefix.includes('outcome') || modalPrefix.includes('writeoff') || modalPrefix === 'issue' || modalPrefix === 'req')) {
                     quantityInput.max = stock;
-                    quantityInput.title = 'Доступно: ' + stock + ' ' + unit;
+                    quantityInput.title = 'Доступно: ' + stock + ' шт.';
                 }
                 
                 // Show stock info for production request modal
@@ -2208,7 +2208,7 @@ try {
                     if (stockInfoDiv && availableStockSpan && stockUnitSpan) {
                         stockInfoDiv.style.display = 'block';
                         availableStockSpan.textContent = stock;
-                        stockUnitSpan.textContent = unit;
+                        stockUnitSpan.textContent = 'шт.';
                         
                         // Check if quantity exceeds stock
                         checkStockAvailability('req');
