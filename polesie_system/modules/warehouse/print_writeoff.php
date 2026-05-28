@@ -216,12 +216,16 @@ try {
     
     <div class="header">
         <h1>ОАО «Полесьеэлектромаш»</h1>
-        <p>АКТ СПИСАНИЯ ТОВАРНО-МАТЕРИАЛЬНЫХ ЦЕННОСТЕЙ</p>
+        <p>ТРЕБОВАНИЕ-НАКЛАДНАЯ НА ВЫДАЧУ МАТЕРИАЛОВ В ПРОИЗВОДСТВО</p>
         <p><strong>№ <?php echo htmlspecialchars($writeoff['document_number']); ?></strong> от <?php echo date('d.m.Y', strtotime($writeoff['document_date'])); ?></p>
     </div>
     
     <div class="doc-info">
         <table>
+            <tr>
+                <td>Тип документа:</td>
+                <td><strong>Выдача материалов в производство</strong></td>
+            </tr>
             <tr>
                 <td>Тип списания:</td>
                 <td><?php echo $writeoff['writeoff_type'] === 'material' ? 'Материалы' : 'Готовая продукция'; ?></td>
@@ -246,7 +250,7 @@ try {
             </tr>
             <?php if ($writeoff['reason']): ?>
             <tr>
-                <td>Причина списания:</td>
+                <td>Основание выдачи:</td>
                 <td><?php echo htmlspecialchars($writeoff['reason']); ?></td>
             </tr>
             <?php endif; ?>
@@ -259,14 +263,15 @@ try {
         </table>
     </div>
     
-    <h3>Списанные товары/материалы</h3>
+    <h3>Выданные материалы в производство</h3>
     <table class="items-table">
         <thead>
             <tr>
                 <th style="width: 50px;">№</th>
-                <th>Наименование</th>
+                <th>Наименование материала</th>
                 <th>Артикул</th>
                 <th style="width: 120px;">Количество</th>
+                <th style="width: 100px;">Ед. изм.</th>
                 <th style="width: 100px;">Цена</th>
                 <th style="width: 120px;">Сумма</th>
             </tr>
@@ -281,7 +286,8 @@ try {
                 <td class="num"><?php echo $index + 1; ?></td>
                 <td><?php echo htmlspecialchars($item['item_name']); ?></td>
                 <td><?php echo htmlspecialchars($item['item_sku'] ?? ''); ?></td>
-                <td class="num"><strong><?php echo number_format($item['quantity_written'], 0); ?> шт</strong></td>
+                <td class="num"><strong><?php echo number_format($item['quantity_written'], 2); ?></strong></td>
+                <td class="center"><?php echo htmlspecialchars($item['item_unit'] ?? 'шт'); ?></td>
                 <td class="num"><?php echo number_format($item['unit_cost'], 2); ?> BYN</td>
                 <td class="num"><?php echo number_format($item['line_total'], 2); ?> BYN</td>
             </tr>
@@ -289,7 +295,7 @@ try {
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="5" style="text-align: right;"><strong>Итого:</strong></td>
+                <td colspan="6" style="text-align: right;"><strong>Итого:</strong></td>
                 <td class="num"><strong><?php echo number_format($totalAmount, 2); ?> BYN</strong></td>
             </tr>
         </tfoot>
@@ -297,19 +303,21 @@ try {
     
     <div class="footer">
         <p>Всего позиций: <strong><?php echo count($items); ?></strong></p>
-        <p>Общая стоимость списанного: <strong><?php echo number_format($totalAmount, 2); ?> BYN</strong></p>
+        <p>Общая стоимость выданных материалов: <strong><?php echo number_format($totalAmount, 2); ?> BYN</strong></p>
     </div>
     
     <div class="signatures">
         <div class="signature-block">
-            <p>Составил:</p>
+            <p>Материалы выдал:</p>
             <p>_____________________</p>
             <p>(_____________________)</p>
+            <p style="font-size: 11px; color: #666;">кладовщик</p>
         </div>
         <div class="signature-block">
-            <p>Утверждаю:</p>
+            <p>Материалы принял:</p>
             <p>_____________________</p>
             <p>(_____________________)</p>
+            <p style="font-size: 11px; color: #666;">ответственный за производство</p>
         </div>
     </div>
     
