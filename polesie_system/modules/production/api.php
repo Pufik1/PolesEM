@@ -108,7 +108,7 @@ try {
                     if (isset($sku_map[$sku])) {
                         $material_id = $sku_map[$sku]['material_id'];
                         $material_name = $sku_map[$sku]['material_name'];
-                        $unit = $sku_map[$sku]['unit'];
+                        // Все материалы в штуках
                         $warehouse_stock = floatval($sku_map[$sku]['warehouse_stock']);
                     }
                     

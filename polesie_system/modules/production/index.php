@@ -514,7 +514,7 @@ try {
                             let statusBadge = item.is_sufficient ? 
                                 '<span class="badge badge-success">Достаточно</span>' : 
                                 '<span class="badge badge-danger">Не хватает</span>';
-                            html += '<tr><td>' + item.material_name + '</td><td>' + item.sku + '</td><td>' + item.qty_per_unit + ' ' + item.unit + '</td><td>' + item.total_quantity + ' ' + item.unit + '</td><td>' + item.available_stock + ' ' + item.unit + '</td><td>' + statusBadge + '</td></tr>';
+                            html += '<tr><td>' + item.material_name + '</td><td>' + item.sku + '</td><td>' + item.qty_per_unit + ' шт</td><td>' + item.total_quantity + ' шт</td><td>' + item.available_stock + ' шт</td><td>' + statusBadge + '</td></tr>';
                         });
                         html += '</tbody></table>';
                         document.getElementById('modalTitle').innerText = 'Спецификация для заказа ' + data.order.production_number;
@@ -569,15 +569,16 @@ try {
                         data.materials.forEach((mat, index) => {
                             // Статус проверяем по факту выданных материалов против требуемых
                             let isFullyIssued = mat.already_issued >= mat.total_required;
+                            let shortageQty = mat.total_required - mat.already_issued;
                             let statusBadge = isFullyIssued ? 
                                 '<span class="badge badge-success">Достаточно</span>' : 
-                                '<span class="badge badge-danger">Не хватает ' + (mat.total_required - mat.already_issued) + ' ' + mat.unit + '</span>';
+                                '<span class="badge badge-danger">Не хватает ' + shortageQty + ' шт</span>';
                             
                             html += '<tr>' +
                                     '<td>' + mat.material_name + '</td>' +
                                     '<td>' + mat.sku + '</td>' +
-                                    '<td>' + mat.total_required + ' ' + mat.unit + '</td>' +
-                                    '<td>' + mat.already_issued + ' ' + mat.unit + '</td>' +
+                                    '<td>' + mat.total_required + ' шт</td>' +
+                                    '<td>' + mat.already_issued + ' шт</td>' +
                                     '<td>' + statusBadge + '</td>' +
                                     '</tr>';
                         });
