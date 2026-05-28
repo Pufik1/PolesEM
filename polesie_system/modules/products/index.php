@@ -963,26 +963,26 @@ try {
                             '<th style="padding: 10px; text-align: left;">№</th>' +
                             '<th style="padding: 10px; text-align: left;">Материал</th>' +
                             '<th style="padding: 10px; text-align: left;">Артикул</th>' +
-                            '<th style="padding: 10px; text-align: center;">Кол-во</th>' +
-                            '<th style="padding: 10px; text-align: left;">Ед. изм.</th>' +
+                            '<th style="padding: 10px; text-align: center;">Кол-во (шт)</th>' +
                             '<th style="padding: 10px; text-align: left;">Категория</th>' +
                         '</tr>' +
                     '</thead>' +
                     '<tbody>';
                 
                 bomMaterials.forEach((material, index) => {
-                    const wasteInfo = material.waste_percent ? ` (+${material.waste_percent}% отходы)` : '';
                     bomHtml += `<tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 8px;">${index + 1}</td>
                         <td style="padding: 8px;"><strong>${material.material_name}</strong></td>
                         <td style="padding: 8px; font-family: monospace;">${material.sku}</td>
-                        <td style="padding: 8px; text-align: center; font-weight: bold; color: var(--primary-color);">${parseFloat(material.quantity).toFixed(2)}${wasteInfo}</td>
-                        <td style="padding: 8px;">${material.unit}</td>
+                        <td style="padding: 8px; text-align: center; font-weight: bold; color: var(--primary-color);">${Math.round(material.quantity)}</td>
                         <td style="padding: 8px;">${material.material_category || '-'}</td>
                     </tr>`;
                 });
-                
-                bomHtml += '</tbody></table>';
+PLACEHOLDER
+PLACEHOLDER
+PLACEHOLDER
+PLACEHOLDER
+PLACEHOLDER
             } else {
                 bomHtml = '<p class="text-muted">Материалы не указаны или спецификация не создана</p>';
             }
