@@ -13,10 +13,278 @@ if (!isLoggedIn()) {
 }
 
 $pdo = getDBConnection();
-$action = $_GET['action'] ?? '';
+$action = $_GET['action'] ?? ($_POST['action'] ?? '');
 
 try {
     switch ($action) {
+        case 'get_customer_order_materials':
+            // Получение материалов для заказа клиента
+            $order_id = (int)($_GET['order_id'] ?? 0);
+            if (!$order_id) {
+                throw new Exception('Не указан ID заказа');
+            }
+            
+            // Получаем информацию о заказе
+            $stmt = $pdo->prepare("
+                SELECT 
+                    o.id as order_id,
+                    o.order_number,
+                    c.company_name as customer_name,
+                    oi.product_id,
+                    p.product_name,
+                    p.product_code,
+                    oi.quantity as order_quantity
+                FROM orders o
+                JOIN clients c ON o.client_id = c.id
+                JOIN order_items oi ON o.id = oi.order_id
+                JOIN products p ON oi.product_id = p.id
+                WHERE o.id = ?
+            ");
+            $stmt->execute([$order_id]);
+            $order = $stmt->fetch();
+            
+            if (!$order) {
+                throw new Exception('Заказ не найден');
+            }
+            
+            // Получаем BOM для продукта
+            $stmt = $pdo->prepare("
+                SELECT pb.id as bom_id, pb.bom_version
+                FROM product_bom pb
+                WHERE pb.product_id = ? AND pb.is_active = 1
+                ORDER BY pb.created_at DESC LIMIT 1
+            ");
+            $stmt->execute([$order['product_id']]);
+            $bom = $stmt->fetch();
+            
+            $materials = [];
+            $total_cost = 0;
+            
+            if ($bom) {
+                // Получаем элементы BOM с учетом количества заказа
+                $stmt = $pdo->prepare("
+                    SELECT 
+                        m.id as material_id,
+                        m.sku,
+                        m.name as material_name,
+                        m.unit,
+                        m.current_stock as warehouse_stock,
+                        pbi.quantity as qty_per_unit,
+                        pbi.quantity * ? as total_required,
+                        pbi.waste_percent,
+                        COALESCE(pm.quantity_issued, 0) as already_issued,
+                        (pbi.quantity * ?) - COALESCE(pm.quantity_issued, 0) as to_issue
+                    FROM product_bom_items pbi
+                    JOIN materials m ON pbi.material_id = m.id
+                    LEFT JOIN production_materials pm ON m.id = pm.material_id 
+                        AND pm.production_order_id IN (
+                            SELECT id FROM production_orders 
+                            WHERE source_order_id = ? AND status != 'cancelled'
+                        )
+                    WHERE pbi.bom_id = ?
+                    ORDER BY m.name
+                ");
+                $stmt->execute([$order['order_quantity'], $order['order_quantity'], $order_id, $bom['bom_id']]);
+                $materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Считаем общую стоимость
+                foreach ($materials as &$mat) {
+                    $mat['to_issue'] = max(0, $mat['to_issue']);
+                    $total_cost += $mat['to_issue'] * ($mat['current_price'] ?? 0);
+                }
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'order' => $order,
+                'bom' => $bom,
+                'materials' => $materials,
+                'total_cost' => $total_cost
+            ]);
+            break;
+            
+        case 'issue_materials':
+            // Выдача материалов в производство для заказа
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Метод не разрешен');
+            }
+            
+            $order_id = (int)$_POST['order_id'];
+            $materials_data = json_decode($_POST['materials_data'], true);
+            $notes = $_POST['notes'] ?? '';
+            
+            if (empty($materials_data)) {
+                throw new Exception('Нет материалов для выдачи');
+            }
+            
+            $pdo->beginTransaction();
+            
+            // Получаем или создаем производственный заказ для этого заказа клиента
+            $stmt = $pdo->prepare("SELECT id FROM production_orders WHERE source_order_id = ?");
+            $stmt->execute([$order_id]);
+            $production_order = $stmt->fetch();
+            
+            if (!$production_order) {
+                // Создаем новый производственный заказ
+                $stmt = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
+                $stmt->execute([$order_id]);
+                $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                if (!empty($items)) {
+                    $item = $items[0];
+                    $prod_number = 'PO-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
+                    
+                    $stmt = $pdo->prepare("
+                        INSERT INTO production_orders 
+                        (production_number, product_id, quantity, status, priority, order_source, source_order_id, created_by)
+                        VALUES (?, ?, ?, 'planned', 'normal', 'customer_order', ?, ?)
+                    ");
+                    $stmt->execute([$prod_number, $item['product_id'], $item['quantity'], $order_id, $_SESSION['user_id']]);
+                    $production_order_id = $pdo->lastInsertId();
+                } else {
+                    throw new Exception('Не найдены продукты в заказе');
+                }
+            } else {
+                $production_order_id = $production_order['id'];
+            }
+            
+            // Выдаем материалы
+            $stmt = $pdo->prepare("
+                INSERT INTO production_materials 
+                (production_order_id, material_id, quantity_issued, status, notes, created_by)
+                VALUES (?, ?, ?, 'issued', ?, ?)
+            ");
+            
+            foreach ($materials_data as $mat) {
+                if ($mat['quantity'] > 0) {
+                    $stmt->execute([
+                        $production_order_id,
+                        $mat['material_id'],
+                        $mat['quantity'],
+                        $notes,
+                        $_SESSION['user_id']
+                    ]);
+                    
+                    // Списываем материалы со склада
+                    $stmt_update = $pdo->prepare("
+                        UPDATE materials 
+                        SET current_stock = current_stock - ? 
+                        WHERE id = ? AND current_stock >= ?
+                    ");
+                    $stmt_update->execute([$mat['quantity'], $mat['material_id'], $mat['quantity']]);
+                    
+                    if ($stmt_update->rowCount() === 0) {
+                        throw new Exception('Недостаточно материала на складе: ' . $mat['material_id']);
+                    }
+                }
+            }
+            
+            // Обновляем статус производственного заказа
+            $stmt = $pdo->prepare("
+                UPDATE production_orders 
+                SET status = 'in_progress' 
+                WHERE id = ?
+            ");
+            $stmt->execute([$production_order_id]);
+            
+            $pdo->commit();
+            
+            logActivity($pdo, $_SESSION['user_id'], 'issue_materials', 'production_materials', $production_order_id);
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Материалы успешно выданы в производство',
+                'production_order_id' => $production_order_id
+            ]);
+            break;
+            
+        case 'complete_production':
+            // Завершение производства и оприходование на склад
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Метод не разрешен');
+            }
+            
+            $production_order_id = (int)$_POST['production_order_id'];
+            $quantity_completed = (int)$_POST['quantity_completed'];
+            $quantity_defect = (int)($_POST['quantity_defect'] ?? 0);
+            $notes = $_POST['notes'] ?? '';
+            
+            $pdo->beginTransaction();
+            
+            // Получаем информацию о производственном заказе
+            $stmt = $pdo->prepare("
+                SELECT po.product_id, po.quantity, po.source_order_id, p.product_code
+                FROM production_orders po
+                JOIN products p ON po.product_id = p.id
+                WHERE po.id = ?
+            ");
+            $stmt->execute([$production_order_id]);
+            $order = $stmt->fetch();
+            
+            if (!$order) {
+                throw new Exception('Производственный заказ не найден');
+            }
+            
+            // Оприходуем готовую продукцию на склад
+            $stmt = $pdo->prepare("
+                UPDATE products 
+                SET current_stock = current_stock + ? 
+                WHERE id = ?
+            ");
+            $stmt->execute([$quantity_completed, $order['product_id']]);
+            
+            // Если есть брак, списываем материалы пропорционально
+            if ($quantity_defect > 0) {
+                // Здесь можно добавить логику списания материалов на брак
+            }
+            
+            // Обновляем статус производственного заказа
+            $new_status = ($quantity_completed >= $order['quantity']) ? 'completed' : 'in_progress';
+            $stmt = $pdo->prepare("
+                UPDATE production_orders 
+                SET status = ?, actual_end_date = CURDATE() 
+                WHERE id = ?
+            ");
+            $stmt->execute([$new_status, $production_order_id]);
+            
+            // Если это заказ клиента, обновляем статус заказа
+            if ($order['source_order_id']) {
+                $stmt = $pdo->prepare("
+                    UPDATE orders 
+                    SET status = 'ready_for_shipment' 
+                    WHERE id = ?
+                ");
+                $stmt->execute([$order['source_order_id']]);
+            }
+            
+            // Создаем документ оприходования
+            $doc_number = 'PR-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
+            $stmt = $pdo->prepare("
+                INSERT INTO production_completion_documents 
+                (document_number, production_order_id, product_id, quantity, defect_quantity, completion_date, notes, created_by)
+                VALUES (?, ?, ?, ?, ?, NOW(), ?, ?)
+            ");
+            $stmt->execute([
+                $doc_number, 
+                $production_order_id, 
+                $order['product_id'], 
+                $quantity_completed, 
+                $quantity_defect, 
+                $notes, 
+                $_SESSION['user_id']
+            ]);
+            
+            $pdo->commit();
+            
+            logActivity($pdo, $_SESSION['user_id'], 'complete_production', 'production_orders', $production_order_id);
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Продукция успешно оприходована на склад',
+                'document_number' => $doc_number
+            ]);
+            break;
+            
         case 'get_bom':
             // Получение спецификации материалов для производственного заказа
             $order_id = (int)($_GET['order_id'] ?? 0);
