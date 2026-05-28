@@ -62,12 +62,12 @@ try {
     // Таблица может еще не существовать
 }
 
-// Получаем заказы клиентов требующие производства
+// Получаем заказы клиентов требующие производства с информацией о материалах
 $customerOrdersForProduction = [];
 try {
     $stmt = $pdo->query("
         SELECT 
-            o.id,
+            o.id as order_id,
             o.order_number,
             c.company_name as customer_name,
             o.order_date,
@@ -77,6 +77,7 @@ try {
             oi.product_id,
             p.product_name,
             p.product_code,
+            p.bom_json,
             oi.quantity as order_quantity,
             po.id as production_order_id,
             po.quantity as production_quantity,
@@ -90,7 +91,76 @@ try {
         AND (po.id IS NULL OR po.status IN ('planned', 'in_progress'))
         ORDER BY o.delivery_date ASC
     ");
-    $customerOrdersForProduction = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $ordersRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Для каждого заказа получаем информацию о материалах
+    foreach ($ordersRaw as $order) {
+        $materialsRequired = [];
+        $materialsIssued = [];
+        $materialsComparison = [];
+        
+        // Декодируем BOM продукта
+        $bom_data = !empty($order['bom_json']) ? json_decode($order['bom_json'], true) : [];
+        
+        if (is_array($bom_data) && !empty($bom_data)) {
+            // Рассчитываем требуемое количество материалов для заказа
+            foreach ($bom_data as $bom_item) {
+                $sku = $bom_item['sku'] ?? '';
+                $qty_per_unit = floatval($bom_item['quantity'] ?? 0);
+                $total_required = $qty_per_unit * $order['order_quantity'];
+                
+                $materialsRequired[$sku] = [
+                    'material_name' => $bom_item['name'] ?? 'Неизвестный материал',
+                    'unit' => $bom_item['unit'] ?? 'шт',
+                    'required' => $total_required
+                ];
+            }
+            
+            // Получаем выданные материалы для этого заказа
+            if ($order['production_order_id']) {
+                $stmt_issued = $pdo->prepare("
+                    SELECT 
+                        m.sku,
+                        m.name as material_name,
+                        m.unit,
+                        SUM(pm.quantity_issued) as total_issued
+                    FROM production_materials pm
+                    JOIN materials m ON pm.material_id = m.id
+                    WHERE pm.production_order_id = ? AND pm.status IN ('issued', 'used')
+                    GROUP BY m.sku, m.name, m.unit
+                ");
+                $stmt_issued->execute([$order['production_order_id']]);
+                $issued_raw = $stmt_issued->fetchAll(PDO::FETCH_ASSOC);
+                
+                foreach ($issued_raw as $im) {
+                    $materialsIssued[$im['sku']] = [
+                        'material_name' => $im['material_name'],
+                        'unit' => $im['unit'],
+                        'issued' => floatval($im['total_issued'])
+                    ];
+                }
+            }
+            
+            // Сравниваем требуемое и выданное
+            foreach ($materialsRequired as $sku => $req_info) {
+                $issued_qty = isset($materialsIssued[$sku]) ? $materialsIssued[$sku]['issued'] : 0;
+                $remaining = $req_info['required'] - $issued_qty;
+                
+                $materialsComparison[] = [
+                    'sku' => $sku,
+                    'material_name' => $req_info['material_name'],
+                    'unit' => $req_info['unit'],
+                    'required' => $req_info['required'],
+                    'issued' => $issued_qty,
+                    'remaining' => max(0, $remaining),
+                    'is_fulfilled' => $issued_qty >= $req_info['required']
+                ];
+            }
+        }
+        
+        $order['materials_comparison'] = $materialsComparison;
+        $customerOrdersForProduction[] = $order;
+    }
 } catch (Exception $e) {
     // 
 }
@@ -323,6 +393,7 @@ try {
                                     <th>Продукт</th>
                                     <th>Заказано</th>
                                     <th>В производстве</th>
+                                    <th>Материалы</th>
                                     <th>Статус оплаты</th>
                                     <th>Статус производства</th>
                                     <th>Дата доставки</th>
@@ -337,6 +408,52 @@ try {
                                     <td><?php echo htmlspecialchars($order['product_name']); ?></td>
                                     <td><?php echo $order['order_quantity']; ?></td>
                                     <td><?php echo $order['production_quantity'] ?? 0; ?></td>
+                                    <td>
+                                        <?php 
+                                        $materialsComparison = $order['materials_comparison'] ?? [];
+                                        if (empty($materialsComparison)): 
+                                        ?>
+                                            <span class="badge badge-warning">Нет данных</span>
+                                        <?php else: 
+                                            $allFulfilled = true;
+                                            $fulfilledCount = 0;
+                                            foreach ($materialsComparison as $mat) {
+                                                if ($mat['is_fulfilled']) {
+                                                    $fulfilledCount++;
+                                                } else {
+                                                    $allFulfilled = false;
+                                                }
+                                            }
+                                            $totalCount = count($materialsComparison);
+                                        ?>
+                                            <div style="font-size: 12px;">
+                                                <strong><?php echo $fulfilledCount; ?>/<?php echo $totalCount; ?></strong> материалов выдано
+                                                <?php if ($allFulfilled): ?>
+                                                    <br><span class="badge badge-success">Все выдано</span>
+                                                <?php else: ?>
+                                                    <br><span class="badge badge-danger">Не хватает <?php echo ($totalCount - $fulfilledCount); ?></span>
+                                                <?php endif; ?>
+                                            </div>
+                                            
+                                            <!-- Детализация по материалам -->
+                                            <details style="margin-top: 5px; font-size: 11px;">
+                                                <summary style="cursor: pointer; color: #3b82f6;">Показать детали</summary>
+                                                <div style="background: #f9fafb; padding: 8px; border-radius: 4px; margin-top: 5px;">
+                                                    <?php foreach ($materialsComparison as $mat): ?>
+                                                        <div style="padding: 2px 0; border-bottom: 1px solid #e5e7eb;">
+                                                            <strong><?php echo htmlspecialchars($mat['material_name']); ?></strong><br>
+                                                            Нужно: <?php echo $mat['required']; ?> | Выдано: <?php echo $mat['issued']; ?> | Остаток: <?php echo $mat['remaining']; ?> <?php echo $mat['unit']; ?>
+                                                            <?php if ($mat['is_fulfilled']): ?>
+                                                                <span style="color: #065f46;">✓</span>
+                                                            <?php else: ?>
+                                                                <span style="color: #991b1b;">✗</span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            </details>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <span class="badge badge-success">Оплачен</span>
                                     </td>
@@ -363,7 +480,7 @@ try {
                                     <td><?php echo $order['delivery_date']; ?></td>
                                     <td>
                                         <?php if (!$order['production_order_id']): ?>
-                                            <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewOrderMaterials(<?php echo $order['id']; ?>)">
+                                            <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewOrderMaterials(<?php echo $order['order_id']; ?>)">
                                                 <i class="fas fa-boxes"></i> Материалы
                                             </button>
                                         <?php elseif ($order['production_status'] == 'in_progress'): ?>
@@ -380,7 +497,7 @@ try {
                                 <?php endforeach; ?>
                                 <?php if (empty($customerOrdersForProduction)): ?>
                                 <tr>
-                                    <td colspan="9" class="text-center">Заказов не найдено</td>
+                                    <td colspan="10" class="text-center">Заказов не найдено</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
