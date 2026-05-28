@@ -2017,7 +2017,6 @@ try {
                         <div><strong>Текущий остаток:</strong> ${material.current_stock} шт.</div>
                         <div><strong>Минимальный запас:</strong> ${material.min_stock_level} шт.</div>
                         <div><strong>Цена за единицу:</strong> ${material.price_per_unit} ${escapeHtml(material.currency || 'BYN')}</div>
-                        <div><strong>Единица измерения:</strong> ${escapeHtml(material.unit)}</div>
             `;
             
             if (material.standard) {
