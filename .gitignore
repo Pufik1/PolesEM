@@ -1,36 +1,55 @@
-```
-# Environment files
+# Database migration files
+*.sql
+
+# Environment specific files
 .env
 .env.local
-*.env.*
+.env.*
 
-# Logs and temporary files
+# Logs
 *.log
+
+# Temporary files
 *.tmp
 *.swp
 
-# Editor/IDE files
+# IDE files
 .vscode/
 .idea/
 
-# Dependencies and build artifacts
-node_modules/
+# Python specific
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.class
-*.o
-*.obj
-*.exe
-*.dll
+.Python
 *.so
-*.a
-*.out
-dist/
+
+# Build artifacts
 build/
-target/
-.venv/
-venv/
-.env/
-```
+dist/
+*.egg-info/
+
+# Compression files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
