@@ -895,7 +895,7 @@ try {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        renderProductModal(data.product);
+                        renderProductModal(data.product, data.bom_materials || []);
                     } else {
                         document.querySelector('#viewProductModal .modal-body').innerHTML = '<p class="text-muted" style="text-align: center; padding: 40px; color: var(--error-color);">Ошибка загрузки данных</p>';
                     }
@@ -906,7 +906,7 @@ try {
                 });
         }
         
-        function renderProductModal(product) {
+        function renderProductModal(product, bomMaterials = []) {
             const skuDecoding = decodeSKU(product.product_code);
             
             let specsHtml = '';
@@ -954,6 +954,39 @@ try {
             // Вес указывается за одну штуку
             const weightInfo = product.weight ? `${product.weight} кг (за 1 шт.)` : 'Н/Д';
             
+            // Формирование HTML для материалов (BOM)
+            let bomHtml = '';
+            if (bomMaterials && bomMaterials.length > 0) {
+                bomHtml = '<table style="width: 100%; border-collapse: collapse; font-size: 14px;">' +
+                    '<thead>' +
+                        '<tr style="background-color: var(--primary-color); color: white;">' +
+                            '<th style="padding: 10px; text-align: left;">№</th>' +
+                            '<th style="padding: 10px; text-align: left;">Материал</th>' +
+                            '<th style="padding: 10px; text-align: left;">Артикул</th>' +
+                            '<th style="padding: 10px; text-align: center;">Кол-во</th>' +
+                            '<th style="padding: 10px; text-align: left;">Ед. изм.</th>' +
+                            '<th style="padding: 10px; text-align: left;">Категория</th>' +
+                        '</tr>' +
+                    '</thead>' +
+                    '<tbody>';
+                
+                bomMaterials.forEach((material, index) => {
+                    const wasteInfo = material.waste_percent ? ` (+${material.waste_percent}% отходы)` : '';
+                    bomHtml += `<tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 8px;">${index + 1}</td>
+                        <td style="padding: 8px;"><strong>${material.material_name}</strong></td>
+                        <td style="padding: 8px; font-family: monospace;">${material.sku}</td>
+                        <td style="padding: 8px; text-align: center; font-weight: bold; color: var(--primary-color);">${parseFloat(material.quantity).toFixed(2)}${wasteInfo}</td>
+                        <td style="padding: 8px;">${material.unit}</td>
+                        <td style="padding: 8px;">${material.material_category || '-'}</td>
+                    </tr>`;
+                });
+                
+                bomHtml += '</tbody></table>';
+            } else {
+                bomHtml = '<p class="text-muted">Материалы не указаны или спецификация не создана</p>';
+            }
+            
             const html = `
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div>
@@ -969,6 +1002,10 @@ try {
                         <h4>Характеристики</h4>
                         ${specsHtml}
                     </div>
+                </div>
+                <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid var(--border-color);">
+                    <h3 style="color: var(--primary-color);"><i class="fas fa-list-ul"></i> Материалы для производства (1 шт. продукта)</h3>
+                    ${bomHtml}
                 </div>
                 <div style="margin-top: 20px;">
                     <h4>Описание</h4>
