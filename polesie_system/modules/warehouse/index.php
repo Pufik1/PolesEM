@@ -333,7 +333,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $material_id = (int)$_POST['material_id'];
             $quantity = (float)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
-            $production_order_id = !empty($_POST['production_order_id']) ? (int)$_POST['production_order_id'] : null;
             $notes = trim($_POST['notes']);
             
             // Проверяем достаточность количества
@@ -407,14 +406,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Добавляем запись в движения материалов
             $stmt = $pdo->prepare("INSERT INTO material_stock_movements 
-                                   (material_id, operation_type, quantity, warehouse_from, user_id, document_number, production_order_id, notes) 
-                                   VALUES (:material_id, 'outcome', :quantity, 1, :user_id, :document_number, :production_order_id, :notes)");
+                                   (material_id, operation_type, quantity, warehouse_from, user_id, document_number, notes) 
+                                   VALUES (:material_id, 'outcome', :quantity, 1, :user_id, :document_number, :notes)");
             $stmt->execute([
                 ':material_id' => $material_id,
                 ':quantity' => $quantity,
                 ':user_id' => $_SESSION['user_id'],
                 ':document_number' => $document_number,
-                ':production_order_id' => $production_order_id,
                 ':notes' => $notes
             ]);
             
@@ -425,20 +423,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':material_id' => $material_id
             ]);
             
-            // Если указан производственный заказ, добавляем запись в production_materials
-            if ($production_order_id) {
-                $stmt = $pdo->prepare("INSERT INTO production_materials 
-                                       (production_order_id, material_id, quantity_issued, unit, warehouse_document_id, created_by) 
-                                       VALUES (:production_order_id, :material_id, :quantity, :unit, :writeoff_id, :user_id)");
-                $stmt->execute([
-                    ':production_order_id' => $production_order_id,
-                    ':material_id' => $material_id,
-                    ':quantity' => $quantity,
-                    ':unit' => $materialData['unit'],
-                    ':writeoff_id' => $writeoff_id,
-                    ':user_id' => $_SESSION['user_id']
-                ]);
-            }
+            // Добавляем запись в production_materials без привязки к заказу
+            $stmt = $pdo->prepare("INSERT INTO production_materials 
+                                   (material_id, quantity_issued, unit, warehouse_document_id, created_by, status) 
+                                   VALUES (:material_id, :quantity, :unit, :writeoff_id, :user_id, 'issued')");
+            $stmt->execute([
+                ':material_id' => $material_id,
+                ':quantity' => $quantity,
+                ':unit' => $materialData['unit'],
+                ':writeoff_id' => $writeoff_id,
+                ':user_id' => $_SESSION['user_id']
+            ]);
             
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'Расход материалов', 'warehouse_operations', $pdo->lastInsertId());
@@ -1770,27 +1765,6 @@ try {
                         <div class="form-group">
                             <label for="req_quantity">Количество к выдаче *</label>
                             <input type="number" id="req_quantity" name="quantity" required min="0.01" step="0.01" value="1" onchange="checkStockAvailability('req')">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="req_production_order_id">Производственный заказ</label>
-                            <select id="req_production_order_id" name="production_order_id">
-                                <option value="">Не указан</option>
-                                <?php
-                                // Get active production orders
-                                try {
-                                    $stmt = $pdo->query("SELECT id, order_number, product_name FROM production_orders WHERE status IN ('in_progress', 'planned') ORDER BY created_at DESC LIMIT 10");
-                                    $productionOrders = $stmt->fetchAll();
-                                    foreach ($productionOrders as $po):
-                                ?>
-                                    <option value="<?php echo $po['id']; ?>">
-                                        <?php echo htmlspecialchars($po['order_number'] . ' - ' . $po['product_name']); ?>
-                                    </option>
-                                <?php 
-                                    endforeach;
-                                } catch(Exception $e) {}
-                                ?>
-                            </select>
                         </div>
                     </div>
                     
