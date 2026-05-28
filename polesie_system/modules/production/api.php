@@ -17,6 +17,68 @@ $action = $_GET['action'] ?? '';
 
 try {
     switch ($action) {
+        case 'get_bom':
+            // Получение спецификации материалов для производственного заказа
+            $order_id = (int)($_GET['order_id'] ?? 0);
+            if (!$order_id) {
+                throw new Exception('Не указан ID заказа');
+            }
+            
+            // Получаем информацию о заказе
+            $stmt = $pdo->prepare("
+                SELECT po.id, po.production_number, po.quantity, p.product_name, p.product_code
+                FROM production_orders po
+                JOIN products p ON po.product_id = p.id
+                WHERE po.id = ?
+            ");
+            $stmt->execute([$order_id]);
+            $order = $stmt->fetch();
+            
+            if (!$order) {
+                throw new Exception('Заказ не найден');
+            }
+            
+            // Получаем BOM для продукта
+            $stmt = $pdo->prepare("
+                SELECT pb.id as bom_id, pb.bom_version, pb.description
+                FROM product_bom pb
+                WHERE pb.product_id = (SELECT product_id FROM production_orders WHERE id = ?)
+                AND pb.is_active = 1
+                ORDER BY pb.created_at DESC LIMIT 1
+            ");
+            $stmt->execute([$order_id]);
+            $bom = $stmt->fetch();
+            
+            $bom_items = [];
+            if ($bom) {
+                // Получаем элементы BOM с учетом количества заказа
+                $stmt = $pdo->prepare("
+                    SELECT 
+                        pbi.material_id,
+                        m.name as material_name,
+                        m.sku,
+                        m.unit,
+                        pbi.quantity as qty_per_unit,
+                        pbi.quantity * ? as total_quantity,
+                        pbi.waste_percent,
+                        m.current_stock as available_stock
+                    FROM product_bom_items pbi
+                    JOIN materials m ON pbi.material_id = m.id
+                    WHERE pbi.bom_id = ?
+                    ORDER BY pbi.sequence_order
+                ");
+                $stmt->execute([$order['quantity'], $bom['bom_id']]);
+                $bom_items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'order' => $order,
+                'bom' => $bom,
+                'bom_items' => $bom_items
+            ]);
+            break;
+            
         case 'get_route_sheet':
             $order_id = (int)($_GET['order_id'] ?? 0);
             if (!$order_id) {

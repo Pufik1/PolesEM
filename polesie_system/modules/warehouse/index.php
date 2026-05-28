@@ -425,6 +425,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':material_id' => $material_id
             ]);
             
+            // Если указан производственный заказ, добавляем запись в production_materials
+            if ($production_order_id) {
+                $stmt = $pdo->prepare("INSERT INTO production_materials 
+                                       (production_order_id, material_id, quantity_issued, unit, warehouse_document_id, created_by) 
+                                       VALUES (:production_order_id, :material_id, :quantity, :unit, :writeoff_id, :user_id)");
+                $stmt->execute([
+                    ':production_order_id' => $production_order_id,
+                    ':material_id' => $material_id,
+                    ':quantity' => $quantity,
+                    ':unit' => $materialData['unit'],
+                    ':writeoff_id' => $writeoff_id,
+                    ':user_id' => $_SESSION['user_id']
+                ]);
+            }
+            
             $pdo->commit();
             logActivity($pdo, $_SESSION['user_id'], 'Расход материалов', 'warehouse_operations', $pdo->lastInsertId());
             $success = 'Материалы успешно выданы в производство. Документ: ' . htmlspecialchars($document_number);
