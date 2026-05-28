@@ -11,8 +11,8 @@ USE polesie_electromash;
 
 -- АВН 71-2 (0.55 кВт, 3000 об/мин)
 INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для электродвигателя АВН 71-2 (0.55 кВт)', 1
-FROM products WHERE product_code = 'AVN71-2' LIMIT 1;
+SELECT id, '1.0', 'Спецификация для электродвигателя АИР71А2 (0.55 кВт)', 1
+FROM products WHERE product_code = 'AIR71A2' LIMIT 1;
 
 INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order, notes)
 SELECT pb.id, m.id, 
@@ -60,8 +60,8 @@ LIMIT 25;
 
 -- АИС 80А2 (1.5 кВт, 3000 об/мин)
 INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для электродвигателя АИС 80А2 (1.5 кВт)', 1
-FROM products WHERE product_code = 'AIS80A2' LIMIT 1;
+SELECT id, '1.0', 'Спецификация для электродвигателя АИР80А2 (1.5 кВт)', 1
+FROM products WHERE product_code = 'AIR80A2' LIMIT 1;
 
 INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order, notes)
 SELECT pb.id, m.id, 
@@ -109,8 +109,8 @@ LIMIT 25;
 
 -- АИС 80В2 (2.2 кВт, 3000 об/мин)
 INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для электродвигателя АИС 80В2 (2.2 кВт)', 1
-FROM products WHERE product_code = 'AIS80B2' LIMIT 1;
+SELECT id, '1.0', 'Спецификация для электродвигателя АИР80В2 (2.2 кВт)', 1
+FROM products WHERE product_code = 'AIR80B2' LIMIT 1;
 
 INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order, notes)
 SELECT pb.id, m.id, 
@@ -155,8 +155,8 @@ LIMIT 25;
 
 -- АИС 90L2 (3.0 кВт, 3000 об/мин) - требуется новые материалы для 90 габарита
 INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для электродвигателя АИС 90L2 (3.0 кВт)', 1
-FROM products WHERE product_code = 'AIS90L2' LIMIT 1;
+SELECT id, '1.0', 'Спецификация для электродвигателя АИР90L2 (3.0 кВт)', 1
+FROM products WHERE product_code = 'AIR90L2' LIMIT 1;
 
 INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order, notes)
 SELECT pb.id, m.id, 
