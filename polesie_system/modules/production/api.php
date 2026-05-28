@@ -101,7 +101,8 @@ try {
                     // Ищем материал по SKU
                     $material_id = 0;
                     $material_name = $bom_item['name'] ?? 'Неизвестный материал';
-                    $unit = $bom_item['unit'] ?? 'шт';
+                    // Все материалы на складе в штуках
+                    $unit = 'шт';
                     $warehouse_stock = 0;
                     
                     if (isset($sku_map[$sku])) {
@@ -391,13 +392,13 @@ try {
                         
                         $material_name = $bom_item['material_name'] ?? 'Неизвестный материал';
                         $sku = $bom_item['sku'] ?? '';
-                        $unit = $bom_item['unit'] ?? 'шт';
+                        // Все материалы в штуках
+                        $unit = 'шт';
                         $available_stock = 0;
                         
                         if (isset($warehouse_map[$material_id])) {
                             $material_name = $warehouse_map[$material_id]['material_name'];
                             $sku = $warehouse_map[$material_id]['sku'];
-                            $unit = $warehouse_map[$material_id]['unit'];
                             $available_stock = floatval($warehouse_map[$material_id]['available_stock']);
                         }
                         

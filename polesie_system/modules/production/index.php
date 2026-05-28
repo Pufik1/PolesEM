@@ -109,9 +109,10 @@ try {
                 $qty_per_unit = floatval($bom_item['quantity'] ?? 0);
                 $total_required = $qty_per_unit * $order['order_quantity'];
                 
+                // Все материалы в штуках
                 $materialsRequired[$sku] = [
                     'material_name' => $bom_item['name'] ?? 'Неизвестный материал',
-                    'unit' => $bom_item['unit'] ?? 'шт',
+                    'unit' => 'шт',
                     'required' => $total_required
                 ];
             }
@@ -122,12 +123,11 @@ try {
                     SELECT 
                         m.sku,
                         m.name as material_name,
-                        m.unit,
                         SUM(pm.quantity_issued) as total_issued
                     FROM production_materials pm
                     JOIN materials m ON pm.material_id = m.id
                     WHERE pm.production_order_id = ? AND pm.status IN ('issued', 'used')
-                    GROUP BY m.sku, m.name, m.unit
+                    GROUP BY m.sku, m.name
                 ");
                 $stmt_issued->execute([$order['production_order_id']]);
                 $issued_raw = $stmt_issued->fetchAll(PDO::FETCH_ASSOC);
@@ -135,7 +135,7 @@ try {
                 foreach ($issued_raw as $im) {
                     $materialsIssued[$im['sku']] = [
                         'material_name' => $im['material_name'],
-                        'unit' => $im['unit'],
+                        'unit' => 'шт',
                         'issued' => floatval($im['total_issued'])
                     ];
                 }
@@ -149,7 +149,7 @@ try {
                 $materialsComparison[] = [
                     'sku' => $sku,
                     'material_name' => $req_info['material_name'],
-                    'unit' => $req_info['unit'],
+                    'unit' => 'шт',
                     'required' => $req_info['required'],
                     'issued' => $issued_qty,
                     'remaining' => max(0, $remaining),
