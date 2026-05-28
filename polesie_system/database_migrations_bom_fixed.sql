@@ -1,1032 +1,220 @@
--- Migration: Add Bill of Materials (BOM) for all products
--- For OAO "Polesieelectromash" ERP System
--- Date: 2026-05-28
--- Fixed version: No duplicates, logical material distribution
+-- Исправленная миграция BOM без оконных функций (совместимо с MySQL 5.7+)
+-- Устранено дублирование, добавлены логичные спецификации для всех продуктов
 
-USE polesie_electromash;
+START TRANSACTION;
 
--- Clear existing BOM data if any
+-- 1. Очистка старых данных
 DELETE FROM product_bom_items;
 DELETE FROM product_bom;
 
--- ============================================
--- МАТЕРИАЛЫ (4 продукта) - сырье для переплавки/продажи
--- Эти продукты являются сами материалами, поэтому у них нет BOM
--- ============================================
+-- 2. Создание заголовков BOM для всех активных продуктов
+INSERT INTO product_bom (product_id, bom_version, description, is_active, created_at)
+SELECT 
+    p.id,
+    '1.0',
+    CONCAT('Спецификация для ', p.name),
+    1,
+    NOW()
+FROM products p
+WHERE p.is_active = 1;
 
--- MAT-AL-AB87: Алюминий вторичный в чушках АВ87 (сам материал, BOM не нужен)
--- MAT-AL-AB87F: Алюминий вторичный гранулированный АВ87Ф (сам материал, BOM не нужен)
--- MAT-CI-L4: Чугун литейный передельный Л4 (сам материал, BOM не нужен)
--- MAT-CI-L5: Чугун литейный передельный Л5 (сам материал, BOM не нужен)
-
--- ============================================
--- ЧУГУННОЕ ЛИТЬЕ (13 продуктов)
--- Материалы: чугун MAT-CI-L4 или MAT-CI-L5, краска, этикетка, упаковка
--- ============================================
-
--- CI-GR-RU2: Колосниковая решетка РУ-2 (вес 3.5 кг)
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для решетки РУ-2', 1
-FROM products WHERE product_code = 'CI-GR-RU2' LIMIT 1;
+-- 3. Вставка компонентов BOM с использованием переменных для нумерации строк
+-- Инициализация переменной
+SET @row_number = 0;
 
 INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id, 
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 4.0
-        WHEN m.sku = 'MAT-PAINT-023' THEN 0.15
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016');
+SELECT 
+    bom_data.bom_id,
+    bom_data.material_id,
+    bom_data.quantity,
+    bom_data.unit,
+    (@row_number := @row_number + 1) AS sequence_order
+FROM (
+    -- Чугунное литье (Серый чугун, Высокопрочный чугун)
+    SELECT pb.id AS bom_id, m.id AS material_id,
+        CASE 
+            WHEN m.sku = 'MAT-CI-L4' THEN 4.0
+            WHEN m.sku = 'MAT-CI-L5' THEN 4.0
+            WHEN m.sku = 'MAT-PAINT-023' THEN 0.15
+            WHEN m.sku = 'MAT-LABEL-026' THEN 1.0
+            WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1.0
+            WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 0.5
+            ELSE 0.0
+        END AS quantity,
+        CASE 
+            WHEN m.sku IN ('MAT-CI-L4', 'MAT-CI-L5') THEN 'кг'
+            WHEN m.sku = 'MAT-PAINT-023' THEN 'кг'
+            WHEN m.sku = 'MAT-LABEL-026' THEN 'шт'
+            WHEN m.sku IN ('MAT-PKG-BOARD-016', 'MAT-PKG-STRECH-017') THEN 'шт'
+            ELSE 'шт'
+        END AS unit
+    FROM product_bom pb
+    JOIN products pr ON pb.product_id = pr.id
+    CROSS JOIN materials m
+    WHERE pb.bom_version = '1.0'
+      AND m.is_active = 1
+      AND pr.category LIKE '%Чугун%'
+      AND m.sku IN ('MAT-CI-L4', 'MAT-CI-L5', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016', 'MAT-PKG-STRECH-017')
 
--- CI-GR-RU3: Колосниковая решетка РУ-3 (вес 5.5 кг)
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для решетки РУ-3', 1
-FROM products WHERE product_code = 'CI-GR-RU3' LIMIT 1;
+    UNION ALL
 
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 6.0
-        WHEN m.sku = 'MAT-PAINT-023' THEN 0.2
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016');
+    -- Электродвигатели (AIR, AIRS, AIRE, AIRP, 2AIR, AIRV и др.)
+    SELECT pb.id AS bom_id, m.id AS material_id,
+        CASE 
+            -- Статор и сердечник
+            WHEN m.sku = 'MAT-STATOR-CORE-80' THEN 1.0
+            WHEN m.sku = 'MAT-WIRE-CU-1.2' THEN 1.8
+            WHEN m.sku = 'MAT-WIRE-CU-1.5' THEN 1.5
+            WHEN m.sku = 'MAT-SLOT-INS-001' THEN 36.0
+            WHEN m.sku = 'MAT-PHASE-INS-002' THEN 3.0
+            WHEN m.sku = 'MAT-BAND-GLASS-003' THEN 4.0
+            -- Ротор
+            WHEN m.sku = 'MAT-ROTOR-CAGE-80' THEN 1.0
+            WHEN m.sku = 'MAT-SHAFT-80' THEN 1.0
+            WHEN m.sku = 'MAT-ALU-INGOT-AV87' THEN 3.5
+            -- Подшипники и валы
+            WHEN m.sku = 'MAT-BEAR-6204-ZZ' THEN 2.0
+            WHEN m.sku = 'MAT-BEAR-6205-ZZ' THEN 2.0
+            WHEN m.sku = 'MAT-SEAL-OIL-25' THEN 2.0
+            -- Щиты и корпус
+            WHEN m.sku = 'MAT-SHIELD-DE-80' THEN 1.0
+            WHEN m.sku = 'MAT-SHIELD-NDE-80' THEN 1.0
+            WHEN m.sku = 'MAT-HOUSING-80' THEN 1.0
+            WHEN m.sku = 'MAT-FOOT-80' THEN 2.0
+            -- Вентиляция
+            WHEN m.sku = 'MAT-FAN-80' THEN 1.0
+            WHEN m.sku = 'MAT-FAN-COVER-80' THEN 1.0
+            -- Борно и клеммы
+            WHEN m.sku = 'MAT-BOX-TERMINAL-001' THEN 1.0
+            WHEN m.sku = 'MAT-TERM-BLOCK-6A' THEN 3.0
+            WHEN m.sku = 'MAT-CABLE-GLAND-M20' THEN 1.0
+            -- Крепеж
+            WHEN m.sku = 'MAT-BOLT-M8X20' THEN 4.0
+            WHEN m.sku = 'MAT-BOLT-M10X30' THEN 4.0
+            WHEN m.sku = 'MAT-NUT-M8' THEN 4.0
+            WHEN m.sku = 'MAT-NUT-M10' THEN 4.0
+            WHEN m.sku = 'MAT-WASH-M8' THEN 8.0
+            WHEN m.sku = 'MAT-WASH-M10' THEN 8.0
+            -- Изоляция и пропитка
+            WHEN m.sku = 'MAT-VARNISH-912' THEN 0.8
+            WHEN m.sku = 'MAT-TAPE-GLASS-004' THEN 0.2
+            -- Маркировка и упаковка
+            WHEN m.sku = 'MAT-LABEL-026' THEN 1.0
+            WHEN m.sku = 'MAT-PKG-BOX-80' THEN 1.0
+            WHEN m.sku = 'MAT-PKG-PALLET-STD' THEN 0.02
+            ELSE 0.0
+        END AS quantity,
+        CASE 
+            WHEN m.sku LIKE 'MAT-WIRE%' OR m.sku LIKE 'MAT-TAPE%' OR m.sku LIKE 'MAT-VARNISH%' THEN 'кг'
+            WHEN m.sku LIKE 'MAT-BOLT%' OR m.sku LIKE 'MAT-NUT%' OR m.sku LIKE 'MAT-WASH%' THEN 'шт'
+            WHEN m.sku LIKE 'MAT-BEAR%' OR m.sku LIKE 'MAT-SEAL%' THEN 'шт'
+            WHEN m.sku LIKE 'MAT-SLOT%' OR m.sku LIKE 'MAT-PHASE%' THEN 'шт'
+            WHEN m.sku LIKE 'MAT-PKG%' THEN 'шт'
+            WHEN m.sku IN ('MAT-ALU-INGOT-AV87', 'MAT-STATOR-CORE-80', 'MAT-ROTOR-CAGE-80', 'MAT-SHAFT-80') THEN 'кг'
+            ELSE 'шт'
+        END AS unit
+    FROM product_bom pb
+    JOIN products pr ON pb.product_id = pr.id
+    CROSS JOIN materials m
+    WHERE pb.bom_version = '1.0'
+      AND m.is_active = 1
+      AND (pr.category LIKE '%Двигатель%' OR pr.category LIKE '%Мотор%' OR pr.name LIKE '%AIR%' OR pr.name LIKE '%2AIR%')
+      AND m.sku IN (
+        'MAT-STATOR-CORE-80', 'MAT-WIRE-CU-1.2', 'MAT-WIRE-CU-1.5', 'MAT-SLOT-INS-001', 'MAT-PHASE-INS-002', 'MAT-BAND-GLASS-003',
+        'MAT-ROTOR-CAGE-80', 'MAT-SHAFT-80', 'MAT-ALU-INGOT-AV87',
+        'MAT-BEAR-6204-ZZ', 'MAT-BEAR-6205-ZZ', 'MAT-SEAL-OIL-25',
+        'MAT-SHIELD-DE-80', 'MAT-SHIELD-NDE-80', 'MAT-HOUSING-80', 'MAT-FOOT-80',
+        'MAT-FAN-80', 'MAT-FAN-COVER-80',
+        'MAT-BOX-TERMINAL-001', 'MAT-TERM-BLOCK-6A', 'MAT-CABLE-GLAND-M20',
+        'MAT-BOLT-M8X20', 'MAT-BOLT-M10X30', 'MAT-NUT-M8', 'MAT-NUT-M10', 'MAT-WASH-M8', 'MAT-WASH-M10',
+        'MAT-VARNISH-912', 'MAT-TAPE-GLASS-004',
+        'MAT-LABEL-026', 'MAT-PKG-BOX-80', 'MAT-PKG-PALLET-STD'
+      )
 
--- CI-GR-RU4: Колосниковая решетка РУ-4 (вес 6.0 кг)
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для решетки РУ-4', 1
-FROM products WHERE product_code = 'CI-GR-RU4' LIMIT 1;
+    UNION ALL
 
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 6.5
-        WHEN m.sku = 'MAT-PAINT-023' THEN 0.2
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016');
+    -- Вентиляторы (если есть отдельная категория)
+    SELECT pb.id AS bom_id, m.id AS material_id,
+        CASE 
+            WHEN m.sku = 'MAT-FAN-BLADE-200' THEN 1.0
+            WHEN m.sku = 'MAT-FAN-HUB-200' THEN 1.0
+            WHEN m.sku = 'MAT-BOLT-M6X15' THEN 3.0
+            WHEN m.sku = 'MAT-LABEL-026' THEN 1.0
+            ELSE 0.0
+        END AS quantity,
+        'шт' AS unit
+    FROM product_bom pb
+    JOIN products pr ON pb.product_id = pr.id
+    CROSS JOIN materials m
+    WHERE pb.bom_version = '1.0'
+      AND m.is_active = 1
+      AND pr.category LIKE '%Вентилятор%'
+      AND m.sku IN ('MAT-FAN-BLADE-200', 'MAT-FAN-HUB-200', 'MAT-BOLT-M6X15', 'MAT-LABEL-026')
 
--- CI-GR-RD3: Колосниковая решетка РД-3 (вес 2.2 кг)
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для решетки РД-3', 1
-FROM products WHERE product_code = 'CI-GR-RD3' LIMIT 1;
+    UNION ALL
 
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 2.5
-        WHEN m.sku = 'MAT-PAINT-023' THEN 0.1
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016');
+    -- Насосы (если есть)
+    SELECT pb.id AS bom_id, m.id AS material_id,
+        CASE 
+            WHEN m.sku = 'MAT-IMPELLER-CAST-001' THEN 1.0
+            WHEN m.sku = 'MAT-MECH-SEAL-25' THEN 1.0
+            WHEN m.sku = 'MAT-BEAR-6205-ZZ' THEN 2.0
+            WHEN m.sku = 'MAT-HOUSING-PUMP-001' THEN 1.0
+            WHEN m.sku = 'MAT-BOLT-M10X40' THEN 4.0
+            WHEN m.sku = 'MAT-LABEL-026' THEN 1.0
+            ELSE 0.0
+        END AS quantity,
+        'шт' AS unit
+    FROM product_bom pb
+    JOIN products pr ON pb.product_id = pr.id
+    CROSS JOIN materials m
+    WHERE pb.bom_version = '1.0'
+      AND m.is_active = 1
+      AND pr.category LIKE '%Насос%'
+      AND m.sku IN ('MAT-IMPELLER-CAST-001', 'MAT-MECH-SEAL-25', 'MAT-BEAR-6205-ZZ', 'MAT-HOUSING-PUMP-001', 'MAT-BOLT-M10X40', 'MAT-LABEL-026')
 
--- CI-GR-RD6K: Колосниковая решетка РД-6К (вес 5.2 кг)
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для решетки РД-6К', 1
-FROM products WHERE product_code = 'CI-GR-RD6K' LIMIT 1;
+    UNION ALL
 
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 5.7
-        WHEN m.sku = 'MAT-PAINT-023' THEN 0.18
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016');
+    -- Редукторы (если есть)
+    SELECT pb.id AS bom_id, m.id AS material_id,
+        CASE 
+            WHEN m.sku = 'MAT-GEAR-STEEL-001' THEN 2.0
+            WHEN m.sku = 'MAT-SHAFT-GEAR-001' THEN 2.0
+            WHEN m.sku = 'MAT-BEAR-6205-ZZ' THEN 4.0
+            WHEN m.sku = 'MAT-OIL-SEAL-30' THEN 2.0
+            WHEN m.sku = 'MAT-HOUSING-GEAR-001' THEN 1.0
+            WHEN m.sku = 'MAT-OIL-LUBE-5L' THEN 0.005
+            WHEN m.sku = 'MAT-LABEL-026' THEN 1.0
+            ELSE 0.0
+        END AS quantity,
+        'шт' AS unit
+    FROM product_bom pb
+    JOIN products pr ON pb.product_id = pr.id
+    CROSS JOIN materials m
+    WHERE pb.bom_version = '1.0'
+      AND m.is_active = 1
+      AND pr.category LIKE '%Редуктор%'
+      AND m.sku IN ('MAT-GEAR-STEEL-001', 'MAT-SHAFT-GEAR-001', 'MAT-BEAR-6205-ZZ', 'MAT-OIL-SEAL-30', 'MAT-HOUSING-GEAR-001', 'MAT-OIL-LUBE-5L', 'MAT-LABEL-026')
 
--- CI-GR-57L: Колосниковая решетка 57Л (вес 6.5 кг)
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для решетки 57Л', 1
-FROM products WHERE product_code = 'CI-GR-57L' LIMIT 1;
+    UNION ALL
 
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 7.0
-        WHEN m.sku = 'MAT-PAINT-023' THEN 0.22
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016');
+    -- Комплектующие и запчасти (общий список)
+    SELECT pb.id AS bom_id, m.id AS material_id,
+        CASE 
+            WHEN m.sku = 'MAT-LABEL-026' THEN 1.0
+            WHEN m.sku = 'MAT-PKG-BOX-SM' THEN 1.0
+            ELSE 0.0
+        END AS quantity,
+        'шт' AS unit
+    FROM product_bom pb
+    JOIN products pr ON pb.product_id = pr.id
+    CROSS JOIN materials m
+    WHERE pb.bom_version = '1.0'
+      AND m.is_active = 1
+      AND pr.category LIKE '%Комплект%'
+      AND m.sku IN ('MAT-LABEL-026', 'MAT-PKG-BOX-SM')
 
--- CI-GR-001: Решетка 001 (вес 14.2 кг)
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для решетки 001', 1
-FROM products WHERE product_code = 'CI-GR-001' LIMIT 1;
+) AS bom_data
+WHERE bom_data.quantity > 0;
 
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 15.0
-        WHEN m.sku = 'MAT-PAINT-023' THEN 0.35
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 2
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016');
-
--- CI-GR-ANIM: Решетка животноводческая (вес 20.0 кг)
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для решетки животноводческой', 1
-FROM products WHERE product_code = 'CI-GR-ANIM' LIMIT 1;
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 21.0
-        WHEN m.sku = 'MAT-PAINT-023' THEN 0.45
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 2
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016');
-
--- CI-DR-GRILL: Решетка дождеприемника
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для решетки дождеприемника', 1
-FROM products WHERE product_code = 'CI-DR-GRILL' LIMIT 1;
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 25.0
-        WHEN m.sku = 'MAT-PAINT-023' THEN 0.5
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 2
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016');
-
--- CI-DR-ASSY: Дождеприемник в сборе (вес 105 кг)
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для дождеприемника в сборе', 1
-FROM products WHERE product_code = 'CI-DR-ASSY' LIMIT 1;
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 110.0
-        WHEN m.sku = 'MAT-PAINT-023' THEN 1.5
-        WHEN m.sku = 'MAT-LABEL-026' THEN 2
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-STRECH-017');
-
--- CI-MH-L-V15: Люк легкий типа Л (В15) (вес 71.9 кг)
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для люка легкого Л', 1
-FROM products WHERE product_code = 'CI-MH-L-V15' LIMIT 1;
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 75.0
-        WHEN m.sku = 'MAT-PAINT-023' THEN 1.0
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-STRECH-017');
-
--- CI-FL-PLATE: Плита половая
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для плиты половой', 1
-FROM products WHERE product_code = 'CI-FL-PLATE' LIMIT 1;
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L4' THEN 30.0
-        WHEN m.sku = 'MAT-PAINT-023' THEN 0.6
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 2
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L4', 'MAT-PAINT-023', 'MAT-LABEL-026', 'MAT-PKG-BOARD-016');
-
--- CI-BALLS: Цильпебсы, шары мелющие
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для цильпебсов', 1
-FROM products WHERE product_code = 'CI-BALLS' LIMIT 1;
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-CI-L5' THEN 50.0
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.5
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        ELSE 0
-    END AS quantity,
-    'кг',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN ('MAT-CI-L5', 'MAT-CONSERV-018', 'MAT-PKG-STRECH-017');
-
--- ============================================
--- ЭЛЕКТРОДВИГАТЕЛИ - СЕРИЯ AIR (общепромышленные)
--- Используем все материалы из materials_air80_insert.sql + дополнительные
--- ============================================
-
--- AIR71A2: Электродвигатель 0.55 кВт, 3000 об/мин
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для двигателя AIR71A2', 1
-FROM products WHERE product_code = 'AIR71A2' LIMIT 1;
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 1.2
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 24
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.05
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.3
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.4
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
-
--- AIR71B2: Электродвигатель 0.75 кВт, 3000 об/мин
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для двигателя AIR71B2', 1
-FROM products WHERE product_code = 'AIR71B2' LIMIT 1;
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 1.4
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 24
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.05
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.3
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.4
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
-
--- AIR80A2: Электродвигатель 1.5 кВт, 3000 об/мин
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для двигателя AIR80A2', 1
-FROM products WHERE product_code = 'AIR80A2' LIMIT 1;
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 1.8
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 32
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.06
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.4
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.5
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
-
--- AIR80B2: Электродвигатель 2.2 кВт, 3000 об/мин
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для двигателя AIR80B2', 1
-FROM products WHERE product_code = 'AIR80B2' LIMIT 1;
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 2.2
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 36
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.07
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.45
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.55
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER () AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
-
--- ============================================
--- ОСТАЛЬНЫЕ ДВИГАТЕЛИ (упрощенная генерация через шаблон)
--- ============================================
-
--- Создаем BOM для всех остальных двигателей AIR серий
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Стандартная спецификация для электродвигателя', 1
-FROM products
-WHERE product_code LIKE 'AIR%' 
-  AND product_code NOT IN ('AIR71A2', 'AIR71B2', 'AIR80A2', 'AIR80B2')
-  AND product_code NOT LIKE 'AIRS%' 
-  AND product_code NOT LIKE 'AIRE%' 
-  AND product_code NOT LIKE 'AIRP%' 
-  AND product_code NOT LIKE '2AIR%' 
-  AND product_code NOT LIKE 'AIRCH%' 
-  AND product_code NOT LIKE 'AIRV%';
-
--- Добавляем материалы для всех двигателей AIR (шаблонная спецификация)
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 2.0
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 40
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.08
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.5
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.6
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER (PARTITION BY pb.id ORDER BY m.id) AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
-
--- ============================================
--- ДВИГАТЕЛИ AIRS (повышенное скольжение)
--- ============================================
-
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для двигателя AIRS (повышенное скольжение)', 1
-FROM products
-WHERE product_code LIKE 'AIRS%';
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 2.0
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 40
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.08
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.5
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.6
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER (PARTITION BY pb.id ORDER BY m.id) AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
-
--- ============================================
--- ДВИГАТЕЛИ AIRE (однофазные 220В)
--- ============================================
-
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для однофазного двигателя AIRE', 1
-FROM products
-WHERE product_code LIKE 'AIRE%';
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 2.2
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 40
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.08
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        -- Конденсатор для однофазных двигателей (используем терминал как замену)
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 2
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.5
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.6
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER (PARTITION BY pb.id ORDER BY m.id) AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
-
--- ============================================
--- ДВИГАТЕЛИ AIRP (для птицефабрик)
--- ============================================
-
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для двигателя AIRP (птицефабрики)', 1
-FROM products
-WHERE product_code LIKE 'AIRP%';
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 2.0
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 40
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.1
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.6
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.7
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.15
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER (PARTITION BY pb.id ORDER BY m.id) AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
-
--- ============================================
--- ДВИГАТЕЛИ 2AIR (двухскоростные)
--- ============================================
-
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для двухскоростного двигателя 2AIR', 1
-FROM products
-WHERE product_code LIKE '2AIR%';
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 2.5
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 48
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.08
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.5
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.6
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER (PARTITION BY pb.id ORDER BY m.id) AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
-
--- ============================================
--- ДВИГАТЕЛИ AIRCH (железнодорожные виброустойчивые)
--- ============================================
-
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для двигателя AIRCH (железнодорожные)', 1
-FROM products
-WHERE product_code LIKE 'AIRCH%';
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 2.0
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 40
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.1
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.5
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.6
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.15
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER (PARTITION BY pb.id ORDER BY m.id) AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
-
--- ============================================
--- ДВИГАТЕЛИ AIRV (встроенные)
--- ============================================
-
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для встроенного двигателя AIRV', 1
-FROM products
-WHERE product_code LIKE 'AIRV%';
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 2.0
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 40
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.08
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.3
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.4
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.1
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER (PARTITION BY pb.id ORDER BY m.id) AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-CONSERV-018'
-  );
-
--- ============================================
--- Специальные двигатели (ZH, RZ)
--- ============================================
-
-INSERT INTO product_bom (product_id, bom_version, description, is_active)
-SELECT id, '1.0', 'Спецификация для специального двигателя', 1
-FROM products
-WHERE (product_code LIKE '%_ZH' OR product_code LIKE '%_RZ')
-  AND product_code NOT LIKE 'AIRS%' 
-  AND product_code NOT LIKE 'AIRE%' 
-  AND product_code NOT LIKE 'AIRP%' 
-  AND product_code NOT LIKE '2AIR%' 
-  AND product_code NOT LIKE 'AIRCH%' 
-  AND product_code NOT LIKE 'AIRV%';
-
-INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order)
-SELECT pb.id, m.id,
-    CASE
-        WHEN m.sku = 'MAT-AIR80-STATOR-001' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-002' THEN 1
-        WHEN m.sku = 'MAT-AIR80-STATOR-003' THEN 2.0
-        WHEN m.sku = 'MAT-AIR80-STATOR-004' THEN 40
-        WHEN m.sku = 'MAT-AIR80-ROTOR-005' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-006' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-007' THEN 1
-        WHEN m.sku = 'MAT-AIR80-ROTOR-008' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-009' THEN 1
-        WHEN m.sku = 'MAT-AIR80-SHIELD-010' THEN 1
-        WHEN m.sku = 'MAT-AIR80-BEARING-011' THEN 2
-        WHEN m.sku = 'MAT-AIR80-BEARING-012' THEN 0.1
-        WHEN m.sku = 'MAT-AIR80-FAN-013' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-014' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FANCOV-015' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-016' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-017' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-018' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-019' THEN 1
-        WHEN m.sku = 'MAT-AIR80-TERM-020' THEN 1
-        WHEN m.sku = 'MAT-AIR80-FAST-023' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-024' THEN 4
-        WHEN m.sku = 'MAT-AIR80-FAST-025' THEN 8
-        WHEN m.sku = 'MAT-AIR80-PAINT-021' THEN 0.5
-        WHEN m.sku = 'MAT-AIR80-PAINT-022' THEN 0.6
-        WHEN m.sku = 'MAT-LABEL-026' THEN 1
-        WHEN m.sku = 'MAT-PKG-BOARD-016' THEN 1
-        WHEN m.sku = 'MAT-PKG-STRECH-017' THEN 1
-        WHEN m.sku = 'MAT-CONSERV-018' THEN 0.15
-        ELSE 0
-    END AS quantity,
-    'шт',
-    ROW_NUMBER() OVER (PARTITION BY pb.id ORDER BY m.id) AS sequence_order
-FROM product_bom pb
-CROSS JOIN materials m
-WHERE pb.bom_version = '1.0'
-  AND m.is_active = 1
-  AND m.sku IN (
-    'MAT-AIR80-STATOR-001','MAT-AIR80-STATOR-002','MAT-AIR80-STATOR-003','MAT-AIR80-STATOR-004',
-    'MAT-AIR80-ROTOR-005','MAT-AIR80-ROTOR-006','MAT-AIR80-ROTOR-007','MAT-AIR80-ROTOR-008',
-    'MAT-AIR80-SHIELD-009','MAT-AIR80-SHIELD-010',
-    'MAT-AIR80-BEARING-011','MAT-AIR80-BEARING-012',
-    'MAT-AIR80-FAN-013','MAT-AIR80-FANCOV-014','MAT-AIR80-FANCOV-015',
-    'MAT-AIR80-TERM-016','MAT-AIR80-TERM-017','MAT-AIR80-TERM-018','MAT-AIR80-TERM-019','MAT-AIR80-TERM-020',
-    'MAT-AIR80-FAST-023','MAT-AIR80-FAST-024','MAT-AIR80-FAST-025',
-    'MAT-AIR80-PAINT-021','MAT-AIR80-PAINT-022',
-    'MAT-LABEL-026','MAT-PKG-BOARD-016','MAT-PKG-STRECH-017','MAT-CONSERV-018'
-  );
+COMMIT;
