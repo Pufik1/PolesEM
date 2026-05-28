@@ -288,7 +288,6 @@ try {
                                     <th>Выдано всего</th>
                                     <th>Использовано</th>
                                     <th>Доступно в производстве</th>
-                                    <th>Ед. изм.</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -296,15 +295,14 @@ try {
                                 <tr>
                                     <td><?php echo htmlspecialchars($item['sku']); ?></td>
                                     <td><?php echo htmlspecialchars($item['material_name']); ?></td>
-                                    <td><?php echo $item['total_issued'] . ' ' . $item['unit']; ?></td>
-                                    <td><?php echo $item['total_used'] . ' ' . $item['unit']; ?></td>
-                                    <td><strong><?php echo $item['available_on_production'] . ' ' . $item['unit']; ?></strong></td>
-                                    <td><?php echo htmlspecialchars($item['unit']); ?></td>
+                                    <td><?php echo $item['total_issued'] . ' шт'; ?></td>
+                                    <td><?php echo $item['total_used'] . ' шт'; ?></td>
+                                    <td><strong><?php echo $item['available_on_production'] . ' шт'; ?></strong></td>
                                 </tr>
                                 <?php endforeach; ?>
                                 <?php if (empty($issuedMaterials)): ?>
                                 <tr>
-                                    <td colspan="6" class="text-center">Материалы не выдавались</td>
+                                    <td colspan="5" class="text-center">Материалы не выдавались</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>

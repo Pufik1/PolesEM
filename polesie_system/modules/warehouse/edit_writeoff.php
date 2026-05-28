@@ -79,7 +79,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $productIds = $_POST['product_id'] ?? [];
         $itemNames = $_POST['item_name'] ?? [];
         $itemSkus = $_POST['item_sku'] ?? [];
-        $itemUnits = $_POST['item_unit'] ?? [];
         $quantities = $_POST['quantity_written'] ?? [];
         $unitCosts = $_POST['unit_cost'] ?? [];
         $lineTotals = $_POST['line_total'] ?? [];
@@ -105,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("
                     UPDATE material_writeoff_items 
                     SET item_type = :item_type, material_id = :material_id, product_id = :product_id,
-                        item_name = :item_name, item_sku = :item_sku, item_unit = :item_unit,
+                        item_name = :item_name, item_sku = :item_sku,
                         quantity_written = :quantity_written, unit_cost = :unit_cost, line_total = :line_total,
                         batch_number = :batch_number
                     WHERE id = :id
@@ -113,23 +112,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([
                     ':item_type' => $itemTypes[$index], ':material_id' => $materialId, ':product_id' => $productId,
                     ':item_name' => $itemNames[$index], ':item_sku' => $itemSkus[$index],
-                    ':item_unit' => $itemUnits[$index], ':quantity_written' => $quantity,
+                    ':quantity_written' => $quantity,
                     ':unit_cost' => $unitCost, ':line_total' => $lineTotal,
                     ':batch_number' => $batchNumbers[$index], ':id' => $itemId
                 ]);
             } else {
                 $stmt = $pdo->prepare("
                     INSERT INTO material_writeoff_items 
-                    (writeoff_id, item_type, material_id, product_id, item_name, item_sku, item_unit, 
+                    (writeoff_id, item_type, material_id, product_id, item_name, item_sku, 
                      quantity_written, unit_cost, line_total, batch_number)
-                    VALUES (:writeoff_id, :item_type, :material_id, :product_id, :item_name, :item_sku, :item_unit, 
+                    VALUES (:writeoff_id, :item_type, :material_id, :product_id, :item_name, :item_sku, 
                             :quantity_written, :unit_cost, :line_total, :batch_number)
                 ");
                 $stmt->execute([
                     ':writeoff_id' => $writeoffId, ':item_type' => $itemTypes[$index],
                     ':material_id' => $materialId, ':product_id' => $productId,
                     ':item_name' => $itemNames[$index], ':item_sku' => $itemSkus[$index],
-                    ':item_unit' => $itemUnits[$index], ':quantity_written' => $quantity,
+                    ':quantity_written' => $quantity,
                     ':unit_cost' => $unitCost, ':line_total' => $lineTotal,
                     ':batch_number' => $batchNumbers[$index]
                 ]);
@@ -270,7 +269,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <th style="width: 50px;">№</th>
                         <th>Наименование</th>
                         <th>Артикул</th>
-                        <th style="width: 80px;">Ед.</th>
                         <th style="width: 100px;">Количество</th>
                         <th style="width: 100px;">Цена</th>
                         <th style="width: 100px;">Сумма</th>
@@ -284,7 +282,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <td><?php echo $index + 1; ?></td>
                         <td><input type="text" name="item_name[]" value="<?php echo htmlspecialchars($item['item_name']); ?>" required></td>
                         <td><input type="text" name="item_sku[]" value="<?php echo htmlspecialchars($item['item_sku'] ?? ''); ?>"></td>
-                        <td><input type="text" name="item_unit[]" value="<?php echo htmlspecialchars($item['item_unit'] ?? 'шт'); ?>"></td>
                         <td><input type="number" step="0.01" name="quantity_written[]" value="<?php echo number_format($item['quantity_written'], 2); ?>" required min="0"></td>
                         <td><input type="number" step="0.01" name="unit_cost[]" value="<?php echo number_format($item['unit_cost'] ?? 0, 2); ?>" min="0"></td>
                         <td><input type="number" step="0.01" name="line_total[]" value="<?php echo number_format($item['line_total'] ?? 0, 2); ?>" readonly></td>
@@ -317,7 +314,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             rowCount++;
             const tbody = document.querySelector('#itemsTable tbody');
             const row = document.createElement('tr');
-            row.innerHTML = '<td>' + rowCount + '</td><td><input type="text" name="item_name[]" required></td><td><input type="text" name="item_sku[]"></td><td><input type="text" name="item_unit[]" value="шт"></td><td><input type="number" step="0.01" name="quantity_written[]" value="0" required min="0"></td><td><input type="number" step="0.01" name="unit_cost[]" value="0" min="0"></td><td><input type="number" step="0.01" name="line_total[]" value="0" readonly></td><td><input type="text" name="batch_number[]"></td><td><input type="hidden" name="item_id[]" value=""><input type="hidden" name="item_type[]" value="material"><input type="hidden" name="material_id[]" value=""><input type="hidden" name="product_id[]" value=""><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>';
+            row.innerHTML = '<td>' + rowCount + '</td><td><input type="text" name="item_name[]" required></td><td><input type="text" name="item_sku[]"></td><td><input type="number" step="0.01" name="quantity_written[]" value="0" required min="0"></td><td><input type="number" step="0.01" name="unit_cost[]" value="0" min="0"></td><td><input type="number" step="0.01" name="line_total[]" value="0" readonly></td><td><input type="text" name="batch_number[]"></td><td><input type="hidden" name="item_id[]" value=""><input type="hidden" name="item_type[]" value="material"><input type="hidden" name="material_id[]" value=""><input type="hidden" name="product_id[]" value=""><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>';
             tbody.appendChild(row);
         }
         function removeRow(button) { const row = button.closest('tr'); row.remove(); updateRowNumbers(); }
