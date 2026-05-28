@@ -978,11 +978,8 @@ try {
                         <td style="padding: 8px;">${material.material_category || '-'}</td>
                     </tr>`;
                 });
-PLACEHOLDER
-PLACEHOLDER
-PLACEHOLDER
-PLACEHOLDER
-PLACEHOLDER
+                
+                bomHtml += '</tbody></table>';
             } else {
                 bomHtml = '<p class="text-muted">Материалы не указаны или спецификация не создана</p>';
             }
