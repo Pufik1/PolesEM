@@ -398,7 +398,7 @@ try {
         <div style="background:white; margin:50px auto; padding:20px; border-radius:8px; max-width:900px; max-height:80vh; overflow-y:auto;">
             <h3 id="modalTitle">Материалы для заказа</h3>
             <div id="modalContent"></div>
-            <div style="margin-top:20px; text-align:right;">
+            <div style="margin-top:20px; text-align:right;" id="modalActions">
                 <button class="btn" onclick="closeMaterialsModal()" style="background:#6b7280; color:white; margin-right:10px;">Закрыть</button>
                 <button class="btn btn-primary" onclick="issueMaterialsToProduction()">Выдать материалы</button>
             </div>
@@ -449,13 +449,18 @@ try {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        let html = '<table class="data-table"><thead><tr><th>Материал</th><th>Артикул</th><th>На ед.</th><th>Всего</th></tr></thead><tbody>';
+                        let html = '<table class="data-table"><thead><tr><th>Материал</th><th>Артикул</th><th>На ед.</th><th>Всего</th><th>На складе</th><th>Статус</th></tr></thead><tbody>';
                         data.bom_items.forEach(item => {
-                            html += '<tr><td>' + item.material_name + '</td><td>' + item.sku + '</td><td>' + item.qty_per_unit + '</td><td>' + item.total_quantity + '</td></tr>';
+                            let statusBadge = item.is_sufficient ? 
+                                '<span class="badge badge-success">Достаточно</span>' : 
+                                '<span class="badge badge-danger">Не хватает</span>';
+                            html += '<tr><td>' + item.material_name + '</td><td>' + item.sku + '</td><td>' + item.qty_per_unit + ' ' + item.unit + '</td><td>' + item.total_quantity + ' ' + item.unit + '</td><td>' + item.available_stock + ' ' + item.unit + '</td><td>' + statusBadge + '</td></tr>';
                         });
                         html += '</tbody></table>';
                         document.getElementById('modalTitle').innerText = 'Спецификация для заказа ' + data.order.production_number;
                         document.getElementById('modalContent').innerHTML = html;
+                        // Скрываем кнопку выдачи для просмотра спецификации
+                        document.getElementById('modalActions').style.display = 'none';
                         document.getElementById('materialsModal').style.display = 'block';
                     }
                 });
@@ -473,12 +478,33 @@ try {
                                    ' | <strong>Продукт:</strong> ' + data.order.product_name + 
                                    ' | <strong>Количество:</strong> ' + data.order.order_quantity + '</p>';
                         
+                        // Отображаем предупреждение если есть нехватка материалов
+                        if (data.has_shortages && data.material_shortages.length > 0) {
+                            html += '<div style="background:#fee2e2; border:1px solid #ef4444; padding:15px; margin-bottom:15px; border-radius:6px;">';
+                            html += '<h4 style="color:#991b1b; margin:0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Недостаточно материалов на складе!</h4>';
+                            html += '<ul style="margin:0; padding-left:20px; color:#991b1b;">';
+                            data.material_shortages.forEach(shortage => {
+                                html += '<li><strong>' + shortage.material_name + '</strong> (' + shortage.sku + '): требуется ' + shortage.required + ' ' + shortage.unit + 
+                                        ', доступно ' + shortage.available + ' ' + shortage.unit + 
+                                        ', не хватает ' + shortage.shortage + ' ' + shortage.unit + '</li>';
+                            });
+                            html += '</ul></div>';
+                        } else if (data.materials.length > 0) {
+                            html += '<div style="background:#d1fae5; border:1px solid #10b981; padding:15px; margin-bottom:15px; border-radius:6px;">';
+                            html += '<h4 style="color:#065f46; margin:0;"><i class="fas fa-check-circle"></i> Всех материалов достаточно для выполнения заказа</h4></div>';
+                        }
+                        
                         html += '<table class="data-table"><thead><tr>' +
                                 '<th>Материал</th><th>Артикул</th><th>На складе</th>' +
                                 '<th>Требуется</th><th>Уже выдано</th><th>К выдаче</th>' +
+                                '<th>Статус</th>' +
                                 '</tr></thead><tbody>';
                         
                         data.materials.forEach((mat, index) => {
+                            let statusBadge = mat.is_sufficient ? 
+                                '<span class="badge badge-success">Достаточно</span>' : 
+                                '<span class="badge badge-danger">Не хватает ' + mat.shortage + ' ' + mat.unit + '</span>';
+                            
                             html += '<tr>' +
                                     '<td>' + mat.material_name + '</td>' +
                                     '<td>' + mat.sku + '</td>' +
@@ -486,6 +512,7 @@ try {
                                     '<td>' + mat.total_required + ' ' + mat.unit + '</td>' +
                                     '<td>' + mat.already_issued + ' ' + mat.unit + '</td>' +
                                     '<td><input type="number" id="mat_qty_' + index + '" value="' + mat.to_issue + '" min="0" max="' + mat.warehouse_stock + '" style="width:80px; padding:4px;"> ' + mat.unit + '</td>' +
+                                    '<td>' + statusBadge + '</td>' +
                                     '</tr>';
                         });
                         

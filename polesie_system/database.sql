@@ -594,4 +594,10 @@ INSERT INTO employees (full_name, email, phone, position, department, hire_date,
 ('Морозов Сергей Николаевич', 'morozov@polesie.by', '+375-29-666-66-66', 'Электрик', 'Производство', '2022-05-01', 1500.00, 'vacation', 'Ежегодный отпуск'),
 ('Волкова Мария Игоревна', 'volkova@polesie.by', '+375-29-777-77-77', 'Технолог', 'Технический отдел', '2020-11-30', 2300.00, 'active', NULL),
 ('Зайцев Александр Павлович', 'zaitsev@polesie.by', '+375-29-888-88-88', 'Водитель', 'Транспортный отдел', '2023-01-15', 1200.00, 'inactive', 'Декретный отпуск');
+
+-- Добавляем поле bom_json в таблицу products для хранения спецификации материалов продукта
+ALTER TABLE products ADD COLUMN bom_json JSON COMMENT 'Спецификация материалов (BOM) продукта в формате JSON';
+
+-- Пример данных для bom_json (для демонстрации)
+-- UPDATE products SET bom_json = '[{"material_id": 1, "material_name": "Алюминий вторичный в чушках АВ87", "sku": "MAT-AL-AB87", "quantity": 2.5, "unit": "кг"}, {"material_id": 2, "material_name": "Алюминий вторичный гранулированный АВ87Ф", "sku": "MAT-AL-AB87F", "quantity": 1.0, "unit": "кг"}]' WHERE product_code = 'CI-GR-RU2';
 */

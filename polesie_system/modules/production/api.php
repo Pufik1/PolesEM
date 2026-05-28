@@ -33,6 +33,7 @@ try {
                     oi.product_id,
                     p.product_name,
                     p.product_code,
+                    p.bom_json,
                     oi.quantity as order_quantity
                 FROM orders o
                 JOIN clients c ON o.client_id = c.id
@@ -47,59 +48,116 @@ try {
                 throw new Exception('Заказ не найден');
             }
             
-            // Получаем BOM для продукта
-            $stmt = $pdo->prepare("
-                SELECT pb.id as bom_id, pb.bom_version
-                FROM product_bom pb
-                WHERE pb.product_id = ? AND pb.is_active = 1
-                ORDER BY pb.created_at DESC LIMIT 1
-            ");
-            $stmt->execute([$order['product_id']]);
-            $bom = $stmt->fetch();
-            
             $materials = [];
-            $total_cost = 0;
+            $material_shortages = [];
             
-            if ($bom) {
-                // Получаем элементы BOM с учетом количества заказа
-                $stmt = $pdo->prepare("
-                    SELECT 
-                        m.id as material_id,
-                        m.sku,
-                        m.name as material_name,
-                        m.unit,
-                        m.current_stock as warehouse_stock,
-                        pbi.quantity as qty_per_unit,
-                        pbi.quantity * ? as total_required,
-                        pbi.waste_percent,
-                        COALESCE(pm.quantity_issued, 0) as already_issued,
-                        (pbi.quantity * ?) - COALESCE(pm.quantity_issued, 0) as to_issue
-                    FROM product_bom_items pbi
-                    JOIN materials m ON pbi.material_id = m.id
-                    LEFT JOIN production_materials pm ON m.id = pm.material_id 
-                        AND pm.production_order_id IN (
-                            SELECT id FROM production_orders 
-                            WHERE source_order_id = ? AND status != 'cancelled'
-                        )
-                    WHERE pbi.bom_id = ?
-                    ORDER BY m.name
-                ");
-                $stmt->execute([$order['order_quantity'], $order['order_quantity'], $order_id, $bom['bom_id']]);
-                $materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Декодируем BOM из JSON
+            $bom_data = !empty($order['bom_json']) ? json_decode($order['bom_json'], true) : [];
+            
+            if (is_array($bom_data) && !empty($bom_data)) {
+                // Получаем IDs всех материалов из BOM
+                $material_ids = array_column($bom_data, 'material_id');
                 
-                // Считаем общую стоимость
-                foreach ($materials as &$mat) {
-                    $mat['to_issue'] = max(0, $mat['to_issue']);
-                    $total_cost += $mat['to_issue'] * ($mat['current_price'] ?? 0);
+                if (!empty($material_ids)) {
+                    // Получаем информацию о материалах и их остатках
+                    $placeholders = implode(',', array_fill(0, count($material_ids), '?'));
+                    $stmt = $pdo->prepare("
+                        SELECT 
+                            m.id as material_id,
+                            m.sku,
+                            m.name as material_name,
+                            m.unit,
+                            m.current_stock as warehouse_stock
+                        FROM materials m
+                        WHERE m.id IN ($placeholders)
+                    ");
+                    $stmt->execute($material_ids);
+                    $warehouse_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Создаем ассоциативный массив для быстрого поиска
+                    $warehouse_map = [];
+                    foreach ($warehouse_materials as $wm) {
+                        $warehouse_map[$wm['material_id']] = $wm;
+                    }
+                    
+                    // Получаем уже выданные материалы для этого заказа
+                    $stmt = $pdo->prepare("
+                        SELECT 
+                            pm.material_id,
+                            SUM(pm.quantity_issued) as total_issued
+                        FROM production_materials pm
+                        JOIN production_orders po ON pm.production_order_id = po.id
+                        WHERE po.source_order_id = ? AND pm.status IN ('issued', 'used')
+                        GROUP BY pm.material_id
+                    ");
+                    $stmt->execute([$order_id]);
+                    $issued_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Создаем карту выданных материалов
+                    $issued_map = [];
+                    foreach ($issued_materials as $im) {
+                        $issued_map[$im['material_id']] = $im['total_issued'];
+                    }
+                    
+                    // Формируем итоговый список материалов
+                    foreach ($bom_data as $bom_item) {
+                        $material_id = $bom_item['material_id'];
+                        $qty_per_unit = floatval($bom_item['quantity'] ?? 0);
+                        $total_required = $qty_per_unit * $order['order_quantity'];
+                        $already_issued = isset($issued_map[$material_id]) ? floatval($issued_map[$material_id]) : 0;
+                        $to_issue = max(0, $total_required - $already_issued);
+                        
+                        // Получаем данные о материале со склада
+                        $warehouse_stock = 0;
+                        $material_name = $bom_item['material_name'] ?? 'Неизвестный материал';
+                        $sku = $bom_item['sku'] ?? '';
+                        $unit = $bom_item['unit'] ?? 'шт';
+                        
+                        if (isset($warehouse_map[$material_id])) {
+                            $warehouse_stock = floatval($warehouse_map[$material_id]['warehouse_stock']);
+                            $material_name = $warehouse_map[$material_id]['material_name'];
+                            $sku = $warehouse_map[$material_id]['sku'];
+                            $unit = $warehouse_map[$material_id]['unit'];
+                        }
+                        
+                        // Проверяем достаточность материала
+                        $is_sufficient = $warehouse_stock >= $to_issue;
+                        $shortage = 0;
+                        if (!$is_sufficient) {
+                            $shortage = $to_issue - $warehouse_stock;
+                            $material_shortages[] = [
+                                'material_id' => $material_id,
+                                'material_name' => $material_name,
+                                'required' => $to_issue,
+                                'available' => $warehouse_stock,
+                                'shortage' => $shortage,
+                                'unit' => $unit
+                            ];
+                        }
+                        
+                        $materials[] = [
+                            'material_id' => $material_id,
+                            'material_name' => $material_name,
+                            'sku' => $sku,
+                            'unit' => $unit,
+                            'warehouse_stock' => $warehouse_stock,
+                            'qty_per_unit' => $qty_per_unit,
+                            'total_required' => $total_required,
+                            'already_issued' => $already_issued,
+                            'to_issue' => $to_issue,
+                            'is_sufficient' => $is_sufficient,
+                            'shortage' => $shortage
+                        ];
+                    }
                 }
             }
             
             echo json_encode([
                 'success' => true,
                 'order' => $order,
-                'bom' => $bom,
                 'materials' => $materials,
-                'total_cost' => $total_cost
+                'material_shortages' => $material_shortages,
+                'has_shortages' => !empty($material_shortages)
             ]);
             break;
             
@@ -294,7 +352,7 @@ try {
             
             // Получаем информацию о заказе
             $stmt = $pdo->prepare("
-                SELECT po.id, po.production_number, po.quantity, p.product_name, p.product_code
+                SELECT po.id, po.production_number, po.quantity, p.product_name, p.product_code, p.bom_json
                 FROM production_orders po
                 JOIN products p ON po.product_id = p.id
                 WHERE po.id = ?
@@ -306,43 +364,66 @@ try {
                 throw new Exception('Заказ не найден');
             }
             
-            // Получаем BOM для продукта
-            $stmt = $pdo->prepare("
-                SELECT pb.id as bom_id, pb.bom_version, pb.description
-                FROM product_bom pb
-                WHERE pb.product_id = (SELECT product_id FROM production_orders WHERE id = ?)
-                AND pb.is_active = 1
-                ORDER BY pb.created_at DESC LIMIT 1
-            ");
-            $stmt->execute([$order_id]);
-            $bom = $stmt->fetch();
-            
             $bom_items = [];
-            if ($bom) {
-                // Получаем элементы BOM с учетом количества заказа
-                $stmt = $pdo->prepare("
-                    SELECT 
-                        pbi.material_id,
-                        m.name as material_name,
-                        m.sku,
-                        m.unit,
-                        pbi.quantity as qty_per_unit,
-                        pbi.quantity * ? as total_quantity,
-                        pbi.waste_percent,
-                        m.current_stock as available_stock
-                    FROM product_bom_items pbi
-                    JOIN materials m ON pbi.material_id = m.id
-                    WHERE pbi.bom_id = ?
-                    ORDER BY pbi.sequence_order
-                ");
-                $stmt->execute([$order['quantity'], $bom['bom_id']]);
-                $bom_items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $bom_data = !empty($order['bom_json']) ? json_decode($order['bom_json'], true) : [];
+            
+            if (is_array($bom_data) && !empty($bom_data)) {
+                $material_ids = array_column($bom_data, 'material_id');
+                
+                if (!empty($material_ids)) {
+                    $placeholders = implode(',', array_fill(0, count($material_ids), '?'));
+                    $stmt = $pdo->prepare("
+                        SELECT 
+                            m.id as material_id,
+                            m.name as material_name,
+                            m.sku,
+                            m.unit,
+                            m.current_stock as available_stock
+                        FROM materials m
+                        WHERE m.id IN ($placeholders)
+                    ");
+                    $stmt->execute($material_ids);
+                    $warehouse_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    $warehouse_map = [];
+                    foreach ($warehouse_materials as $wm) {
+                        $warehouse_map[$wm['material_id']] = $wm;
+                    }
+                    
+                    foreach ($bom_data as $bom_item) {
+                        $material_id = $bom_item['material_id'];
+                        $qty_per_unit = floatval($bom_item['quantity'] ?? 0);
+                        $total_quantity = $qty_per_unit * $order['quantity'];
+                        
+                        $material_name = $bom_item['material_name'] ?? 'Неизвестный материал';
+                        $sku = $bom_item['sku'] ?? '';
+                        $unit = $bom_item['unit'] ?? 'шт';
+                        $available_stock = 0;
+                        
+                        if (isset($warehouse_map[$material_id])) {
+                            $material_name = $warehouse_map[$material_id]['material_name'];
+                            $sku = $warehouse_map[$material_id]['sku'];
+                            $unit = $warehouse_map[$material_id]['unit'];
+                            $available_stock = floatval($warehouse_map[$material_id]['available_stock']);
+                        }
+                        
+                        $bom_items[] = [
+                            'material_id' => $material_id,
+                            'material_name' => $material_name,
+                            'sku' => $sku,
+                            'unit' => $unit,
+                            'qty_per_unit' => $qty_per_unit,
+                            'total_quantity' => $total_quantity,
+                            'available_stock' => $available_stock,
+                            'is_sufficient' => $available_stock >= $total_quantity
+                        ];
+                    }
+                }
             }
             
             echo json_encode([
                 'success' => true,
                 'order' => $order,
-                'bom' => $bom,
                 'bom_items' => $bom_items
             ]);
             break;
