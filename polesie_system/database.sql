@@ -248,6 +248,32 @@ CREATE TABLE work_centers (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Production orders (План выпуска продукции)
+CREATE TABLE production_orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    production_number VARCHAR(50) NOT NULL UNIQUE,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    planned_start_date DATE,
+    planned_end_date DATE,
+    actual_start_date DATE,
+    actual_end_date DATE,
+    status ENUM('planned', 'in_progress', 'completed', 'cancelled', 'on_hold') DEFAULT 'planned',
+    priority ENUM('low', 'normal', 'high', 'urgent') DEFAULT 'normal',
+    order_source ENUM('customer_order', 'stock_replenishment', 'forecast') DEFAULT 'stock_replenishment',
+    source_order_id INT COMMENT 'ID заказа клиента если это заказное производство',
+    responsible_user_id INT,
+    work_center_id INT,
+    notes TEXT,
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
+    FOREIGN KEY (responsible_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (work_center_id) REFERENCES work_centers(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- Employees table (extended HR data) - REMOVED
 /*
 CREATE TABLE employees (
