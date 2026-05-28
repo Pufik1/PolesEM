@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS product_bom_items (
 -- Материалы в производстве (выданные со склада)
 CREATE TABLE IF NOT EXISTS production_materials (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    production_order_id INT NOT NULL COMMENT 'ID производственного заказа',
+    production_order_id INT DEFAULT NULL COMMENT 'ID производственного заказа (опционально)',
     material_id INT NOT NULL COMMENT 'ID материала',
     quantity_issued DECIMAL(10,3) NOT NULL COMMENT 'Выданное количество',
     quantity_used DECIMAL(10,3) DEFAULT 0 COMMENT 'Использованное количество',
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS production_materials (
     notes TEXT,
     created_by INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (production_order_id) REFERENCES production_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (production_order_id) REFERENCES production_orders(id) ON DELETE SET NULL,
     FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE RESTRICT,
     FOREIGN KEY (warehouse_document_id) REFERENCES material_writeoff_documents(id) ON DELETE SET NULL,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
