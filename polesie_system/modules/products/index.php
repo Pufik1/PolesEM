@@ -146,33 +146,13 @@ if ($viewAction === 'view' && $viewProductId) {
                 $specs = json_decode($viewProduct['specifications'] ?? '{}', true);
                 $viewProduct['specifications'] = $specs;
 
-                // Загружаем материалы для продукта (BOM - Bill of Materials)
+                // Загружаем материалы для продукта (BOM - Bill of Materials) из bom_json
                 $bomMaterials = [];
-                try {
-                    $bomStmt = $pdo->prepare("
-                        SELECT 
-                            pb.bom_version,
-                            m.id as material_id,
-                            m.sku,
-                            m.name as material_name,
-                            m.unit,
-                            pbi.quantity,
-                            pbi.waste_percent,
-                            pbi.sequence_order,
-                            pbi.notes,
-                            mc.category_name as material_category
-                        FROM product_bom pb
-                        INNER JOIN product_bom_items pbi ON pb.id = pbi.bom_id
-                        INNER JOIN materials m ON pbi.material_id = m.id
-                        LEFT JOIN material_categories mc ON m.category_id = mc.id
-                        WHERE pb.product_id = :product_id AND pb.is_active = 1
-                        ORDER BY pbi.sequence_order
-                    ");
-                    $bomStmt->execute([':product_id' => (int)$viewProductId]);
-                    $bomMaterials = $bomStmt->fetchAll();
-                } catch (PDOException $e) {
-                    // BOM table might not exist or no data
-                    $bomMaterials = [];
+                if (!empty($viewProduct['bom_json'])) {
+                    $bomMaterials = json_decode($viewProduct['bom_json'], true);
+                    if (!is_array($bomMaterials)) {
+                        $bomMaterials = [];
+                    }
                 }
 
                 echo json_encode([
@@ -962,9 +942,7 @@ try {
                         '<tr style="background-color: var(--primary-color); color: white;">' +
                             '<th style="padding: 10px; text-align: left;">№</th>' +
                             '<th style="padding: 10px; text-align: left;">Материал</th>' +
-                            '<th style="padding: 10px; text-align: left;">Артикул</th>' +
                             '<th style="padding: 10px; text-align: center;">Кол-во (шт)</th>' +
-                            '<th style="padding: 10px; text-align: left;">Категория</th>' +
                         '</tr>' +
                     '</thead>' +
                     '<tbody>';
@@ -972,10 +950,8 @@ try {
                 bomMaterials.forEach((material, index) => {
                     bomHtml += `<tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 8px;">${index + 1}</td>
-                        <td style="padding: 8px;"><strong>${material.material_name}</strong></td>
-                        <td style="padding: 8px; font-family: monospace;">${material.sku}</td>
-                        <td style="padding: 8px; text-align: center; font-weight: bold; color: var(--primary-color);">${Math.round(material.quantity)}</td>
-                        <td style="padding: 8px;">${material.material_category || '-'}</td>
+                        <td style="padding: 8px;"><strong>${material.name || material.material_name || 'Н/Д'}</strong></td>
+                        <td style="padding: 8px; text-align: center; font-weight: bold; color: var(--primary-color);">${Math.round(material.quantity * 100) / 100}</td>
                     </tr>`;
                 });
                 
