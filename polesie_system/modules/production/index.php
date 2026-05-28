@@ -538,40 +538,46 @@ try {
                                    ' | <strong>Продукт:</strong> ' + data.order.product_name + 
                                    ' | <strong>Количество:</strong> ' + data.order.order_quantity + '</p>';
                         
-                        // Отображаем предупреждение если есть нехватка материалов
-                        if (data.has_shortages && data.material_shortages.length > 0) {
+                        // Проверяем общую достаточность выданных материалов
+                        let allIssued = true;
+                        let totalRequired = 0;
+                        let totalIssued = 0;
+                        data.materials.forEach(mat => {
+                            totalRequired += mat.total_required;
+                            totalIssued += mat.already_issued;
+                            if (mat.already_issued < mat.total_required) {
+                                allIssued = false;
+                            }
+                        });
+                        
+                        // Отображаем предупреждение если не все материалы выданы
+                        if (!allIssued && data.materials.length > 0) {
                             html += '<div style="background:#fee2e2; border:1px solid #ef4444; padding:15px; margin-bottom:15px; border-radius:6px;">';
-                            html += '<h4 style="color:#991b1b; margin:0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Недостаточно материалов на складе!</h4>';
-                            html += '<ul style="margin:0; padding-left:20px; color:#991b1b;">';
-                            data.material_shortages.forEach(shortage => {
-                                html += '<li><strong>' + shortage.material_name + '</strong> (' + shortage.sku + '): требуется ' + shortage.required + ' ' + shortage.unit + 
-                                        ', доступно ' + shortage.available + ' ' + shortage.unit + 
-                                        ', не хватает ' + shortage.shortage + ' ' + shortage.unit + '</li>';
-                            });
-                            html += '</ul></div>';
+                            html += '<h4 style="color:#991b1b; margin:0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Недостаточно материалов выдано для заказа!</h4>';
+                            html += '<p style="margin:0; color:#991b1b;">Выдано: ' + totalIssued + ' из ' + totalRequired + ' требуемых единиц материалов</p></div>';
                         } else if (data.materials.length > 0) {
                             html += '<div style="background:#d1fae5; border:1px solid #10b981; padding:15px; margin-bottom:15px; border-radius:6px;">';
-                            html += '<h4 style="color:#065f46; margin:0;"><i class="fas fa-check-circle"></i> Всех материалов достаточно для выполнения заказа</h4></div>';
+                            html += '<h4 style="color:#065f46; margin:0;"><i class="fas fa-check-circle"></i> Все материалы выданы в полном объеме</h4></div>';
                         }
                         
                         html += '<table class="data-table"><thead><tr>' +
-                                '<th>Материал</th><th>Артикул</th><th>На складе</th>' +
-                                '<th>Требуется</th><th>Уже выдано</th><th>К выдаче</th>' +
+                                '<th>Материал</th><th>Артикул</th>' +
+                                '<th>Требуется</th><th>Выдано</th>' +
                                 '<th>Статус</th>' +
                                 '</tr></thead><tbody>';
                         
                         data.materials.forEach((mat, index) => {
-                            let statusBadge = mat.is_sufficient ? 
+                            // Статус проверяем по факту выданных материалов против требуемых
+                            let isFullyIssued = mat.already_issued >= mat.total_required;
+                            let statusBadge = isFullyIssued ? 
                                 '<span class="badge badge-success">Достаточно</span>' : 
-                                '<span class="badge badge-danger">Не хватает ' + mat.shortage + ' ' + mat.unit + '</span>';
+                                '<span class="badge badge-danger">Не хватает ' + (mat.total_required - mat.already_issued) + ' ' + mat.unit + '</span>';
                             
                             html += '<tr>' +
                                     '<td>' + mat.material_name + '</td>' +
                                     '<td>' + mat.sku + '</td>' +
-                                    '<td>' + mat.warehouse_stock + ' ' + mat.unit + '</td>' +
                                     '<td>' + mat.total_required + ' ' + mat.unit + '</td>' +
                                     '<td>' + mat.already_issued + ' ' + mat.unit + '</td>' +
-                                    '<td><input type="number" id="mat_qty_' + index + '" value="' + mat.to_issue + '" min="0" max="' + mat.warehouse_stock + '" style="width:80px; padding:4px;"> ' + mat.unit + '</td>' +
                                     '<td>' + statusBadge + '</td>' +
                                     '</tr>';
                         });
