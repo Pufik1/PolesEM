@@ -1,38 +1,40 @@
 ```
-# Database files
-*.db
-*.sqlite
-*.sqlite3
+# Database migration artifacts
+*.sql.bak
+*.sql~
 
-# Environment and local config
-.env
-.env.local
-*.env.*
-
-# Logs
-*.log
-
-# Dependencies
-node_modules/
-.venv/
-venv/
+# Compiled and build artifacts
+*.pyc
 __pycache__/
-*.egg-info/
+*.o
+*.obj
 dist/
 build/
 target/
-.gradle/
-.mypy_cache/
-.pytest_cache/
+
+# Dependencies
+.venv/
+venv/
+node_modules/
+.julia/
+zig*/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*
 
 # Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
 
-# OS
+# OS specific
 .DS_Store
 Thumbs.db
 
@@ -41,7 +43,7 @@ coverage/
 htmlcov/
 .coverage
 
-# Compressed files
+# Compression
 *.zip
 *.gz
 *.tar
