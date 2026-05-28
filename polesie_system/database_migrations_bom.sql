@@ -21,7 +21,6 @@ INSERT INTO product_bom (product_id, bom_version, description, is_active)
 SELECT id, '1.0', CONCAT('Спецификация для ', product_name), 1
 FROM products WHERE product_code = 'AIR71A2' LIMIT 1;
 
-SET @seq := 0;
 INSERT INTO product_bom_items (bom_id, material_id, quantity, sequence_order)
 SELECT pb.id, m.id, 
     CASE 
@@ -39,14 +38,14 @@ SELECT pb.id, m.id,
         WHEN m.sku = 'MAT-LABEL-026' THEN 1
         ELSE 1
     END,
-    @seq := @seq + 1
+    ROW_NUMBER() OVER (ORDER BY m.sku)
 FROM product_bom pb
 CROSS JOIN materials m
-WHERE pb.bom_version = '1.0' 
+WHERE pb.product_id = (SELECT id FROM products WHERE product_code = 'AIR71A2' LIMIT 1)
+AND pb.bom_version = '1.0'
 AND m.sku IN ('MAT-STEEL-EL-006', 'MAT-WIRE-CU-007', 'MAT-INS-PAPER-008', 'MAT-INS-FILM-009', 
               'MAT-VAR-IMP-010', 'MAT-BRG-6205-011', 'MAT-FAST-BOLT-012', 'MAT-RUB-SEAL-013',
-              'MAT-FAN-COOL-014', 'MAT-TERM-BOX-015', 'MAT-PAINT-023', 'MAT-LABEL-026')
-ORDER BY m.sku;
+              'MAT-FAN-COOL-014', 'MAT-TERM-BOX-015', 'MAT-PAINT-023', 'MAT-LABEL-026');
 
 -- AIR71B2 (0.75 кВт, 3000 об/мин)
 INSERT INTO product_bom (product_id, bom_version, description, is_active)
