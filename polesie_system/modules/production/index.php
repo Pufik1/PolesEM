@@ -393,7 +393,6 @@ try {
                                     <th>Продукт</th>
                                     <th>Заказано</th>
                                     <th>В производстве</th>
-                                    <th>Материалы</th>
                                     <th>Статус оплаты</th>
                                     <th>Статус производства</th>
                                     <th>Дата доставки</th>
@@ -408,52 +407,6 @@ try {
                                     <td><?php echo htmlspecialchars($order['product_name']); ?></td>
                                     <td><?php echo $order['order_quantity']; ?></td>
                                     <td><?php echo $order['production_quantity'] ?? 0; ?></td>
-                                    <td>
-                                        <?php 
-                                        $materialsComparison = $order['materials_comparison'] ?? [];
-                                        if (empty($materialsComparison)): 
-                                        ?>
-                                            <span class="badge badge-warning">Нет данных</span>
-                                        <?php else: 
-                                            $allFulfilled = true;
-                                            $fulfilledCount = 0;
-                                            foreach ($materialsComparison as $mat) {
-                                                if ($mat['is_fulfilled']) {
-                                                    $fulfilledCount++;
-                                                } else {
-                                                    $allFulfilled = false;
-                                                }
-                                            }
-                                            $totalCount = count($materialsComparison);
-                                        ?>
-                                            <div style="font-size: 12px;">
-                                                <strong><?php echo $fulfilledCount; ?>/<?php echo $totalCount; ?></strong> материалов выдано
-                                                <?php if ($allFulfilled): ?>
-                                                    <br><span class="badge badge-success">Все выдано</span>
-                                                <?php else: ?>
-                                                    <br><span class="badge badge-danger">Не хватает <?php echo ($totalCount - $fulfilledCount); ?></span>
-                                                <?php endif; ?>
-                                            </div>
-                                            
-                                            <!-- Детализация по материалам -->
-                                            <details style="margin-top: 5px; font-size: 11px;">
-                                                <summary style="cursor: pointer; color: #3b82f6;">Показать детали</summary>
-                                                <div style="background: #f9fafb; padding: 8px; border-radius: 4px; margin-top: 5px;">
-                                                    <?php foreach ($materialsComparison as $mat): ?>
-                                                        <div style="padding: 2px 0; border-bottom: 1px solid #e5e7eb;">
-                                                            <strong><?php echo htmlspecialchars($mat['material_name']); ?></strong><br>
-                                                            Нужно: <?php echo $mat['required']; ?> | Выдано: <?php echo $mat['issued']; ?> | Остаток: <?php echo $mat['remaining']; ?> <?php echo $mat['unit']; ?>
-                                                            <?php if ($mat['is_fulfilled']): ?>
-                                                                <span style="color: #065f46;">✓</span>
-                                                            <?php else: ?>
-                                                                <span style="color: #991b1b;">✗</span>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                </div>
-                                            </details>
-                                        <?php endif; ?>
-                                    </td>
                                     <td>
                                         <span class="badge badge-success">Оплачен</span>
                                     </td>
@@ -479,25 +432,15 @@ try {
                                     </td>
                                     <td><?php echo $order['delivery_date']; ?></td>
                                     <td>
-                                        <?php if (!$order['production_order_id']): ?>
-                                            <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewOrderMaterials(<?php echo $order['order_id']; ?>)">
-                                                <i class="fas fa-boxes"></i> Материалы
-                                            </button>
-                                        <?php elseif ($order['production_status'] == 'in_progress'): ?>
-                                            <button class="btn btn-primary" style="padding: 4px 8px;" onclick="completeProduction(<?php echo $order['production_order_id']; ?>, <?php echo $order['order_quantity']; ?>)">
-                                                <i class="fas fa-check"></i> Завершить
-                                            </button>
-                                        <?php else: ?>
-                                            <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewBOM(<?php echo $order['production_order_id']; ?>)">
-                                                <i class="fas fa-list"></i> Спецификация
-                                            </button>
-                                        <?php endif; ?>
+                                        <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewOrderMaterials(<?php echo $order['order_id']; ?>)">
+                                            <i class="fas fa-boxes"></i> Материалы
+                                        </button>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
                                 <?php if (empty($customerOrdersForProduction)): ?>
                                 <tr>
-                                    <td colspan="10" class="text-center">Заказов не найдено</td>
+                                    <td colspan="9" class="text-center">Заказов не найдено</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>

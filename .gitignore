@@ -1,64 +1,77 @@
-```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
-*.obj
-*.class
-*.exe
-*.dll
-*.so
-*.a
-*.out
-
 # Dependencies
 node_modules/
-venv/
-.venv/
-.env
-.env.local
-*.env.*
+vendor/
 
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# Editors
-.vscode/
-.idea/
-
-# System files
-.DS_Store
-Thumbs.db
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Build directories
+# Build artifacts
 dist/
 build/
 target/
-.gradle/
+*.min.js
+*.min.css
 
-# Python specific
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/
 .mypy_cache/
 .pytest_cache/
-*.pyc
-__pycache__/
+.hypothesis/
 
-# Compressed files
+# PHP
+*.phar
+vendor/composer/
+composer.lock
+.php_cs.cache
+
+# Web
+*.css.map
+*.js.map
+
+# Archives
 *.zip
+*.tar.gz
+*.tar.bz2
+*.tar.xz
 *.gz
-*.tar
-*.tgz
+*.rar
+*.7z
 *.bz2
 *.xz
-*.7z
-*.rar
 *.zst
 *.lz4
 *.lzh
@@ -69,8 +82,276 @@ __pycache__/
 *.Z
 *.lz
 *.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
-```
+
+# Coverage
+coverage/
+htmlcov/
+.coverage*
+
+# Testing
+.ruby-version
+.bundle/
+.jruby.gemset
+.gem/
+
+# Temporary files
+*.tmp
+*~
+\#*\#
+/.grunt
+bower_components/
+coverage/
+lib-cov/
+*.lcov
+.gruntinit
+
+# Compiled
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.exe
+*.out
+*.class
+
+# Compression
+*.tar
+*.tgz
+*.tbz
+*.tbz2
+*.taz
+*.tlz
+*.txz
+*.zip
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+
+# System
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.nib
+localized
+CVS
+.svn
+.hg
+.git
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+*.iml
+*.iws
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Cache
+.cache/
+*.cache
+*.cached
+.tmp/
+temp/
+tmp/
+
+# Backup
+*~
+\#*\#
+*.bak
+*.BAK
+*.old
+*.OLD
+*.orig
+*.ORIG
+*.rej
+*.patch
+*.diff
+*.swp
+*.swo
+
+# Process
+*.pid
+*.seed
+*.pid.lock
+
+# Logs
+*.log
+!CHANGES
+!TODO
+!CHANGES.md
+!TODO.md
+
+# Configuration
+config/
+*.local
+
+# Secrets
+secrets/
+.secret
+.secret.*
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+node_modules/
+dist/
+.nyc_output
+coverage/
+.nyc_output/
+coverage/
+
+# Ruby
+*.gem
+*.rbc
+*.sassc
+.sass-cache
+capybara-*.html
+.rspec
+vendor/bundle
+.bundle
+.rbx
+.rbenv-vars
+~>*
+*.geminstaller
+.yardoc
+_yardoc
+doc/
+.rubocop.yml
+!.rubocop.yml
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+hs_err_pid*
+.recommenders
+target/
+.gradle/
+build/
+
+# C/C++
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+*.dylib
+*.plist
+*.dSYM
+*.dwarf
+*.ilk
+*.pdb
+*.exp
+*.map
+*.dep
+*.d
+*.def
+*.idb
+*.cdt
+*.sdf
+*.opensdf
+*.suo
+*.user
+*.userosscache
+*.sconscript
+*.sconsign
+*.ncb
+*.bsc
+*.aps
+*.plg
+*.vcproj
+*.vcxproj.filters
+*.vcxproj.user
+*.vcproj.user
+*.vcproj.userosscache
+*.vcproj.userprefs
+*.vcproj.userosscache
+*.vcproj.userprefs
+*.opendb
+*.VC.db
+*.VC.VC.opendb
+*.VC.VC.opendb.user
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userprefs
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userprefs
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userprefs
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userprefs
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opendb.userosscache
+*.VC.VC.opend......
