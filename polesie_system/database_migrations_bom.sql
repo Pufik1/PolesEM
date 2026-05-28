@@ -17,41 +17,45 @@ FROM products WHERE product_code = 'AVN71-2' LIMIT 1;
 INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order, notes)
 SELECT pb.id, m.id, 
     CASE 
-        WHEN m.sku LIKE '%STATOR-001%' THEN 1        -- Станина
-        WHEN m.sku LIKE '%STATOR-002%' THEN 1        -- Сердечник статора
-        WHEN m.sku LIKE '%STATOR-003%' THEN 2.5      -- Провод медный (кг)
-        WHEN m.sku LIKE '%STATOR-004%' THEN 36       -- Изоляция пазовая (шт)
-        WHEN m.sku LIKE '%ROTOR-005%' THEN 1         -- Вал ротора
-        WHEN m.sku LIKE '%ROTOR-006%' THEN 1         -- Сердечник ротора
-        WHEN m.sku LIKE '%ROTOR-007%' THEN 1         -- Клетка короткозамкнутая
-        WHEN m.sku LIKE '%ROTOR-008%' THEN 1         -- Шпонка
-        WHEN m.sku LIKE '%SHIELD-009%' THEN 1        -- Щит передний
-        WHEN m.sku LIKE '%SHIELD-010%' THEN 1        -- Щит задний
-        WHEN m.sku LIKE '%BEARING-011%' AND m.name LIKE '%6204%' THEN 2  -- Подшипники 6204
-        WHEN m.sku LIKE '%BEARING-012%' THEN 0.15    -- Смазка (кг)
-        WHEN m.sku LIKE '%FAN-013%' THEN 1           -- Крыльчатка
-        WHEN m.sku LIKE '%FANCOV-014%' THEN 1        -- Корпус кожуха
-        WHEN m.sku LIKE '%FANCOV-015%' THEN 1        -- Решетка защитная
-        WHEN m.sku LIKE '%TERM-016%' THEN 1          -- Корпус борно
-        WHEN m.sku LIKE '%TERM-017%' THEN 1          -- Крышка борно
-        WHEN m.sku LIKE '%TERM-018%' THEN 1          -- Клеммная колодка
-        WHEN m.sku LIKE '%TERM-019%' THEN 2          -- Вводы кабельные
-        WHEN m.sku LIKE '%TERM-020%' THEN 2          -- Болт заземления
-        WHEN m.sku LIKE '%PAINT-021%' THEN 0.8       -- Грунтовка (кг)
-        WHEN m.sku LIKE '%PAINT-022%' THEN 0.6       -- Эмаль (кг)
-        WHEN m.sku LIKE '%FAST-023%' THEN 4          -- Болты стяжные
-        WHEN m.sku LIKE '%FAST-024%' THEN 4          -- Гайки
-        WHEN m.sku LIKE '%FAST-025%' THEN 8          -- Шайбы
+        WHEN m.sku LIKE '%STATOR-001%' THEN 1
+        WHEN m.sku LIKE '%STATOR-002%' THEN 1
+        WHEN m.sku LIKE '%STATOR-003%' THEN 2.5
+        WHEN m.sku LIKE '%STATOR-004%' THEN 36
+        WHEN m.sku LIKE '%ROTOR-005%' THEN 1
+        WHEN m.sku LIKE '%ROTOR-006%' THEN 1
+        WHEN m.sku LIKE '%ROTOR-007%' THEN 1
+        WHEN m.sku LIKE '%ROTOR-008%' THEN 1
+        WHEN m.sku LIKE '%SHIELD-009%' THEN 1
+        WHEN m.sku LIKE '%SHIELD-010%' THEN 1
+        WHEN m.sku LIKE '%BEARING-011%' THEN 2
+        WHEN m.sku LIKE '%BEARING-012%' THEN 0.15
+        WHEN m.sku LIKE '%FAN-013%' THEN 1
+        WHEN m.sku LIKE '%FANCOV-014%' THEN 1
+        WHEN m.sku LIKE '%FANCOV-015%' THEN 1
+        WHEN m.sku LIKE '%TERM-016%' THEN 1
+        WHEN m.sku LIKE '%TERM-017%' THEN 1
+        WHEN m.sku LIKE '%TERM-018%' THEN 1
+        WHEN m.sku LIKE '%TERM-019%' THEN 2
+        WHEN m.sku LIKE '%TERM-020%' THEN 2
+        WHEN m.sku LIKE '%PAINT-021%' THEN 0.8
+        WHEN m.sku LIKE '%PAINT-022%' THEN 0.6
+        WHEN m.sku LIKE '%FAST-023%' THEN 4
+        WHEN m.sku LIKE '%FAST-024%' THEN 4
+        WHEN m.sku LIKE '%FAST-025%' THEN 8
         ELSE 1
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для АВН 71-2'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
-AND m.sku LIKE '%AIR80%'
+AND (m.sku LIKE '%STATOR%' OR m.sku LIKE '%ROTOR%' OR m.sku LIKE '%SHIELD%' 
+     OR m.sku LIKE '%BEARING%' OR m.sku LIKE '%FAN%' OR m.sku LIKE '%TERM%' 
+     OR m.sku LIKE '%PAINT%' OR m.sku LIKE '%FAST%')
+ORDER BY m.sku
 LIMIT 25;
 
 -- АИС 80А2 (1.5 кВт, 3000 об/мин)
@@ -62,41 +66,45 @@ FROM products WHERE product_code = 'AIS80A2' LIMIT 1;
 INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_order, notes)
 SELECT pb.id, m.id, 
     CASE 
-        WHEN m.sku LIKE '%STATOR-001%' THEN 1        -- Станина
-        WHEN m.sku LIKE '%STATOR-002%' THEN 1        -- Сердечник статора
-        WHEN m.sku LIKE '%STATOR-003%' THEN 4.2      -- Провод медный (кг)
-        WHEN m.sku LIKE '%STATOR-004%' THEN 48       -- Изоляция пазовая (шт)
-        WHEN m.sku LIKE '%ROTOR-005%' THEN 1         -- Вал ротора
-        WHEN m.sku LIKE '%ROTOR-006%' THEN 1         -- Сердечник ротора
-        WHEN m.sku LIKE '%ROTOR-007%' THEN 1         -- Клетка короткозамкнутая
-        WHEN m.sku LIKE '%ROTOR-008%' THEN 1         -- Шпонка
-        WHEN m.sku LIKE '%SHIELD-009%' THEN 1        -- Щит передний
-        WHEN m.sku LIKE '%SHIELD-010%' THEN 1        -- Щит задний
-        WHEN m.sku LIKE '%BEARING-011%' AND m.name LIKE '%6204%' THEN 2  -- Подшипники 6204
-        WHEN m.sku LIKE '%BEARING-012%' THEN 0.2     -- Смазка (кг)
-        WHEN m.sku LIKE '%FAN-013%' THEN 1           -- Крыльчатка
-        WHEN m.sku LIKE '%FANCOV-014%' THEN 1        -- Корпус кожуха
-        WHEN m.sku LIKE '%FANCOV-015%' THEN 1        -- Решетка защитная
-        WHEN m.sku LIKE '%TERM-016%' THEN 1          -- Корпус борно
-        WHEN m.sku LIKE '%TERM-017%' THEN 1          -- Крышка борно
-        WHEN m.sku LIKE '%TERM-018%' THEN 1          -- Клеммная колодка
-        WHEN m.sku LIKE '%TERM-019%' THEN 2          -- Вводы кабельные
-        WHEN m.sku LIKE '%TERM-020%' THEN 2          -- Болт заземления
-        WHEN m.sku LIKE '%PAINT-021%' THEN 1.0       -- Грунтовка (кг)
-        WHEN m.sku LIKE '%PAINT-022%' THEN 0.8       -- Эмаль (кг)
-        WHEN m.sku LIKE '%FAST-023%' THEN 4          -- Болты стяжные
-        WHEN m.sku LIKE '%FAST-024%' THEN 4          -- Гайки
-        WHEN m.sku LIKE '%FAST-025%' THEN 8          -- Шайбы
+        WHEN m.sku LIKE '%STATOR-001%' THEN 1
+        WHEN m.sku LIKE '%STATOR-002%' THEN 1
+        WHEN m.sku LIKE '%STATOR-003%' THEN 4.2
+        WHEN m.sku LIKE '%STATOR-004%' THEN 48
+        WHEN m.sku LIKE '%ROTOR-005%' THEN 1
+        WHEN m.sku LIKE '%ROTOR-006%' THEN 1
+        WHEN m.sku LIKE '%ROTOR-007%' THEN 1
+        WHEN m.sku LIKE '%ROTOR-008%' THEN 1
+        WHEN m.sku LIKE '%SHIELD-009%' THEN 1
+        WHEN m.sku LIKE '%SHIELD-010%' THEN 1
+        WHEN m.sku LIKE '%BEARING-011%' THEN 2
+        WHEN m.sku LIKE '%BEARING-012%' THEN 0.2
+        WHEN m.sku LIKE '%FAN-013%' THEN 1
+        WHEN m.sku LIKE '%FANCOV-014%' THEN 1
+        WHEN m.sku LIKE '%FANCOV-015%' THEN 1
+        WHEN m.sku LIKE '%TERM-016%' THEN 1
+        WHEN m.sku LIKE '%TERM-017%' THEN 1
+        WHEN m.sku LIKE '%TERM-018%' THEN 1
+        WHEN m.sku LIKE '%TERM-019%' THEN 2
+        WHEN m.sku LIKE '%TERM-020%' THEN 2
+        WHEN m.sku LIKE '%PAINT-021%' THEN 1.0
+        WHEN m.sku LIKE '%PAINT-022%' THEN 0.8
+        WHEN m.sku LIKE '%FAST-023%' THEN 4
+        WHEN m.sku LIKE '%FAST-024%' THEN 4
+        WHEN m.sku LIKE '%FAST-025%' THEN 8
         ELSE 1
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для АИС 80А2'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
-AND m.sku LIKE '%AIR80%'
+AND (m.sku LIKE '%STATOR%' OR m.sku LIKE '%ROTOR%' OR m.sku LIKE '%SHIELD%' 
+     OR m.sku LIKE '%BEARING%' OR m.sku LIKE '%FAN%' OR m.sku LIKE '%TERM%' 
+     OR m.sku LIKE '%PAINT%' OR m.sku LIKE '%FAST%')
+ORDER BY m.sku
 LIMIT 25;
 
 -- АИС 80В2 (2.2 кВт, 3000 об/мин)
@@ -135,10 +143,11 @@ SELECT pb.id, m.id,
         ELSE 1
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для АИС 80В2'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND m.sku LIKE '%AIR80%'
@@ -180,10 +189,11 @@ SELECT pb.id, m.id,
         ELSE 1
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для АИС 90L2'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND m.sku LIKE '%AIR80%'
@@ -206,10 +216,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для РУ-2 (3.5 кг готовое изделие)'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%')
@@ -228,10 +239,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для РУ-3 (5.5 кг готовое изделие)'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%')
@@ -250,10 +262,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для РУ-4 (6.0 кг готовое изделие)'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%')
@@ -275,10 +288,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для дождеприемника в сборе (105 кг готовое изделие)'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%' OR m.sku LIKE '%FAST%')
@@ -298,10 +312,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для люка Л-В15 (71.9 кг готовое изделие)'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%' OR m.sku LIKE '%FAST%')
@@ -320,6 +335,7 @@ INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_ord
 SELECT pb.id, m.id, 1 AS quantity, m.unit, 1, 'Чистый материал для продажи'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND m.sku = 'MAT-AL-AB87'
@@ -334,6 +350,7 @@ INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_ord
 SELECT pb.id, m.id, 1 AS quantity, m.unit, 1, 'Чистый материал для продажи'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND m.sku = 'MAT-AL-AB87F'
@@ -348,6 +365,7 @@ INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_ord
 SELECT pb.id, m.id, 1 AS quantity, m.unit, 1, 'Чистый материал для продажи'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND m.sku = 'MAT-CI-L4'
@@ -362,6 +380,7 @@ INSERT INTO product_bom_items (bom_id, material_id, quantity, unit, sequence_ord
 SELECT pb.id, m.id, 1 AS quantity, m.unit, 1, 'Чистый материал для продажи'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND m.sku = 'MAT-CI-L5'
@@ -384,10 +403,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для РД-3 (2.2 кг готовое изделие)'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%')
@@ -406,10 +426,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для 57Л (6.5 кг готовое изделие)'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%')
@@ -428,10 +449,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для 001 (14.2 кг готовое изделие)'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%')
@@ -450,10 +472,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для ANIM (20.0 кг готовое изделие)'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%')
@@ -472,10 +495,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для плиты половой'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%')
@@ -497,6 +521,7 @@ SELECT pb.id, m.id,
     'Для цильпебсов (1 кг готовое изделие)'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND m.sku LIKE '%MAT-CI%'
@@ -515,10 +540,11 @@ SELECT pb.id, m.id,
         ELSE 0
     END AS quantity,
     m.unit,
-    ROW_NUMBER() OVER (ORDER BY m.sku),
+    @seq := @seq + 1,
     'Для решетки дождеприемника'
 FROM product_bom pb
 CROSS JOIN materials m
+JOIN (SELECT @seq := 0) r
 WHERE pb.bom_version = '1.0' 
 AND m.is_active = 1
 AND (m.sku LIKE '%MAT-CI%' OR m.sku LIKE '%PAINT%')
