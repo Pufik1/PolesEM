@@ -1048,8 +1048,8 @@ try {
                         <button class="btn btn-success" onclick="openModal('incomeMaterialModal')">
                             <i class="fas fa-plus"></i> Поступление от поставщика
                         </button>
-                        <button class="btn btn-primary" onclick="openModal('issueToProductionModal')">
-                            <i class="fas fa-industry"></i> Выдача в производство
+                        <button class="btn btn-primary" onclick="openModal('createProductionRequestModal')">
+                            <i class="fas fa-file-alt"></i> Выдача в производство
                         </button>
                         <button class="btn btn-warning" onclick="openModal('writeOffMaterialModal')">
                             <i class="fas fa-trash"></i> Списание (брак/истечение срока)
@@ -1741,8 +1741,8 @@ try {
         </div>
     </div>
     
-    <!-- Issue to Production Modal -->
-    <div id="issueToProductionModal" class="modal">
+    <!-- Create Production Request Modal -->
+    <div id="createProductionRequestModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Выдача материалов в производство</h2>
@@ -1752,8 +1752,8 @@ try {
                 <input type="hidden" name="action" value="outcome_material">
                 <div class="modal-body">
                     <div class="form-group">
-                        <label for="issue_material_id">Материал *</label>
-                        <select id="issue_material_id" name="material_id" required onchange="updateMaterialInfo('issue')">
+                        <label for="req_material_id">Материал *</label>
+                        <select id="req_material_id" name="material_id" required onchange="updateMaterialInfo('req')">
                             <option value="">Выберите материал</option>
                             <?php foreach ($materials as $material): ?>
                                 <option value="<?php echo $material['id']; ?>" 
@@ -1768,13 +1768,13 @@ try {
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="issue_quantity">Количество *</label>
-                            <input type="number" id="issue_quantity" name="quantity" required min="0.01" step="0.01" value="1">
+                            <label for="req_quantity">Количество к выдаче *</label>
+                            <input type="number" id="req_quantity" name="quantity" required min="0.01" step="0.01" value="1" onchange="checkStockAvailability('req')">
                         </div>
                         
                         <div class="form-group">
-                            <label for="issue_production_order_id">Заказ-наряд</label>
-                            <select id="issue_production_order_id" name="production_order_id">
+                            <label for="req_production_order_id">Производственный заказ</label>
+                            <select id="req_production_order_id" name="production_order_id">
                                 <option value="">Не указан</option>
                                 <?php
                                 // Get active production orders
@@ -1796,20 +1796,25 @@ try {
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="issue_document_number">Требование-накладная №</label>
-                            <input type="text" id="issue_document_number" name="document_number" placeholder="Например: М-11 №456">
+                            <label for="req_document_number">Требование-накладная №</label>
+                            <input type="text" id="req_document_number" name="document_number" placeholder="Например: М-11 №456">
                         </div>
                     </div>
                     
                     <div class="form-group">
-                        <label for="issue_notes">Комментарий</label>
-                        <textarea id="issue_notes" name="notes" rows="2" placeholder="Информация о выдаче"></textarea>
+                        <label for="req_notes">Комментарий</label>
+                        <textarea id="req_notes" name="notes" rows="2" placeholder="Информация о выдаче"></textarea>
+                    </div>
+                    
+                    <div id="req_stock_info" style="margin-top: 15px; padding: 15px; background: #f0f9ff; border-radius: 8px; display: none;">
+                        <p><strong>Доступно на складе:</strong> <span id="req_available_stock">0</span> <span id="req_stock_unit"></span></p>
+                        <p id="req_stock_warning" style="color: #ef4444; display: none;"><strong>Внимание:</strong> Недостаточно материала на складе!</p>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('issueToProductionModal')">Отмена</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-industry"></i> Выдать
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createProductionRequestModal')">Отмена</button>
+                    <button type="submit" class="btn btn-primary" id="req_submit_btn">
+                        <i class="fas fa-file-alt"></i> Создать требование
                     </button>
                 </div>
             </form>
@@ -2214,9 +2219,57 @@ try {
             
             if (stock && !modalPrefix.includes('transfer')) {
                 const quantityInput = document.getElementById(modalPrefix + '_quantity');
-                if (quantityInput && (modalPrefix.includes('outcome') || modalPrefix.includes('writeoff') || modalPrefix === 'issue')) {
+                if (quantityInput && (modalPrefix.includes('outcome') || modalPrefix.includes('writeoff') || modalPrefix === 'issue' || modalPrefix === 'req')) {
                     quantityInput.max = stock;
                     quantityInput.title = 'Доступно: ' + stock + ' ' + unit;
+                }
+                
+                // Show stock info for production request modal
+                if (modalPrefix === 'req') {
+                    const stockInfoDiv = document.getElementById('req_stock_info');
+                    const availableStockSpan = document.getElementById('req_available_stock');
+                    const stockUnitSpan = document.getElementById('req_stock_unit');
+                    const stockWarning = document.getElementById('req_stock_warning');
+                    
+                    if (stockInfoDiv && availableStockSpan && stockUnitSpan) {
+                        stockInfoDiv.style.display = 'block';
+                        availableStockSpan.textContent = stock;
+                        stockUnitSpan.textContent = unit;
+                        
+                        // Check if quantity exceeds stock
+                        checkStockAvailability('req');
+                    }
+                }
+            }
+        }
+        
+        // Check stock availability for production request
+        function checkStockAvailability(modalPrefix) {
+            if (modalPrefix !== 'req') return;
+            
+            const select = document.getElementById('req_material_id');
+            const quantityInput = document.getElementById('req_quantity');
+            const submitBtn = document.getElementById('req_submit_btn');
+            
+            if (!select || !quantityInput) return;
+            
+            const selectedOption = select.options[select.selectedIndex];
+            const stock = parseFloat(selectedOption.getAttribute('data-stock')) || 0;
+            const quantity = parseFloat(quantityInput.value) || 0;
+            
+            const stockWarning = document.getElementById('req_stock_warning');
+            
+            if (quantity > stock) {
+                if (stockWarning) stockWarning.style.display = 'block';
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Недостаточно на складе';
+                }
+            } else {
+                if (stockWarning) stockWarning.style.display = 'none';
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-file-alt"></i> Создать требование';
                 }
             }
         }
