@@ -289,7 +289,7 @@ try {
             
             // Получаем информацию о производственном заказе
             $stmt = $pdo->prepare("
-                SELECT po.product_id, po.quantity, po.source_order_id, p.product_code
+                SELECT po.product_id, po.quantity, po.source_order_id, p.product_code, p.product_name
                 FROM production_orders po
                 JOIN products p ON po.product_id = p.id
                 WHERE po.id = ?
@@ -301,6 +301,19 @@ try {
                 throw new Exception('Производственный заказ не найден');
             }
             
+            // Получаем BOM продукта для расчета списания материалов
+            $bom_data = [];
+            try {
+                $stmt_bom = $pdo->prepare("SELECT bom_json FROM products WHERE id = ?");
+                $stmt_bom->execute([$order['product_id']]);
+                $product_data = $stmt_bom->fetch();
+                if (!empty($product_data['bom_json'])) {
+                    $bom_data = json_decode($product_data['bom_json'], true);
+                }
+            } catch (Exception $e) {
+                // BOM может отсутствовать
+            }
+            
             // Оприходуем готовую продукцию на склад
             $stmt = $pdo->prepare("
                 UPDATE products 
@@ -309,10 +322,84 @@ try {
             ");
             $stmt->execute([$quantity_completed, $order['product_id']]);
             
-            // Если есть брак, списываем материалы пропорционально
-            if ($quantity_defect > 0) {
-                // Здесь можно добавить логику списания материалов на брак
+            // Списываем материалы из производства согласно BOM
+            if (!empty($bom_data) && is_array($bom_data)) {
+                // Получаем completion_document_id после создания документа (ниже)
+                // Пока собираем данные для списания
+                
+                // Получаем все выданные материалы для этого производственного заказа
+                $stmt_issued = $pdo->prepare("
+                    SELECT 
+                        pm.id as pm_id,
+                        pm.material_id,
+                        pm.quantity_issued,
+                        pm.quantity_used,
+                        m.name as material_name,
+                        m.sku as material_sku,
+                        m.unit
+                    FROM production_materials pm
+                    JOIN materials m ON pm.material_id = m.id
+                    WHERE pm.production_order_id = ?
+                    AND pm.status IN ('issued', 'used')
+                ");
+                $stmt_issued->execute([$production_order_id]);
+                $issued_materials = $stmt_issued->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Создаем карту выданных материалов по material_id
+                $issued_map = [];
+                foreach ($issued_materials as $im) {
+                    $mid = (int)$im['material_id'];
+                    if (!isset($issued_map[$mid])) {
+                        $issued_map[$mid] = [
+                            'pm_id' => $im['pm_id'],
+                            'material_id' => $mid,
+                            'material_name' => $im['material_name'],
+                            'material_sku' => $im['material_sku'],
+                            'unit' => $im['unit'],
+                            'quantity_issued' => floatval($im['quantity_issued']),
+                            'quantity_used' => floatval($im['quantity_used'])
+                        ];
+                    } else {
+                        $issued_map[$mid]['quantity_issued'] += floatval($im['quantity_issued']);
+                        $issued_map[$mid]['quantity_used'] += floatval($im['quantity_used']);
+                    }
+                }
+                
+                // Для каждого материала в BOM рассчитываем сколько должно быть использовано
+                // и списываем из доступных в производстве
+                foreach ($bom_data as $bom_item) {
+                    $sku = $bom_item['sku'] ?? '';
+                    $qty_per_unit = floatval($bom_item['quantity'] ?? 0);
+                    
+                    // Находим материал по SKU
+                    $material_id = 0;
+                    try {
+                        $stmt_mat = $pdo->prepare("SELECT id FROM materials WHERE sku = ?");
+                        $stmt_mat->execute([$sku]);
+                        $mat_result = $stmt_mat->fetch();
+                        if ($mat_result) {
+                            $material_id = (int)$mat_result['id'];
+                        }
+                    } catch (Exception $e) {
+                        continue;
+                    }
+                    
+                    if ($material_id > 0 && isset($issued_map[$material_id])) {
+                        // Рассчитываем плановое количество для произведенного количества продукции
+                        $quantity_planned = $qty_per_unit * $quantity_completed;
+                        
+                        // Обновляем quantity_used в production_materials
+                        $stmt_update = $pdo->prepare("
+                            UPDATE production_materials 
+                            SET quantity_used = quantity_used + ?, status = 'used'
+                            WHERE production_order_id = ? AND material_id = ?
+                        ");
+                        $stmt_update->execute([$quantity_planned, $production_order_id, $material_id]);
+                    }
+                }
             }
+            
+            // Если есть брак, можно добавить дополнительную логику
             
             // Обновляем статус производственного заказа
             $new_status = ($quantity_completed >= $order['quantity']) ? 'completed' : 'in_progress';
@@ -337,8 +424,8 @@ try {
             $doc_number = 'PR-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
             $stmt = $pdo->prepare("
                 INSERT INTO production_completion_documents 
-                (document_number, production_order_id, product_id, quantity, defect_quantity, completion_date, notes, created_by)
-                VALUES (?, ?, ?, ?, ?, NOW(), ?, ?)
+                (document_number, production_order_id, product_id, quantity, defect_quantity, completion_date, notes, created_by, source_order_id, product_name, product_code)
+                VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $doc_number, 
@@ -347,8 +434,70 @@ try {
                 $quantity_completed, 
                 $quantity_defect, 
                 $notes, 
-                $_SESSION['user_id']
+                $_SESSION['user_id'],
+                $order['source_order_id'],
+                $order['product_name'],
+                $order['product_code']
             ]);
+            
+            $completion_document_id = $pdo->lastInsertId();
+            
+            // Создаем записи о списании материалов для документа завершения
+            if (!empty($bom_data) && is_array($bom_data)) {
+                foreach ($bom_data as $bom_item) {
+                    $sku = $bom_item['sku'] ?? '';
+                    $qty_per_unit = floatval($bom_item['quantity'] ?? 0);
+                    $quantity_planned = $qty_per_unit * $quantity_completed;
+                    
+                    // Находим материал по SKU
+                    $material_id = 0;
+                    $material_name = $bom_item['name'] ?? '';
+                    try {
+                        $stmt_mat = $pdo->prepare("SELECT id, name FROM materials WHERE sku = ?");
+                        $stmt_mat->execute([$sku]);
+                        $mat_result = $stmt_mat->fetch();
+                        if ($mat_result) {
+                            $material_id = (int)$mat_result['id'];
+                            $material_name = $mat_result['name'];
+                        }
+                    } catch (Exception $e) {
+                        continue;
+                    }
+                    
+                    if ($material_id > 0) {
+                        // Получаем фактически выданное количество для этого материала
+                        $stmt_qty = $pdo->prepare("
+                            SELECT SUM(quantity_issued) as total_issued, SUM(quantity_used) as total_used
+                            FROM production_materials
+                            WHERE production_order_id = ? AND material_id = ?
+                        ");
+                        $stmt_qty->execute([$production_order_id, $material_id]);
+                        $qty_result = $stmt_qty->fetch();
+                        $quantity_issued = floatval($qty_result['total_issued'] ?? 0);
+                        $quantity_used_before = floatval($qty_result['total_used'] ?? 0);
+                        
+                        // Вставляем запись о списании
+                        $stmt_writeoff = $pdo->prepare("
+                            INSERT INTO production_material_writeoffs
+                            (completion_document_id, production_order_id, material_id, material_name, material_sku, 
+                             quantity_planned, quantity_issued, quantity_used, unit, writeoff_date, created_by)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+                        ");
+                        $stmt_writeoff->execute([
+                            $completion_document_id,
+                            $production_order_id,
+                            $material_id,
+                            $material_name,
+                            $sku,
+                            $quantity_planned,
+                            $quantity_issued,
+                            $quantity_planned, // quantity_used = quantity_planned при завершении
+                            'шт',
+                            $_SESSION['user_id']
+                        ]);
+                    }
+                }
+            }
             
             $pdo->commit();
             

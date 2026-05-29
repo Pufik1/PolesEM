@@ -1,49 +1,78 @@
-```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
-*.obj
-*.class
-*.exe
-*.dll
-*.so
-*.a
-*.out
+# Database migration files
+*.sql
 
-# Dependencies
-node_modules/
-venv/
-.venv/
+# Environment and config files
 .env
 .env.local
 .env.*
 
-# Logs and temp files
-*.log
-*.tmp
-*.swp
+# Dependencies
+node_modules/
+vendor/
+polesie_system/vendor/
 
-# Editors
+# Cache and temporary files
+*.tmp
+*.log
+*.cache
+*.lock
+
+# IDE and editor files
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# Build directories
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Build and distribution
 dist/
 build/
 target/
-.gradle/
-
-# Coverage
 coverage/
 htmlcov/
-.coverage
+*.out
+*.exe
+*.dll
+*.so
+*.a
 
 # Python specific
-.mypy_cache/
-.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
 
-# System files
-.DS_Store
-Thumbs.db
-```
+# PHP specific
+*.phar
+vendor/composer/
+composer.lock
+
+# Compression and archives
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst

@@ -164,6 +164,38 @@ try {
 } catch (Exception $e) {
     // 
 }
+
+// Получаем документы о завершенном производстве
+$productionDocuments = [];
+try {
+    $stmt = $pdo->query("
+        SELECT 
+            pcd.id,
+            pcd.document_number,
+            pcd.production_order_id,
+            po.production_number,
+            pcd.product_id,
+            p.product_name,
+            p.product_code,
+            pcd.quantity,
+            pcd.defect_quantity,
+            pcd.completion_date,
+            pcd.notes,
+            u.full_name as created_by_name,
+            pcd.source_order_id,
+            o.order_number as customer_order_number
+        FROM production_completion_documents pcd
+        JOIN production_orders po ON pcd.production_order_id = po.id
+        JOIN products p ON pcd.product_id = p.id
+        LEFT JOIN users u ON pcd.created_by = u.id
+        LEFT JOIN orders o ON pcd.source_order_id = o.id
+        ORDER BY pcd.completion_date DESC
+        LIMIT 50
+    ");
+    $productionDocuments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Таблица может еще не существовать
+}
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -270,6 +302,7 @@ try {
                     <button class="tab-button active" onclick="showTab('orders')">Заказы клиентов</button>
                     <button class="tab-button" onclick="showTab('production-plan')">План производства</button>
                     <button class="tab-button" onclick="showTab('issued')">Выдано в производство</button>
+                    <button class="tab-button" onclick="showTab('documents')">Документы о производстве</button>
                 </div>
 
                 <!-- Заказы клиентов -->
@@ -499,6 +532,68 @@ try {
                                 <?php if (empty($productionOrders)): ?>
                                 <tr>
                                     <td colspan="9" class="text-center">Производственных заказов не найдено</td>
+                                </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Документы о производстве -->
+                <div id="documents" class="tab-content">
+                    <div class="card">
+                        <h2><i class="fas fa-file-alt"></i> Документы о завершенном производстве</h2>
+                        <p style="color: #6b7280; margin-bottom: 20px;">Документы оприходования готовой продукции на склад</p>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>№ документа</th>
+                                    <th>№ произв. заказа</th>
+                                    <th>Продукт</th>
+                                    <th>Кол-во годных</th>
+                                    <th>Брак</th>
+                                    <th>Дата завершения</th>
+                                    <th>Заказ клиента</th>
+                                    <th>Создан</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($productionDocuments as $doc): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($doc['document_number']); ?></td>
+                                    <td><?php echo htmlspecialchars($doc['production_number']); ?></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($doc['product_name']); ?></strong><br>
+                                        <small style="color: #6b7280;"><?php echo htmlspecialchars($doc['product_code']); ?></small>
+                                    </td>
+                                    <td><?php echo $doc['quantity']; ?> шт</td>
+                                    <td>
+                                        <?php if ($doc['defect_quantity'] > 0): ?>
+                                            <span class="badge badge-danger"><?php echo $doc['defect_quantity']; ?> шт</span>
+                                        <?php else: ?>
+                                            <span class="badge badge-success">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo date('d.m.Y H:i', strtotime($doc['completion_date'])); ?></td>
+                                    <td>
+                                        <?php if ($doc['customer_order_number']): ?>
+                                            <small><?php echo htmlspecialchars($doc['customer_order_number']); ?></small>
+                                        <?php else: ?>
+                                            <small style="color: #6b7280;">План</small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($doc['created_by_name'] ?? 'Неизвестно'); ?></td>
+                                    <td>
+                                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="viewProductionDocument(<?php echo $doc['id']; ?>)">
+                                            <i class="fas fa-eye"></i> Просмотр
+                                        </button>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                                <?php if (empty($productionDocuments)): ?>
+                                <tr>
+                                    <td colspan="9" class="text-center">Документов не найдено</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -853,6 +948,59 @@ try {
         // Просмотр деталей завершения
         function viewCompletionDetails(productionOrderId) {
             alert('Функция просмотра деталей завершения будет реализована. ID заказа: ' + productionOrderId);
+        }
+        
+        // Просмотр документа о производстве
+        function viewProductionDocument(documentId) {
+            fetch('api.php?action=get_production_document&id=' + documentId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let doc = data.document;
+                        let html = '<div style="margin-bottom:20px;">';
+                        html += '<h4>Документ №' + doc.document_number + '</h4>';
+                        html += '<p><strong>Производственный заказ:</strong> ' + doc.production_number + '</p>';
+                        html += '<p><strong>Продукт:</strong> ' + doc.product_name + ' (' + doc.product_code + ')</p>';
+                        html += '<p><strong>Количество годных:</strong> ' + doc.quantity + ' шт</p>';
+                        if (doc.defect_quantity > 0) {
+                            html += '<p><strong>Брак:</strong> <span style="color:red;">' + doc.defect_quantity + ' шт</span></p>';
+                        }
+                        html += '<p><strong>Дата завершения:</strong> ' + doc.completion_date + '</p>';
+                        if (doc.customer_order_number) {
+                            html += '<p><strong>Заказ клиента:</strong> ' + doc.customer_order_number + '</p>';
+                        }
+                        if (doc.notes) {
+                            html += '<p><strong>Комментарий:</strong> ' + doc.notes + '</p>';
+                        }
+                        html += '<p><strong>Создан:</strong> ' + doc.created_by_name + '</p>';
+                        html += '</div>';
+                        
+                        // Добавляем таблицу со списанными материалами
+                        if (data.materials && data.materials.length > 0) {
+                            html += '<h5>Списанные материалы:</h5>';
+                            html += '<table class="data-table"><thead><tr>';
+                            html += '<th>Материал</th><th>Артикул</th><th>План</th><th>Выдано</th><th>Использовано</th>';
+                            html += '</tr></thead><tbody>';
+                            data.materials.forEach(mat => {
+                                html += '<tr>';
+                                html += '<td>' + mat.material_name + '</td>';
+                                html += '<td>' + mat.material_sku + '</td>';
+                                html += '<td>' + mat.quantity_planned + ' шт</td>';
+                                html += '<td>' + mat.quantity_issued + ' шт</td>';
+                                html += '<td>' + mat.quantity_used + ' шт</td>';
+                                html += '</tr>';
+                            });
+                            html += '</tbody></table>';
+                        }
+                        
+                        document.getElementById('modalTitle').innerText = 'Документ оприходования';
+                        document.getElementById('modalContent').innerHTML = html;
+                        document.getElementById('modalActions').style.display = 'none';
+                        document.getElementById('materialsModal').style.display = 'block';
+                    } else {
+                        alert('Ошибка: ' + data.message);
+                    }
+                });
         }
         
         // Инициализация при загрузке страницы
