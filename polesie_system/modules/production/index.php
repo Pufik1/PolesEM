@@ -117,7 +117,7 @@ try {
                 ];
             }
             
-            // Получаем выданные материалы для этого заказа
+            // Получаем выданные материалы для этого заказа (по любому статусу)
             if ($order['production_order_id']) {
                 $stmt_issued = $pdo->prepare("
                     SELECT 
@@ -126,8 +126,8 @@ try {
                         SUM(pm.quantity_issued) as total_issued
                     FROM production_materials pm
                     JOIN materials m ON pm.material_id = m.id
-                    WHERE pm.production_order_id = ? AND pm.status IN ('issued', 'used')
-                    GROUP BY m.id, m.sku, m.name
+                    WHERE pm.production_order_id = ?
+                    GROUP BY m.sku, m.name
                 ");
                 $stmt_issued->execute([$order['production_order_id']]);
                 $issued_raw = $stmt_issued->fetchAll(PDO::FETCH_ASSOC);

@@ -60,7 +60,7 @@ try {
                 $stmt_po->execute([$order_id]);
                 $production_order = $stmt_po->fetch();
                 
-                // Получаем уже выданные материалы для этого заказа
+                // Получаем уже выданные материалы для этого заказа (по любому статусу)
                 $issued_map = [];
                 if ($production_order) {
                     $stmt = $pdo->prepare("
@@ -69,8 +69,8 @@ try {
                             SUM(pm.quantity_issued) as total_issued
                         FROM production_materials pm
                         JOIN materials m ON pm.material_id = m.id
-                        WHERE pm.production_order_id = ? AND pm.status IN ('issued', 'used')
-                        GROUP BY m.id, m.sku
+                        WHERE pm.production_order_id = ?
+                        GROUP BY m.sku
                     ");
                     $stmt->execute([$production_order['id']]);
                     $issued_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
