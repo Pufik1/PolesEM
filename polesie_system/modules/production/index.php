@@ -646,8 +646,8 @@ try {
                         document.getElementById('modalTitle').innerText = 'Материалы для заказа ' + data.order.order_number;
                         document.getElementById('modalContent').innerHTML = html;
                         
-                        // Проверяем общую достаточность выданных материалов
-                        let allIssued = true;
+                        // Проверяем общую достаточность выданных материалов (используем уже объявленную переменную)
+                        allIssued = true;
                         data.materials.forEach(mat => {
                             if (mat.available_in_production < mat.total_required) {
                                 allIssued = false;
