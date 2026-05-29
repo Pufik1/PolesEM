@@ -183,12 +183,14 @@ try {
             pcd.notes,
             u.full_name as created_by_name,
             pcd.source_order_id,
-            o.order_number as customer_order_number
+            o.order_number as customer_order_number,
+            c.company_name as customer_name
         FROM production_completion_documents pcd
         JOIN production_orders po ON pcd.production_order_id = po.id
         JOIN products p ON pcd.product_id = p.id
         LEFT JOIN users u ON pcd.created_by = u.id
         LEFT JOIN orders o ON pcd.source_order_id = o.id
+        LEFT JOIN clients c ON o.client_id = c.id
         ORDER BY pcd.completion_date DESC
         LIMIT 50
     ");
@@ -543,7 +545,6 @@ try {
                                     <th>Кол-во годных</th>
                                     <th>Брак</th>
                                     <th>Дата завершения</th>
-                                    <th>Заказ клиента</th>
                                     <th>Создан</th>
                                     <th>Действия</th>
                                 </tr>
@@ -566,24 +567,23 @@ try {
                                         <?php endif; ?>
                                     </td>
                                     <td><?php echo date('d.m.Y H:i', strtotime($doc['completion_date'])); ?></td>
-                                    <td>
-                                        <?php if ($doc['customer_order_number']): ?>
-                                            <small><?php echo htmlspecialchars($doc['customer_order_number']); ?></small>
-                                        <?php else: ?>
-                                            <small style="color: #6b7280;">План</small>
-                                        <?php endif; ?>
-                                    </td>
                                     <td><?php echo htmlspecialchars($doc['created_by_name'] ?? 'Неизвестно'); ?></td>
                                     <td>
-                                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="viewProductionDocument(<?php echo $doc['id']; ?>)">
-                                            <i class="fas fa-eye"></i> Просмотр
+                                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="printProductionDocument(<?php echo $doc['id']; ?>)" title="Печать подробного документа">
+                                            <i class="fas fa-print"></i>
+                                        </button>
+                                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px; background: #10b981;" onclick="editProductionDocument(<?php echo $doc['id']; ?>)" title="Редактировать">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px; background: #ef4444;" onclick="deleteProductionDocument(<?php echo $doc['id']; ?>)" title="Удалить">
+                                            <i class="fas fa-trash"></i>
                                         </button>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
                                 <?php if (empty($productionDocuments)): ?>
                                 <tr>
-                                    <td colspan="9" class="text-center">Документов не найдено</td>
+                                    <td colspan="8" class="text-center">Документов не найдено</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -940,57 +940,264 @@ try {
             alert('Функция просмотра деталей завершения будет реализована. ID заказа: ' + productionOrderId);
         }
         
-        // Просмотр документа о производстве
-        function viewProductionDocument(documentId) {
-            fetch('api.php?action=get_production_document&id=' + documentId)
+        // Печать подробного документа о производстве
+        function printProductionDocument(documentId) {
+            fetch('api.php?action=get_production_document_full&id=' + documentId)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         let doc = data.document;
-                        let html = '<div style="margin-bottom:20px;">';
-                        html += '<h4>Документ №' + doc.document_number + '</h4>';
-                        html += '<p><strong>Производственный заказ:</strong> ' + doc.production_number + '</p>';
-                        html += '<p><strong>Продукт:</strong> ' + doc.product_name + ' (' + doc.product_code + ')</p>';
-                        html += '<p><strong>Количество годных:</strong> ' + doc.quantity + ' шт</p>';
-                        if (doc.defect_quantity > 0) {
-                            html += '<p><strong>Брак:</strong> <span style="color:red;">' + doc.defect_quantity + ' шт</span></p>';
-                        }
-                        html += '<p><strong>Дата завершения:</strong> ' + doc.completion_date + '</p>';
-                        if (doc.customer_order_number) {
-                            html += '<p><strong>Заказ клиента:</strong> ' + doc.customer_order_number + '</p>';
-                        }
-                        if (doc.notes) {
-                            html += '<p><strong>Комментарий:</strong> ' + doc.notes + '</p>';
-                        }
-                        html += '<p><strong>Создан:</strong> ' + doc.created_by_name + '</p>';
-                        html += '</div>';
+                        let materials = data.materials || [];
+                        let productsInfo = data.products_info || [];
                         
-                        // Добавляем таблицу со списанными материалами
-                        if (data.materials && data.materials.length > 0) {
-                            html += '<h5>Списанные материалы:</h5>';
-                            html += '<table class="data-table"><thead><tr>';
-                            html += '<th>Материал</th><th>Артикул</th><th>План</th><th>Выдано</th><th>Использовано</th>';
-                            html += '</tr></thead><tbody>';
-                            data.materials.forEach(mat => {
-                                html += '<tr>';
-                                html += '<td>' + mat.material_name + '</td>';
-                                html += '<td>' + mat.material_sku + '</td>';
-                                html += '<td>' + mat.quantity_planned + ' шт</td>';
-                                html += '<td>' + mat.quantity_issued + ' шт</td>';
-                                html += '<td>' + mat.quantity_used + ' шт</td>';
-                                html += '</tr>';
-                            });
-                            html += '</tbody></table>';
-                        }
+                        // Формируем реалистичный печатный документ
+                        let printContent = `
+                            <div style="font-family: Arial, sans-serif; padding: 40px; background: white; max-width: 800px; margin: 0 auto;">
+                                <div style="text-align: center; border-bottom: 3px solid #333; padding-bottom: 20px; margin-bottom: 30px;">
+                                    <h1 style="color: #333; margin: 0;">ПОЛЕСЬЕЭЛЕКТРОМАШ</h1>
+                                    <p style="margin: 5px 0; color: #666;">Производственное предприятие</p>
+                                </div>
+                                
+                                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                                    <h2 style="color: #333; margin-top: 0;">АКТ ОПРИХОДОВАНИЯ ГОТОВОЙ ПРОДУКЦИИ</h2>
+                                    <p style="margin: 10px 0;"><strong>Документ №:</strong> ${doc.document_number}</p>
+                                    <p style="margin: 10px 0;"><strong>Дата формирования:</strong> ${new Date(doc.completion_date).toLocaleDateString('ru-RU')}</p>
+                                    <p style="margin: 10px 0;"><strong>Производственный заказ:</strong> ${doc.production_number}</p>
+                                </div>
+                                
+                                <div style="margin-bottom: 25px;">
+                                    <h3 style="border-bottom: 2px solid #333; padding-bottom: 10px; color: #333;">1. ИНФОРМАЦИЯ О ЗАКАЗЕ</h3>
+                                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                        <tr style="background: #f9f9f9;">
+                                            <td style="padding: 10px; border: 1px solid #ddd; width: 40%;"><strong>Продукт:</strong></td>
+                                            <td style="padding: 10px; border: 1px solid #ddd;">${doc.product_name} (${doc.product_code})</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Заказано к производству:</strong></td>
+                                            <td style="padding: 10px; border: 1px solid #ddd;">${doc.quantity + (doc.defect_quantity || 0)} шт</td>
+                                        </tr>
+                                        <tr style="background: #f9f9f9;">
+                                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Изготовлено годных:</strong></td>
+                                            <td style="padding: 10px; border: 1px solid #ddd; color: green; font-weight: bold;">${doc.quantity} шт</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Брак:</strong></td>
+                                            <td style="padding: 10px; border: 1px solid #ddd; color: red;">${doc.defect_quantity > 0 ? doc.defect_quantity + ' шт' : '-'}</td>
+                                        </tr>
+                                        <tr style="background: #f9f9f9;">
+                                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Заказ клиента:</strong></td>
+                                            <td style="padding: 10px; border: 1px solid #ddd;">${doc.customer_order_number || 'План производства'} ${doc.customer_name ? '(' + doc.customer_name + ')' : ''}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                
+                                <div style="margin-bottom: 25px;">
+                                    <h3 style="border-bottom: 2px solid #333; padding-bottom: 10px; color: #333;">2. СПИСАННЫЕ МАТЕРИАЛЫ</h3>
+                                    ${materials.length > 0 ? `
+                                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px;">
+                                        <thead>
+                                            <tr style="background: #333; color: white;">
+                                                <th style="padding: 10px; border: 1px solid #ddd;">№</th>
+                                                <th style="padding: 10px; border: 1px solid #ddd;">Материал</th>
+                                                <th style="padding: 10px; border: 1px solid #ddd;">Артикул</th>
+                                                <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">План</th>
+                                                <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Выдано</th>
+                                                <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Списано</th>
+                                                <th style="padding: 10px; border: 1px solid #ddd;">Ед.</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${materials.map((mat, idx) => `
+                                            <tr style="${idx % 2 === 0 ? 'background: #f9f9f9;' : ''}">
+                                                <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${idx + 1}</td>
+                                                <td style="padding: 8px; border: 1px solid #ddd;">${mat.material_name}</td>
+                                                <td style="padding: 8px; border: 1px solid #ddd;">${mat.material_sku}</td>
+                                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${mat.quantity_planned}</td>
+                                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${mat.quantity_issued}</td>
+                                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">${mat.quantity_used}</td>
+                                                <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${mat.unit}</td>
+                                            </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                    ` : '<p>Информация о материалах отсутствует</p>'}
+                                </div>
+                                
+                                <div style="margin-bottom: 25px;">
+                                    <h3 style="border-bottom: 2px solid #333; padding-bottom: 10px; color: #333;">3. ОПРИХОДОВАНИЕ НА СКЛАД</h3>
+                                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                        <tr style="background: #f9f9f9;">
+                                            <td style="padding: 10px; border: 1px solid #ddd; width: 40%;"><strong>Продукт:</strong></td>
+                                            <td style="padding: 10px; border: 1px solid #ddd;">${doc.product_name}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Артикул:</strong></td>
+                                            <td style="padding: 10px; border: 1px solid #ddd;">${doc.product_code}</td>
+                                        </tr>
+                                        <tr style="background: #f9f9f9;">
+                                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Количество на склад:</strong></td>
+                                            <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold; color: green;">${doc.quantity} шт</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Статус:</strong></td>
+                                            <td style="padding: 10px; border: 1px solid #ddd;"><span style="background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px;">Готово к отгрузке</span></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                
+                                ${doc.notes ? `
+                                <div style="margin-bottom: 25px;">
+                                    <h3 style="border-bottom: 2px solid #333; padding-bottom: 10px; color: #333;">4. ПРИМЕЧАНИЯ</h3>
+                                    <p style="padding: 15px; background: #fffbea; border-left: 4px solid #f59e0b;">${doc.notes}</p>
+                                </div>
+                                ` : ''}
+                                
+                                <div style="margin-top: 40px; border-top: 2px solid #333; padding-top: 20px;">
+                                    <p><strong>Документ создал:</strong> ${doc.created_by_name || 'Неизвестно'}</p>
+                                    <p style="color: #666; font-size: 12px; margin-top: 20px;">
+                                        Документ сформирован автоматически системой учёта Полесьеэлектромаш<br>
+                                        Дата печати: ${new Date().toLocaleDateString('ru-RU')} ${new Date().toLocaleTimeString('ru-RU')}
+                                    </p>
+                                </div>
+                            </div>
+                        `;
                         
-                        document.getElementById('modalTitle').innerText = 'Документ оприходования';
+                        // Открываем новое окно для печати
+                        let printWindow = window.open('', '_blank', 'width=900,height=700');
+                        printWindow.document.write(`
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <title>Печать документа ${doc.document_number}</title>
+                                <style>
+                                    @media print {
+                                        body { margin: 0; padding: 0; }
+                                        .no-print { display: none; }
+                                    }
+                                    body { font-family: Arial, sans-serif; }
+                                </style>
+                            </head>
+                            <body>
+                                ${printContent}
+                                <div class="no-print" style="text-align: center; margin-top: 20px;">
+                                    <button onclick="window.print()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">🖨️ Печать</button>
+                                    <button onclick="window.close()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer;">Закрыть</button>
+                                </div>
+                            </body>
+                            </html>
+                        `);
+                        printWindow.document.close();
+                    } else {
+                        alert('Ошибка загрузки документа: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ошибка при загрузке документа');
+                });
+        }
+        
+        // Редактирование данных документа для печати
+        function editProductionDocument(documentId) {
+            fetch('api.php?action=get_production_document_full&id=' + documentId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let doc = data.document;
+                        let html = `
+                            <form id="editDocumentForm" onsubmit="saveEditedDocument(event, ${documentId})">
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Количество годных изделий:</label>
+                                    <input type="number" id="editQuantity" value="${doc.quantity}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" required>
+                                </div>
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Брак (шт):</label>
+                                    <input type="number" id="editDefectQuantity" value="${doc.defect_quantity || 0}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                </div>
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Комментарий:</label>
+                                    <textarea id="editNotes" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">${doc.notes || ''}</textarea>
+                                </div>
+                                <div style="text-align: right; margin-top: 20px;">
+                                    <button type="button" onclick="closeMaterialsModal()" style="padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 4px; margin-right: 10px;">Отмена</button>
+                                    <button type="submit" style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 4px;">Сохранить изменения</button>
+                                </div>
+                            </form>
+                        `;
+                        document.getElementById('modalTitle').innerText = 'Редактирование документа №' + doc.document_number;
                         document.getElementById('modalContent').innerHTML = html;
                         document.getElementById('modalActions').style.display = 'none';
                         document.getElementById('materialsModal').style.display = 'block';
                     } else {
-                        alert('Ошибка: ' + data.message);
+                        alert('Ошибка загрузки документа: ' + data.message);
                     }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ошибка при загрузке документа');
                 });
+        }
+        
+        // Сохранение отредактированного документа
+        function saveEditedDocument(event, documentId) {
+            event.preventDefault();
+            
+            let quantity = parseInt(document.getElementById('editQuantity').value);
+            let defectQuantity = parseInt(document.getElementById('editDefectQuantity').value) || 0;
+            let notes = document.getElementById('editNotes').value;
+            
+            fetch('api.php?action=update_production_document', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `id=${documentId}&quantity=${quantity}&defect_quantity=${defectQuantity}&notes=${encodeURIComponent(notes)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Документ успешно обновлён');
+                    closeMaterialsModal();
+                    location.reload();
+                } else {
+                    alert('Ошибка обновления: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Ошибка при сохранении документа');
+            });
+        }
+        
+        // Удаление документа
+        function deleteProductionDocument(documentId) {
+            if (confirm('Вы уверены, что хотите удалить этот документ? Это действие нельзя отменить.')) {
+                fetch('api.php?action=delete_production_document', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `id=${documentId}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Документ успешно удалён');
+                        location.reload();
+                    } else {
+                        alert('Ошибка удаления: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ошибка при удалении документа');
+                });
+            }
+        }
+        
+        // Просмотр документа о производстве (старая функция, оставлена для совместимости)
+        function viewProductionDocument(documentId) {
+            printProductionDocument(documentId);
         }
         
         // Инициализация при загрузке страницы
