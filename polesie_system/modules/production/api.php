@@ -51,36 +51,34 @@ try {
             $materials = [];
             $material_shortages = [];
             
+            // Шаг 1: Получаем ВСЕ выданные материалы в производство (агрегировано по material_id)
+            // Это общий пул всех выданных материалов независимо от производственного заказа
+            $stmt_all_issued = $pdo->query("
+                SELECT 
+                    pm.material_id,
+                    SUM(pm.quantity_issued) as total_issued,
+                    SUM(pm.quantity_used) as total_used
+                FROM production_materials pm
+                WHERE pm.status IN ('issued', 'used')
+                GROUP BY pm.material_id
+            ");
+            $all_issued_raw = $stmt_all_issued->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Создаем карту выданных материалов по material_id
+            $global_issued_map = [];
+            foreach ($all_issued_raw as $item) {
+                $mid = (int)$item['material_id'];
+                $global_issued_map[$mid] = [
+                    'total_issued' => floatval($item['total_issued']),
+                    'total_used' => floatval($item['total_used']),
+                    'available' => floatval($item['total_issued']) - floatval($item['total_used'])
+                ];
+            }
+            
             // Декодируем BOM из JSON
             $bom_data = !empty($order['bom_json']) ? json_decode($order['bom_json'], true) : [];
             
             if (is_array($bom_data) && !empty($bom_data)) {
-                // Получаем производственный заказ для этого заказа клиента
-                $stmt_po = $pdo->prepare("SELECT id FROM production_orders WHERE source_order_id = ?");
-                $stmt_po->execute([$order_id]);
-                $production_order = $stmt_po->fetch();
-                
-                // Получаем уже выданные материалы для этого заказа (по любому статусу)
-                $issued_map = [];
-                if ($production_order) {
-                    $stmt = $pdo->prepare("
-                        SELECT 
-                            m.sku,
-                            SUM(pm.quantity_issued) as total_issued
-                        FROM production_materials pm
-                        JOIN materials m ON pm.material_id = m.id
-                        WHERE pm.production_order_id = ?
-                        GROUP BY m.sku
-                    ");
-                    $stmt->execute([$production_order['id']]);
-                    $issued_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Создаем карту выданных материалов по SKU (так как в BOM используется sku)
-                    foreach ($issued_materials as $im) {
-                        $issued_map[$im['sku']] = floatval($im['total_issued']);
-                    }
-                }
-                
                 // Получаем все материалы со склада для поиска по SKU
                 $stmt = $pdo->query("
                     SELECT 
@@ -93,7 +91,7 @@ try {
                 ");
                 $warehouse_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 
-                // Создаем карту для поиска материала по SKU
+                // Создаем карту для поиска материала по SKU (так как BOM использует sku)
                 $sku_map = [];
                 foreach ($warehouse_materials as $wm) {
                     $sku_map[$wm['sku']] = $wm;
@@ -105,25 +103,29 @@ try {
                     $qty_per_unit = floatval($bom_item['quantity'] ?? 0);
                     $total_required = $qty_per_unit * $order['order_quantity'];
                     
-                    // Ищем материал по SKU
+                    // Ищем материал по SKU (так как BOM содержит только sku, name, quantity)
                     $material_id = 0;
                     $material_name = $bom_item['name'] ?? 'Неизвестный материал';
-                    // Все материалы на складе в штуках
                     $unit = 'шт';
                     $warehouse_stock = 0;
                     
                     if (isset($sku_map[$sku])) {
-                        $material_id = $sku_map[$sku]['material_id'];
+                        $material_id = (int)$sku_map[$sku]['material_id'];
                         $material_name = $sku_map[$sku]['material_name'];
-                        // Все материалы в штуках
+                        $unit = 'шт';
                         $warehouse_stock = floatval($sku_map[$sku]['warehouse_stock']);
                     }
                     
-                    // Получаем уже выданное количество для этого материала (по SKU)
-                    $already_issued = isset($issued_map[$sku]) ? floatval($issued_map[$sku]) : 0;
+                    // Получаем уже выданное количество для этого материала ИЗ ОБЩЕГО ПУЛА
+                    $already_issued = 0;
+                    if ($material_id > 0 && isset($global_issued_map[$material_id])) {
+                        $already_issued = $global_issued_map[$material_id]['total_issued'];
+                    }
+                    
+                    // Рассчитываем сколько еще нужно выдать
                     $to_issue = max(0, $total_required - $already_issued);
                     
-                    // Проверяем достаточность материала
+                    // Проверяем достаточность материала на складе для выдачи
                     $is_sufficient = $warehouse_stock >= $to_issue;
                     $shortage = 0;
                     if (!$is_sufficient) {
