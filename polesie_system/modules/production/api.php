@@ -324,9 +324,6 @@ try {
             
             // Списываем материалы из производства согласно BOM
             if (!empty($bom_data) && is_array($bom_data)) {
-                // Получаем completion_document_id после создания документа (ниже)
-                // Пока собираем данные для списания
-                
                 // Получаем все выданные материалы для этого производственного заказа
                 $stmt_issued = $pdo->prepare("
                     SELECT 
@@ -388,13 +385,18 @@ try {
                         // Рассчитываем плановое количество для произведенного количества продукции
                         $quantity_planned = $qty_per_unit * $quantity_completed;
                         
-                        // Обновляем quantity_used в production_materials
+                        // Получаем текущее количество использованного материала
+                        $current_used = $issued_map[$material_id]['quantity_used'];
+                        $total_issued = $issued_map[$material_id]['quantity_issued'];
+                        
+                        // Обновляем quantity_used в production_materials, но не больше чем выдано
+                        $new_used = min($quantity_planned, $total_issued);
                         $stmt_update = $pdo->prepare("
                             UPDATE production_materials 
-                            SET quantity_used = quantity_used + ?, status = 'used'
+                            SET quantity_used = ?, status = 'used'
                             WHERE production_order_id = ? AND material_id = ?
                         ");
-                        $stmt_update->execute([$quantity_planned, $production_order_id, $material_id]);
+                        $stmt_update->execute([$new_used, $production_order_id, $material_id]);
                     }
                 }
             }

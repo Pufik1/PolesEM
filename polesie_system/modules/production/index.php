@@ -88,7 +88,7 @@ try {
         JOIN products p ON oi.product_id = p.id
         LEFT JOIN production_orders po ON o.id = po.source_order_id
         WHERE o.payment_status = 'paid' 
-        AND (po.id IS NULL OR po.status IN ('planned', 'in_progress'))
+        AND (po.id IS NULL OR po.status IN ('planned', 'in_progress', 'completed'))
         ORDER BY o.delivery_date ASC
     ");
     $ordersRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -357,9 +357,13 @@ try {
                                     </td>
                                     <td><?php echo $order['delivery_date']; ?></td>
                                     <td>
-                                        <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewOrderMaterials(<?php echo $order['order_id']; ?>)">
-                                            <i class="fas fa-boxes"></i> Материалы
-                                        </button>
+                                        <?php if ($order['production_order_id'] && $order['production_status'] === 'completed'): ?>
+                                            <span class="badge badge-success">В производстве</span>
+                                        <?php else: ?>
+                                            <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewOrderMaterials(<?php echo $order['order_id']; ?>)">
+                                                <i class="fas fa-boxes"></i> Материалы
+                                            </button>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
