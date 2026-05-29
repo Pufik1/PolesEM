@@ -239,7 +239,8 @@ try {
         .data-table th:nth-child(6), .data-table td:nth-child(6) { width: 90px; } /* Статус оплаты */
         .data-table th:nth-child(7), .data-table td:nth-child(7) { width: 140px; } /* Статус производства */
         .data-table th:nth-child(8), .data-table td:nth-child(8) { width: 110px; } /* Дата доставки */
-        .data-table th:nth-child(9), .data-table td:nth-child(9) { width: 100px; text-align: center; } /* Действия */
+        .data-table th:nth-child(9), .data-table td:nth-child(9) { width: 100px; text-align: center; } /* Действия (заказы клиентов) */
+        #production-orders-table th:nth-child(7), #production-orders-table td:nth-child(7) { width: 130px; text-align: center; } /* Действия (план производства) */
         .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
         .badge-success { background: #d1fae5; color: #065f46; }
         .badge-warning { background: #fef3c7; color: #92400e; }
@@ -455,6 +456,7 @@ try {
                                     <th>Статус</th>
                                     <th>Приоритет</th>
                                     <th>Источник</th>
+                                    <th>Действия</th>
                                 </tr>
                             </thead>
                             <tbody id="production-orders-body">
@@ -504,11 +506,16 @@ try {
                                             <small style="color: #6b7280;">План</small>
                                         <?php endif; ?>
                                     </td>
+                                    <td>
+                                        <button class="btn btn-primary" style="padding: 4px 8px;" onclick="openRouteSheet(<?php echo $order['id']; ?>, '<?php echo htmlspecialchars($order['production_number']); ?>', '<?php echo htmlspecialchars($order['product_name']); ?>', <?php echo $order['quantity']; ?>)">
+                                            <i class="fas fa-file-alt"></i> Маршрутный лист
+                                        </button>
+                                    </td>
                                 </tr>
                                 <?php endforeach; ?>
                                 <?php if (empty($productionOrders)): ?>
                                 <tr>
-                                    <td colspan="6" class="text-center">Производственных заказов не найдено</td>
+                                    <td colspan="7" class="text-center">Производственных заказов не найдено</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -580,6 +587,17 @@ try {
         </div>
     </div>
     <script src="../../assets/js/main.js"></script>
+    
+    <!-- Модальное окно для просмотра маршрутного листа -->
+    <div id="routeSheetModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;" onclick="if(event.target===this) closeRouteSheetModal();">
+        <div style="background:white; margin:50px auto; padding:20px; border-radius:8px; max-width:900px; max-height:80vh; overflow-y:auto;">
+            <h3 id="routeSheetTitle">Маршрутный лист</h3>
+            <div id="routeSheetContent"></div>
+            <div style="margin-top:20px; text-align:right;">
+                <button class="btn" onclick="closeRouteSheetModal()" style="background:#6b7280; color:white;">Закрыть</button>
+            </div>
+        </div>
+    </div>
     
     <!-- Модальное окно для просмотра материалов и выдачи -->
     <div id="materialsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;" onclick="if(event.target===this) closeMaterialsModal();">
@@ -745,6 +763,45 @@ try {
         
         function closeMaterialsModal() {
             document.getElementById('materialsModal').style.display = 'none';
+        }
+        
+        // Функция для открытия маршрутного листа
+        function openRouteSheet(orderId, productionNumber, productName, quantity) {
+            document.getElementById('routeSheetTitle').innerText = 'Маршрутный лист № ' + productionNumber;
+            
+            let html = '<div style="background:#f3f4f6; padding:20px; border-radius:8px; margin-bottom:20px;">';
+            html += '<h4 style="margin:0 0 15px 0;"><i class="fas fa-clipboard-list"></i> Общая информация</h4>';
+            html += '<p><strong>№ заказа:</strong> ' + productionNumber + '</p>';
+            html += '<p><strong>Продукт:</strong> ' + productName + '</p>';
+            html += '<p><strong>Количество:</strong> ' + quantity + ' шт</p>';
+            html += '</div>';
+            
+            html += '<div style="background:#f3f4f6; padding:20px; border-radius:8px; margin-bottom:20px;">';
+            html += '<h4 style="margin:0 0 15px 0;"><i class="fas fa-tasks"></i> Этапы производства</h4>';
+            html += '<table class="data-table"><thead><tr><th>№</th><th>Этап</th><th>Описание</th><th>Статус</th></tr></thead><tbody>';
+            html += '<tr><td>1</td><td>Заготовка материалов</td><td>Подготовка и выдача необходимых материалов со склада</td><td><span class="badge badge-warning">В ожидании</span></td></tr>';
+            html += '<tr><td>2</td><td>Основное производство</td><td>Изготовление основного изделия согласно технологии</td><td><span class="badge badge-warning">В ожидании</span></td></tr>';
+            html += '<tr><td>3</td><td>Контроль качества</td><td>Проверка готового изделия на соответствие стандартам</td><td><span class="badge badge-warning">В ожидании</span></td></tr>';
+            html += '<tr><td>4</td><td>Упаковка</td><td>Упаковка готовой продукции</td><td><span class="badge badge-warning">В ожидании</span></td></tr>';
+            html += '<tr><td>5</td><td>Передача на склад</td><td>Оприходование готовой продукции на склад</td><td><span class="badge badge-warning">В ожидании</span></td></tr>';
+            html += '</tbody></table>';
+            html += '</div>';
+            
+            html += '<div style="background:#f3f4f6; padding:20px; border-radius:8px;">';
+            html += '<h4 style="margin:0 0 15px 0;"><i class="fas fa-user-cog"></i> Ответственные</h4>';
+            html += '<p><strong>Мастер смены:</strong> _________________</p>';
+            html += '<p><strong>Контролер ОТК:</strong> _________________</p>';
+            html += '<p><strong>Дата начала:</strong> _________________</p>';
+            html += '<p><strong>Дата окончания:</strong> _________________</p>';
+            html += '</div>';
+            
+            document.getElementById('routeSheetContent').innerHTML = html;
+            document.getElementById('routeSheetModal').style.display = 'block';
+        }
+        
+        // Функция для закрытия модального окна маршрутного листа
+        function closeRouteSheetModal() {
+            document.getElementById('routeSheetModal').style.display = 'none';
         }
         
         // Новая функция для запуска производства из модального окна материалов
