@@ -1024,23 +1024,37 @@ try {
                 throw new Exception('Документ не найден');
             }
             
-            // Получаем списанные материалы
+            // Получаем списанные материалы с их стоимостью
             $materials = [];
+            $total_material_cost = 0;
             try {
                 $stmt_mat = $pdo->prepare("
                     SELECT 
-                        material_name,
-                        material_sku,
-                        quantity_planned,
-                        quantity_issued,
-                        quantity_used,
-                        unit
-                    FROM production_material_writeoffs
-                    WHERE completion_document_id = ?
-                    ORDER BY material_name
+                        pmw.material_name,
+                        pmw.material_sku,
+                        pmw.quantity_planned,
+                        pmw.quantity_issued,
+                        pmw.quantity_used,
+                        pmw.unit,
+                        m.purchase_price
+                    FROM production_material_writeoffs pmw
+                    LEFT JOIN materials m ON pmw.material_name = m.material_name
+                    WHERE pmw.completion_document_id = ?
+                    ORDER BY pmw.material_name
                 ");
                 $stmt_mat->execute([$doc_id]);
                 $materials = $stmt_mat->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Рассчитываем общую стоимость
+                foreach ($materials as &$mat) {
+                    $cost = 0;
+                    if ($mat['purchase_price'] && $mat['quantity_used']) {
+                        $cost = (float)$mat['purchase_price'] * (float)$mat['quantity_used'];
+                        $total_material_cost += $cost;
+                    }
+                    $mat['cost'] = round($cost, 2);
+                }
+                unset($mat);
             } catch (Exception $e) {
                 // Таблица может не существовать
             }
@@ -1048,7 +1062,8 @@ try {
             echo json_encode([
                 'success' => true,
                 'document' => $doc,
-                'materials' => $materials
+                'materials' => $materials,
+                'total_material_cost' => round($total_material_cost, 2)
             ]);
             break;
             
