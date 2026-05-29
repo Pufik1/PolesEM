@@ -985,6 +985,148 @@ try {
             }
             break;
             
+        case 'get_production_document_full':
+            // Получение полной информации о документе для печати
+            $doc_id = (int)($_GET['id'] ?? 0);
+            if (!$doc_id) {
+                throw new Exception('Не указан ID документа');
+            }
+            
+            $stmt = $pdo->prepare("
+                SELECT 
+                    pcd.id,
+                    pcd.document_number,
+                    pcd.production_order_id,
+                    po.production_number,
+                    pcd.product_id,
+                    p.product_name,
+                    p.product_code,
+                    pcd.quantity,
+                    pcd.defect_quantity,
+                    pcd.completion_date,
+                    pcd.notes,
+                    u.full_name as created_by_name,
+                    pcd.source_order_id,
+                    o.order_number as customer_order_number,
+                    c.company_name as customer_name
+                FROM production_completion_documents pcd
+                JOIN production_orders po ON pcd.production_order_id = po.id
+                JOIN products p ON pcd.product_id = p.id
+                LEFT JOIN users u ON pcd.created_by = u.id
+                LEFT JOIN orders o ON pcd.source_order_id = o.id
+                LEFT JOIN clients c ON o.client_id = c.id
+                WHERE pcd.id = ?
+            ");
+            $stmt->execute([$doc_id]);
+            $doc = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$doc) {
+                throw new Exception('Документ не найден');
+            }
+            
+            // Получаем списанные материалы
+            $materials = [];
+            try {
+                $stmt_mat = $pdo->prepare("
+                    SELECT 
+                        material_name,
+                        material_sku,
+                        quantity_planned,
+                        quantity_issued,
+                        quantity_used,
+                        unit
+                    FROM production_material_writeoffs
+                    WHERE completion_document_id = ?
+                    ORDER BY material_name
+                ");
+                $stmt_mat->execute([$doc_id]);
+                $materials = $stmt_mat->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {
+                // Таблица может не существовать
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'document' => $doc,
+                'materials' => $materials
+            ]);
+            break;
+            
+        case 'update_production_document':
+            // Обновление данных документа
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Метод не разрешен');
+            }
+            
+            $doc_id = (int)$_POST['id'];
+            $quantity = (int)$_POST['quantity'];
+            $defect_quantity = (int)($_POST['defect_quantity'] ?? 0);
+            $notes = $_POST['notes'] ?? '';
+            
+            if ($quantity <= 0) {
+                throw new Exception('Количество должно быть больше 0');
+            }
+            
+            $stmt = $pdo->prepare("
+                UPDATE production_completion_documents 
+                SET quantity = ?, defect_quantity = ?, notes = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$quantity, $defect_quantity, $notes, $doc_id]);
+            
+            if ($stmt->rowCount() === 0) {
+                throw new Exception('Документ не найден или не был изменён');
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Документ успешно обновлён'
+            ]);
+            break;
+            
+        case 'delete_production_document':
+            // Удаление документа
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Метод не разрешен');
+            }
+            
+            $doc_id = (int)$_POST['id'];
+            
+            // Начинаем транзакцию
+            $pdo->beginTransaction();
+            
+            try {
+                // Удаляем записи о списании материалов
+                $stmt = $pdo->prepare("DELETE FROM production_material_writeoffs WHERE completion_document_id = ?");
+                $stmt->execute([$doc_id]);
+                
+                // Получаем информацию о документе для возврата продукции
+                $stmt_doc = $pdo->prepare("SELECT product_id, quantity FROM production_completion_documents WHERE id = ?");
+                $stmt_doc->execute([$doc_id]);
+                $doc_data = $stmt_doc->fetch();
+                
+                if ($doc_data) {
+                    // Возвращаем продукцию со склада (обратная операция)
+                    $stmt_return = $pdo->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?");
+                    $stmt_return->execute([$doc_data['quantity'], $doc_data['product_id']]);
+                }
+                
+                // Удаляем документ
+                $stmt = $pdo->prepare("DELETE FROM production_completion_documents WHERE id = ?");
+                $stmt->execute([$doc_id]);
+                
+                $pdo->commit();
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Документ успешно удалён'
+                ]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+            break;
+            
         default:
             throw new Exception('Неизвестное действие');
     }
