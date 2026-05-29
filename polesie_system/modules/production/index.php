@@ -194,9 +194,18 @@ try {
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
-        .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th, .data-table td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        .data-table th { background-color: #f9fafb; font-weight: 600; color: #374151; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .data-table th, .data-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #e5e7eb; word-wrap: break-word; white-space: normal; }
+        .data-table th { background-color: #f9fafb; font-weight: 600; color: #374151; vertical-align: top; }
+        .data-table td { vertical-align: middle; }
+        /* Фиксированная ширина для узких колонок */
+        .data-table th:nth-child(1), .data-table td:nth-child(1) { width: 120px; } /* № заказа */
+        .data-table th:nth-child(4), .data-table td:nth-child(4) { width: 80px; text-align: center; } /* Заказано */
+        .data-table th:nth-child(5), .data-table td:nth-child(5) { width: 100px; text-align: center; } /* В производстве */
+        .data-table th:nth-child(6), .data-table td:nth-child(6) { width: 90px; } /* Статус оплаты */
+        .data-table th:nth-child(7), .data-table td:nth-child(7) { width: 140px; } /* Статус производства */
+        .data-table th:nth-child(8), .data-table td:nth-child(8) { width: 110px; } /* Дата доставки */
+        .data-table th:nth-child(9), .data-table td:nth-child(9) { width: 100px; text-align: center; } /* Действия */
         .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
         .badge-success { background: #d1fae5; color: #065f46; }
         .badge-warning { background: #fef3c7; color: #92400e; }
