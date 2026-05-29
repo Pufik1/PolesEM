@@ -456,13 +456,13 @@ try {
                                    ' | <strong>Количество:</strong> ' + data.order.order_quantity + '</p>';
                         
                         // Проверяем общую достаточность выданных материалов
+                        // Используем grand_total_available_in_production из API
                         let allIssued = true;
-                        let totalRequired = 0;
-                        let totalIssued = 0;
+                        let totalRequired = data.grand_total_required || 0;
+                        let totalAvailableInProduction = data.grand_total_available_in_production || 0;
+                        
                         data.materials.forEach(mat => {
-                            totalRequired += mat.total_required;
-                            totalIssued += mat.already_issued;
-                            if (mat.already_issued < mat.total_required) {
+                            if (mat.available_in_production < mat.total_required) {
                                 allIssued = false;
                             }
                         });
@@ -471,7 +471,7 @@ try {
                         if (!allIssued && data.materials.length > 0) {
                             html += '<div style="background:#fee2e2; border:1px solid #ef4444; padding:15px; margin-bottom:15px; border-radius:6px;">';
                             html += '<h4 style="color:#991b1b; margin:0 0 10px 0;"><i class="fas fa-exclamation-triangle"></i> Недостаточно материалов выдано для заказа!</h4>';
-                            html += '<p style="margin:0; color:#991b1b;">Выдано: ' + totalIssued + ' из ' + totalRequired + ' требуемых единиц материалов</p></div>';
+                            html += '<p style="margin:0; color:#991b1b;">Доступно в производстве: ' + totalAvailableInProduction + ' из ' + totalRequired + ' требуемых единиц материалов</p></div>';
                         } else if (data.materials.length > 0) {
                             html += '<div style="background:#d1fae5; border:1px solid #10b981; padding:15px; margin-bottom:15px; border-radius:6px;">';
                             html += '<h4 style="color:#065f46; margin:0;"><i class="fas fa-check-circle"></i> Все материалы выданы в полном объеме</h4></div>';
@@ -479,14 +479,14 @@ try {
                         
                         html += '<table class="data-table"><thead><tr>' +
                                 '<th>Материал</th><th>Артикул</th>' +
-                                '<th>Требуется</th><th>Выдано</th>' +
+                                '<th>Требуется</th><th>Доступно в пр-ве</th>' +
                                 '<th>Статус</th>' +
                                 '</tr></thead><tbody>';
                         
                         data.materials.forEach((mat, index) => {
-                            // Статус проверяем по факту выданных материалов против требуемых
-                            let isFullyIssued = mat.already_issued >= mat.total_required;
-                            let shortageQty = mat.total_required - mat.already_issued;
+                            // Статус проверяем по факту доступных материалов в производстве против требуемых
+                            let isFullyIssued = mat.available_in_production >= mat.total_required;
+                            let shortageQty = mat.total_required - mat.available_in_production;
                             let statusBadge = isFullyIssued ? 
                                 '<span class="badge badge-success">Достаточно</span>' : 
                                 '<span class="badge badge-danger">Не хватает ' + shortageQty + ' шт</span>';
@@ -495,7 +495,7 @@ try {
                                     '<td>' + mat.material_name + '</td>' +
                                     '<td>' + mat.sku + '</td>' +
                                     '<td>' + mat.total_required + ' шт</td>' +
-                                    '<td>' + mat.already_issued + ' шт</td>' +
+                                    '<td>' + mat.available_in_production + ' шт</td>' +
                                     '<td>' + statusBadge + '</td>' +
                                     '</tr>';
                         });
@@ -505,7 +505,7 @@ try {
                         document.getElementById('modalContent').innerHTML = html;
                         
                         // Показываем кнопку "Выдать материалы" только если есть материалы к выдаче
-                        let hasMaterialsToIssue = data.materials.some(mat => mat.already_issued < mat.total_required);
+                        let hasMaterialsToIssue = data.materials.some(mat => mat.available_in_production < mat.total_required);
                         document.getElementById('issueMaterialsBtn').style.display = hasMaterialsToIssue ? 'inline-block' : 'none';
                         
                         document.getElementById('materialsModal').style.display = 'block';
@@ -526,7 +526,7 @@ try {
             }
             
             // Фильтруем только те материалы, которые нужно выдать
-            let materialsToIssue = currentMaterials.filter(mat => mat.already_issued < mat.total_required);
+            let materialsToIssue = currentMaterials.filter(mat => mat.available_in_production < mat.total_required);
             
             if (materialsToIssue.length === 0) {
                 alert('Все материалы уже выданы');
@@ -536,7 +536,7 @@ try {
             // Формируем данные для передачи на склад
             let issueData = materialsToIssue.map(mat => ({
                 material_id: mat.material_id,
-                quantity: mat.total_required - mat.already_issued,
+                quantity: mat.total_required - mat.available_in_production,
                 unit: 'шт',
                 material_name: mat.material_name,
                 sku: mat.sku

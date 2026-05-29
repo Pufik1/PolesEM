@@ -53,11 +53,13 @@ try {
             
             // Шаг 1: Получаем ВСЕ выданные материалы в производство (агрегировано по material_id)
             // Это общий пул всех выданных материалов независимо от производственного заказа
+            // Используем quantity_issued - quantity_used для получения доступного количества в производстве
             $stmt_all_issued = $pdo->query("
                 SELECT 
                     pm.material_id,
                     SUM(pm.quantity_issued) as total_issued,
-                    SUM(pm.quantity_used) as total_used
+                    SUM(pm.quantity_used) as total_used,
+                    SUM(pm.quantity_issued) - SUM(pm.quantity_used) as available_balance
                 FROM production_materials pm
                 WHERE pm.status IN ('issued', 'used')
                 GROUP BY pm.material_id
@@ -65,13 +67,14 @@ try {
             $all_issued_raw = $stmt_all_issued->fetchAll(PDO::FETCH_ASSOC);
             
             // Создаем карту выданных материалов по material_id
+            // Для сравнения используем available_balance (выдано минус использовано)
             $global_issued_map = [];
             foreach ($all_issued_raw as $item) {
                 $mid = (int)$item['material_id'];
                 $global_issued_map[$mid] = [
                     'total_issued' => floatval($item['total_issued']),
                     'total_used' => floatval($item['total_used']),
-                    'available' => floatval($item['total_issued']) - floatval($item['total_used'])
+                    'available_balance' => floatval($item['available_balance'])
                 ];
             }
             
@@ -97,6 +100,10 @@ try {
                     $sku_map[$wm['sku']] = $wm;
                 }
                 
+                // Переменные для подсчета итогов
+                $grand_total_required = 0;
+                $grand_total_available_in_production = 0;
+                
                 // Формируем итоговый список материалов
                 foreach ($bom_data as $bom_item) {
                     $sku = $bom_item['sku'] ?? '';
@@ -116,14 +123,15 @@ try {
                         $warehouse_stock = floatval($sku_map[$sku]['warehouse_stock']);
                     }
                     
-                    // Получаем уже выданное количество для этого материала ИЗ ОБЩЕГО ПУЛА
-                    $already_issued = 0;
+                    // Получаем доступное количество для этого материала ИЗ ОБЩЕГО ПУЛА производства
+                    // available_balance = выдано всего - использовано всего
+                    $available_in_production = 0;
                     if ($material_id > 0 && isset($global_issued_map[$material_id])) {
-                        $already_issued = $global_issued_map[$material_id]['total_issued'];
+                        $available_in_production = $global_issued_map[$material_id]['available_balance'];
                     }
                     
                     // Рассчитываем сколько еще нужно выдать
-                    $to_issue = max(0, $total_required - $already_issued);
+                    $to_issue = max(0, $total_required - $available_in_production);
                     
                     // Проверяем достаточность материала на складе для выдачи
                     $is_sufficient = $warehouse_stock >= $to_issue;
@@ -148,11 +156,15 @@ try {
                         'warehouse_stock' => $warehouse_stock,
                         'qty_per_unit' => $qty_per_unit,
                         'total_required' => $total_required,
-                        'already_issued' => $already_issued,
+                        'available_in_production' => $available_in_production,
                         'to_issue' => $to_issue,
                         'is_sufficient' => $is_sufficient,
                         'shortage' => $shortage
                     ];
+                    
+                    // Суммируем для общих итогов
+                    $grand_total_required += $total_required;
+                    $grand_total_available_in_production += min($available_in_production, $total_required);
                 }
             }
             
@@ -161,7 +173,9 @@ try {
                 'order' => $order,
                 'materials' => $materials,
                 'material_shortages' => $material_shortages,
-                'has_shortages' => !empty($material_shortages)
+                'has_shortages' => !empty($material_shortages),
+                'grand_total_required' => isset($grand_total_required) ? $grand_total_required : 0,
+                'grand_total_available_in_production' => isset($grand_total_available_in_production) ? $grand_total_available_in_production : 0
             ]);
             break;
             
