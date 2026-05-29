@@ -65,13 +65,12 @@ try {
                 if ($production_order) {
                     $stmt = $pdo->prepare("
                         SELECT 
-                            pm.material_id,
                             m.sku,
                             SUM(pm.quantity_issued) as total_issued
                         FROM production_materials pm
                         JOIN materials m ON pm.material_id = m.id
                         WHERE pm.production_order_id = ? AND pm.status IN ('issued', 'used')
-                        GROUP BY pm.material_id, m.sku
+                        GROUP BY m.sku
                     ");
                     $stmt->execute([$production_order['id']]);
                     $issued_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
