@@ -626,6 +626,7 @@ try {
             // Сохраняем в sessionStorage для использования на складе
             sessionStorage.setItem('warehouse_issue_data', JSON.stringify({
                 order_id: currentOrderId,
+                order_number: currentMaterials[0]?.order_number || '',
                 materials: issueData
             }));
             
