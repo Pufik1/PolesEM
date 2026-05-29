@@ -328,6 +328,158 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $success = 'Готовая продукция успешно отгружена. Документ: ' . htmlspecialchars($document_number);
             }
             
+        } elseif ($action === 'ship_product_batch') {
+            // Массовая отгрузка готовой продукции клиенту с созданием одной накладной
+            $products_data = isset($_POST['products']) ? $_POST['products'] : [];
+            $document_number = isset($_POST['document_number']) ? trim($_POST['document_number']) : '';
+            $notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
+            
+            if (empty($products_data) || !is_array($products_data)) {
+                $error = 'Ошибка: Не выбрана продукция для отгрузки';
+            } else {
+                // Проверяем достаточность количества для всех товаров
+                foreach ($products_data as $prod_data) {
+                    $product_id = (int)$prod_data['product_id'];
+                    $quantity = (int)$prod_data['quantity'];
+                    
+                    if ($product_id <= 0 || $quantity <= 0) {
+                        continue;
+                    }
+                    
+                    $stmt = $pdo->prepare("SELECT stock_quantity, product_name, base_price FROM products WHERE id = :product_id");
+                    $stmt->execute([':product_id' => $product_id]);
+                    $product = $stmt->fetch();
+                    
+                    if (!$product || $product['stock_quantity'] < $quantity) {
+                        $error = 'Недостаточно товара на складе (ID: ' . $product_id . ')';
+                        break;
+                    }
+                }
+                
+                // Генерируем номер накладной если не указан
+                if (empty($document_number)) {
+                    $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(shipment_number, '-', -1) AS UNSIGNED)) as max_num FROM shipment_documents WHERE shipment_number LIKE 'ТН-%'");
+                    $result = $stmt->fetch();
+                    $next_num = ($result['max_num'] ?? 0) + 1;
+                    $document_number = 'ТН-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
+                }
+                
+                $pdo->beginTransaction();
+                
+                try {
+                    $total_items = 0;
+                    $total_quantity = 0;
+                    $total_cost = 0;
+                    $shipment_items = [];
+                    
+                    // Сначала собираем данные для всех позиций
+                    foreach ($products_data as $prod_data) {
+                        $product_id = (int)$prod_data['product_id'];
+                        $quantity = (int)$prod_data['quantity'];
+                        
+                        if ($product_id <= 0 || $quantity <= 0) {
+                            continue;
+                        }
+                        
+                        // Получаем данные о продукте
+                        $stmt = $pdo->prepare("SELECT product_name, product_code, base_price FROM products WHERE id = :product_id");
+                        $stmt->execute([':product_id' => $product_id]);
+                        $productData = $stmt->fetch();
+                        
+                        if (!$productData) {
+                            continue;
+                        }
+                        
+                        // Вычисляем стоимость
+                        $unit_price = $productData['base_price'] ?? 0;
+                        $vat_rate = 20;
+                        $line_total = $unit_price * $quantity;
+                        $vat_amount = $line_total * ($vat_rate / 100);
+                        $line_total_with_vat = $line_total + $vat_amount;
+                        
+                        $total_items++;
+                        $total_quantity += $quantity;
+                        $total_cost += $line_total;
+                        
+                        $shipment_items[] = [
+                            'product_id' => $product_id,
+                            'name' => $productData['product_name'],
+                            'code' => $productData['product_code'] ?? '',
+                            'quantity' => $quantity,
+                            'unit_price' => $unit_price,
+                            'vat_rate' => $vat_rate,
+                            'line_total' => $line_total,
+                            'vat_amount' => $vat_amount,
+                            'line_total_with_vat' => $line_total_with_vat
+                        ];
+                    }
+                    
+                    if (empty($shipment_items)) {
+                        throw new Exception('Нет valid продукции для отгрузки');
+                    }
+                    
+                    // Создаем документ отгрузки (накладную)
+                    $stmt = $pdo->prepare("INSERT INTO shipment_documents 
+                           (shipment_number, shipment_date, shipment_type, customer_name, warehouse_from_id, total_items, total_quantity, total_cost, status, notes, created_by) 
+                           VALUES (?, CURRENT_DATE, 'to_customer', 'Прямая продажа', 1, ?, ?, ?, 'shipped', ?, ?)");
+                    $stmt->execute([
+                        $document_number,
+                        $total_items,
+                        $total_quantity,
+                        $total_cost,
+                        $notes,
+                        $_SESSION['user_id']
+                    ]);
+                    $shipment_id = $pdo->lastInsertId();
+                    
+                    // Добавляем позиции в документ отгрузки
+                    foreach ($shipment_items as $item) {
+                        $stmt = $pdo->prepare("INSERT INTO shipment_items 
+                               (shipment_id, product_id, item_name, item_sku, item_unit, quantity_ordered, quantity_shipped, unit_price, vat_rate, line_total, vat_amount, line_total_with_vat) 
+                               VALUES (?, ?, ?, ?, 'шт', ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([
+                            $shipment_id,
+                            $item['product_id'],
+                            $item['name'],
+                            $item['code'],
+                            $item['quantity'],
+                            $item['quantity'],
+                            $item['unit_price'],
+                            $item['vat_rate'],
+                            $item['line_total'],
+                            $item['vat_amount'],
+                            $item['line_total_with_vat']
+                        ]);
+                        
+                        // Добавляем операцию расхода со ссылкой на документ
+                        $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
+                               (operation_type, product_id, quantity, warehouse_from, user_id, document_number, notes, shipment_id, operation_date) 
+                               VALUES ('outcome', ?, ?, 1, ?, ?, ?, ?, NOW())");
+                        $stmt->execute([
+                            $item['product_id'],
+                            $item['quantity'],
+                            $_SESSION['user_id'],
+                            $document_number,
+                            $notes,
+                            $shipment_id
+                        ]);
+                        
+                        // Обновляем остаток товара
+                        $stmt = $pdo->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?");
+                        $stmt->execute([$item['quantity'], $item['product_id']]);
+                    }
+                    
+                    $pdo->commit();
+                    logActivity($pdo, $_SESSION['user_id'], 'Массовая отгрузка готовой продукции', 'warehouse_operations', $shipment_id);
+                    $success = 'Продукция успешно отгружена (' . $total_items . ' поз.). Документ: ' . htmlspecialchars($document_number);
+                    
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    $error = 'Ошибка при проведении операции: ' . $e->getMessage();
+                    error_log("Warehouse ship_product_batch error: " . $e->getMessage());
+                }
+            }
+            
         } elseif ($action === 'outcome_material_batch') {
             // Массовая выдача материалов в производство с созданием одного документа списания
             $materials_data = isset($_POST['materials']) ? $_POST['materials'] : [];
@@ -1617,48 +1769,113 @@ try {
     
     <!-- Outcome Modal -->
     <div id="outcomeModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-lg">
             <div class="modal-header">
                 <h2>Отгрузка готовой продукции клиенту</h2>
                 <button class="modal-close">&times;</button>
             </div>
-            <form method="POST" action="">
+            <form method="POST" action="" onsubmit="return handleShipmentSubmit(this);">
                 <input type="hidden" name="action" value="ship_product">
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label for="outcome_product_id">Продукция *</label>
-                        <select id="outcome_product_id" name="product_id" required onchange="updateProductInfo('shipment')">
-                            <option value="">Выберите продукцию</option>
-                            <?php foreach ($products as $product): ?>
-                                <option value="<?php echo $product['id']; ?>" 
-                                        data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
-                                        data-stock="<?php echo $product['stock_quantity']; ?>">
-                                    <?php echo htmlspecialchars($product['product_code'] . ' - ' . $product['product_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                    <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+                        <p style="margin: 0 0 10px 0; color: #0369a1;"><strong>Режим отгрузки:</strong></p>
+                        <label style="display: inline-flex; align-items: center; margin-right: 20px; cursor: pointer;">
+                            <input type="radio" name="shipment_mode" value="single" checked onchange="toggleShipmentMode()" style="margin-right: 8px;">
+                            Одиночная отгрузка
+                        </label>
+                        <label style="display: inline-flex; align-items: center; cursor: pointer;">
+                            <input type="radio" name="shipment_mode" value="batch" onchange="toggleShipmentMode()" style="margin-right: 8px;">
+                            Массовая отгрузка (несколько видов продукции)
+                        </label>
                     </div>
                     
-                    <div class="form-row">
+                    <!-- Single shipment mode -->
+                    <div id="single_shipment_form">
                         <div class="form-group">
-                            <label for="outcome_quantity">Количество *</label>
-                            <input type="number" id="outcome_quantity" name="quantity" required min="1" value="1">
+                            <label for="outcome_product_id">Продукция *</label>
+                            <select id="outcome_product_id" name="product_id" required onchange="updateProductInfo('shipment')">
+                                <option value="">Выберите продукцию</option>
+                                <?php foreach ($products as $product): ?>
+                                    <option value="<?php echo $product['id']; ?>" 
+                                            data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
+                                            data-stock="<?php echo $product['stock_quantity']; ?>">
+                                        <?php echo htmlspecialchars($product['product_code'] . ' - ' . $product['product_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="outcome_quantity">Количество *</label>
+                                <input type="number" id="outcome_quantity" name="quantity" required min="1" value="1">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="outcome_document_number">Накладная №</label>
+                                <input type="text" id="outcome_document_number" name="document_number" placeholder="Например: ТН-2024-001">
+                            </div>
                         </div>
                         
                         <div class="form-group">
-                            <label for="outcome_document_number">Накладная №</label>
-                            <input type="text" id="outcome_document_number" name="document_number" placeholder="Например: ТН-2024-001">
+                            <label for="outcome_notes">Комментарий</label>
+                            <textarea id="outcome_notes" name="notes" rows="2" placeholder="Информация об отгрузке"></textarea>
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="outcome_notes">Комментарий</label>
-                        <textarea id="outcome_notes" name="notes" rows="2" placeholder="Информация об отгрузке"></textarea>
+                    <!-- Batch shipment mode -->
+                    <div id="batch_shipment_form" style="display: none;">
+                        <div class="form-group">
+                            <label>Продукция для отгрузки</label>
+                            <div id="batch_products_container" style="margin-bottom: 15px;">
+                                <div class="batch-product-row" style="display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end;">
+                                    <div style="flex: 2;">
+                                        <select name="products[0][product_id]" class="batch-product-select" required onchange="updateBatchProductInfo(this)">
+                                            <option value="">Выберите продукцию</option>
+                                            <?php foreach ($products as $product): ?>
+                                                <option value="<?php echo $product['id']; ?>" 
+                                                        data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
+                                                        data-stock="<?php echo $product['stock_quantity']; ?>">
+                                                    <?php echo htmlspecialchars($product['product_code'] . ' - ' . $product['product_name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <input type="number" name="products[0][quantity]" class="batch-quantity-input" required min="1" step="1" placeholder="Кол-во" onchange="checkBatchProductAvailability(this)">
+                                    </div>
+                                    <div>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="removeBatchProductRow(this)" disabled title="Нельзя удалить единственную строку">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="addBatchProductRow()">
+                                <i class="fas fa-plus"></i> Добавить продукцию
+                            </button>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="batch_document_number">Накладная №</label>
+                                <input type="text" id="batch_document_number" name="document_number" placeholder="Например: ТН-2024-001">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="batch_notes">Комментарий</label>
+                            <textarea id="batch_notes" name="notes" rows="2" placeholder="Информация об отгрузке"></textarea>
+                        </div>
+                        
+                        <div id="batch_product_info" style="margin-top: 15px; padding: 15px; background: #fef3c7; border-radius: 8px; display: none;">
+                            <p id="batch_product_warning" style="color: #b45309; margin: 0;"><strong>Внимание:</strong> Проверьте доступность продукции на складе!</p>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('outcomeModal')">Отмена</button>
-                    <button type="submit" class="btn btn-info">
+                    <button type="submit" class="btn btn-info" id="shipment_submit_btn">
                         <i class="fas fa-truck"></i> Отгрузить
                     </button>
                 </div>
@@ -2902,6 +3119,189 @@ try {
                 // Check stock for single mode
                 const select = document.getElementById('req_material_id');
                 const input = document.getElementById('req_quantity');
+                const stock = parseFloat(select.options[select.selectedIndex].getAttribute('data-stock')) || 0;
+                const quantity = parseFloat(input.value) || 0;
+                
+                if (quantity > stock) {
+                    alert('Ошибка: Количество превышает доступное на складе!');
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+        
+        // Toggle shipment mode (single/batch)
+        function toggleShipmentMode() {
+            const mode = document.querySelector('input[name="shipment_mode"]:checked').value;
+            const singleForm = document.getElementById('single_shipment_form');
+            const batchForm = document.getElementById('batch_shipment_form');
+            
+            if (mode === 'batch') {
+                singleForm.style.display = 'none';
+                batchForm.style.display = 'block';
+                // Remove required from single form fields
+                document.getElementById('outcome_product_id').required = false;
+                document.getElementById('outcome_quantity').required = false;
+                // Add required to first batch row
+                const firstSelect = document.querySelector('.batch-product-select');
+                const firstInput = document.querySelector('#batch_products_container .batch-quantity-input');
+                if (firstSelect) firstSelect.required = true;
+                if (firstInput) firstInput.required = true;
+            } else {
+                singleForm.style.display = 'block';
+                batchForm.style.display = 'none';
+                // Add required to single form fields
+                document.getElementById('outcome_product_id').required = true;
+                document.getElementById('outcome_quantity').required = true;
+                // Remove required from batch form fields
+                document.querySelectorAll('.batch-product-select').forEach(el => el.required = false);
+                document.querySelectorAll('#batch_products_container .batch-quantity-input').forEach(el => el.required = false);
+            }
+        }
+        
+        // Add new batch product row
+        function addBatchProductRow() {
+            const container = document.getElementById('batch_products_container');
+            const rowCount = container.getElementsByClassName('batch-product-row').length;
+            
+            const newRow = document.createElement('div');
+            newRow.className = 'batch-product-row';
+            newRow.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end;';
+            newRow.innerHTML = `
+                <div style="flex: 2;">
+                    <select name="products[${rowCount}][product_id]" class="batch-product-select" required onchange="updateBatchProductInfo(this)">
+                        <option value="">Выберите продукцию</option>
+                        <?php foreach ($products as $product): ?>
+                            <option value="<?php echo $product['id']; ?>" 
+                                    data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
+                                    data-stock="<?php echo $product['stock_quantity']; ?>">
+                                <?php echo htmlspecialchars($product['product_code'] . ' - ' . $product['product_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <input type="number" name="products[${rowCount}][quantity]" class="batch-quantity-input" required min="1" step="1" placeholder="Кол-во" onchange="checkBatchProductAvailability(this)">
+                </div>
+                <div>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeBatchProductRow(this)">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(newRow);
+        }
+        
+        // Remove batch product row
+        function removeBatchProductRow(button) {
+            const container = document.getElementById('batch_products_container');
+            const rows = container.getElementsByClassName('batch-product-row');
+            
+            if (rows.length > 1) {
+                button.closest('.batch-product-row').remove();
+                // Re-index remaining rows
+                const selects = container.querySelectorAll('.batch-product-select');
+                const inputs = container.querySelectorAll('.batch-quantity-input');
+                selects.forEach((select, index) => {
+                    select.name = `products[${index}][product_id]`;
+                });
+                inputs.forEach((input, index) => {
+                    input.name = `products[${index}][quantity]`;
+                });
+            } else {
+                alert('Нельзя удалить единственную строку');
+            }
+        }
+        
+        // Update batch product info
+        function updateBatchProductInfo(select) {
+            const stock = select.options[select.selectedIndex].getAttribute('data-stock');
+            const quantityInput = select.closest('.batch-product-row').querySelector('.batch-quantity-input');
+            
+            if (quantityInput && stock) {
+                quantityInput.max = stock;
+                quantityInput.title = 'Доступно: ' + stock + ' шт.';
+            }
+            
+            checkBatchProductAvailability(select);
+        }
+        
+        // Check batch product availability
+        function checkBatchProductAvailability(element) {
+            const container = document.getElementById('batch_products_container');
+            const rows = container.getElementsByClassName('batch-product-row');
+            const stockWarning = document.getElementById('batch_product_info');
+            let hasWarning = false;
+            
+            for (let row of rows) {
+                const select = row.querySelector('.batch-product-select');
+                const input = row.querySelector('.batch-quantity-input');
+                
+                if (select && input && select.value && input.value) {
+                    const stock = parseFloat(select.options[select.selectedIndex].getAttribute('data-stock')) || 0;
+                    const quantity = parseFloat(input.value) || 0;
+                    
+                    if (quantity > stock) {
+                        hasWarning = true;
+                        input.style.borderColor = '#ef4444';
+                        input.style.backgroundColor = '#fef2f2';
+                    } else {
+                        input.style.borderColor = '';
+                        input.style.backgroundColor = '';
+                    }
+                }
+            }
+            
+            if (stockWarning) {
+                stockWarning.style.display = hasWarning ? 'block' : 'none';
+            }
+        }
+        
+        // Handle shipment submit
+        function handleShipmentSubmit(form) {
+            const mode = document.querySelector('input[name="shipment_mode"]:checked').value;
+            
+            if (mode === 'batch') {
+                // Switch action to batch shipment
+                form.querySelector('[name="action"]').value = 'ship_product_batch';
+                
+                // Validate batch products
+                const container = document.getElementById('batch_products_container');
+                const selects = container.querySelectorAll('.batch-product-select');
+                const inputs = container.querySelectorAll('.batch-quantity-input');
+                let isValid = true;
+                let hasData = false;
+                
+                for (let i = 0; i < selects.length; i++) {
+                    if (selects[i].value && inputs[i].value) {
+                        hasData = true;
+                        const stock = parseFloat(selects[i].options[selects[i].selectedIndex].getAttribute('data-stock')) || 0;
+                        const quantity = parseFloat(inputs[i].value) || 0;
+                        
+                        if (quantity > stock) {
+                            alert('Ошибка: Количество для продукции "' + selects[i].options[selects[i].selectedIndex].text + '" превышает доступное на складе!');
+                            isValid = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!hasData) {
+                    alert('Ошибка: Добавьте хотя бы один вид продукции для отгрузки');
+                    return false;
+                }
+                
+                if (!isValid) {
+                    return false;
+                }
+            } else {
+                // Single mode - use default action
+                form.querySelector('[name="action"]').value = 'ship_product';
+                
+                // Check stock for single mode
+                const select = document.getElementById('outcome_product_id');
+                const input = document.getElementById('outcome_quantity');
                 const stock = parseFloat(select.options[select.selectedIndex].getAttribute('data-stock')) || 0;
                 const quantity = parseFloat(input.value) || 0;
                 
