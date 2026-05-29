@@ -317,7 +317,7 @@ try {
             // Оприходуем готовую продукцию на склад
             $stmt = $pdo->prepare("
                 UPDATE products 
-                SET current_stock = current_stock + ? 
+                SET stock_quantity = stock_quantity + ? 
                 WHERE id = ?
             ");
             $stmt->execute([$quantity_completed, $order['product_id']]);
