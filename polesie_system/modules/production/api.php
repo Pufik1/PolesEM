@@ -55,23 +55,29 @@ try {
             $bom_data = !empty($order['bom_json']) ? json_decode($order['bom_json'], true) : [];
             
             if (is_array($bom_data) && !empty($bom_data)) {
-                // Получаем уже выданные материалы для этого заказа
-                $stmt = $pdo->prepare("
-                    SELECT 
-                        pm.material_id,
-                        SUM(pm.quantity_issued) as total_issued
-                    FROM production_materials pm
-                    JOIN production_orders po ON pm.production_order_id = po.id
-                    WHERE po.source_order_id = ? AND pm.status IN ('issued', 'used')
-                    GROUP BY pm.material_id
-                ");
-                $stmt->execute([$order_id]);
-                $issued_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                // Получаем производственный заказ для этого заказа клиента
+                $stmt_po = $pdo->prepare("SELECT id FROM production_orders WHERE source_order_id = ?");
+                $stmt_po->execute([$order_id]);
+                $production_order = $stmt_po->fetch();
                 
-                // Создаем карту выданных материалов
+                // Получаем уже выданные материалы для этого заказа
                 $issued_map = [];
-                foreach ($issued_materials as $im) {
-                    $issued_map[$im['material_id']] = $im['total_issued'];
+                if ($production_order) {
+                    $stmt = $pdo->prepare("
+                        SELECT 
+                            pm.material_id,
+                            SUM(pm.quantity_issued) as total_issued
+                        FROM production_materials pm
+                        WHERE pm.production_order_id = ? AND pm.status IN ('issued', 'used')
+                        GROUP BY pm.material_id
+                    ");
+                    $stmt->execute([$production_order['id']]);
+                    $issued_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Создаем карту выданных материалов
+                    foreach ($issued_materials as $im) {
+                        $issued_map[$im['material_id']] = floatval($im['total_issued']);
+                    }
                 }
                 
                 // Получаем все материалы со склада для поиска по SKU
