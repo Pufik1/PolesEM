@@ -671,6 +671,131 @@ try {
             ]);
             break;
             
+        case 'start_production':
+            // Начало производства - перевод заказа из статуса "planned" в "in_progress"
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Метод не разрешен');
+            }
+            
+            $production_order_id = (int)$_POST['production_order_id'];
+            
+            $pdo->beginTransaction();
+            
+            // Проверяем текущий статус
+            $stmt = $pdo->prepare("SELECT status FROM production_orders WHERE id = ?");
+            $stmt->execute([$production_order_id]);
+            $order = $stmt->fetch();
+            
+            if (!$order) {
+                throw new Exception('Производственный заказ не найден');
+            }
+            
+            if ($order['status'] !== 'planned') {
+                throw new Exception('Нельзя начать производство. Текущий статус: ' . $order['status']);
+            }
+            
+            // Обновляем статус на "in_progress" и устанавливаем дату начала
+            $stmt = $pdo->prepare("
+                UPDATE production_orders 
+                SET status = 'in_progress', actual_start_date = CURDATE()
+                WHERE id = ?
+            ");
+            $stmt->execute([$production_order_id]);
+            
+            $pdo->commit();
+            
+            logActivity($pdo, $_SESSION['user_id'], 'start_production', 'production_orders', $production_order_id);
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Производство запущено'
+            ]);
+            break;
+            
+        case 'create_production_order_from_customer':
+            // Создание производственного заказа из заказа клиента и запуск в производство
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Метод не разрешен');
+            }
+            
+            $order_id = (int)$_POST['order_id'];
+            
+            $pdo->beginTransaction();
+            
+            // Проверяем существует ли уже производственный заказ для этого заказа клиента
+            $stmt = $pdo->prepare("SELECT id FROM production_orders WHERE source_order_id = ?");
+            $stmt->execute([$order_id]);
+            $existing_order = $stmt->fetch();
+            
+            if ($existing_order) {
+                // Если заказ уже существует, просто запускаем его в производство
+                $production_order_id = $existing_order['id'];
+                
+                $stmt = $pdo->prepare("SELECT status FROM production_orders WHERE id = ?");
+                $stmt->execute([$production_order_id]);
+                $prod_order = $stmt->fetch();
+                
+                if ($prod_order['status'] === 'planned') {
+                    $stmt = $pdo->prepare("
+                        UPDATE production_orders 
+                        SET status = 'in_progress', actual_start_date = CURDATE()
+                        WHERE id = ?
+                    ");
+                    $stmt->execute([$production_order_id]);
+                    
+                    $pdo->commit();
+                    
+                    echo json_encode([
+                        'success' => true,
+                        'message' => 'Производство запущено',
+                        'production_order_id' => $production_order_id
+                    ]);
+                } else {
+                    $pdo->commit();
+                    
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'Заказ уже находится в статусе: ' . $prod_order['status']
+                    ]);
+                }
+            } else {
+                // Создаем новый производственный заказ
+                $stmt = $pdo->prepare("
+                    SELECT oi.product_id, oi.quantity, p.product_name
+                    FROM order_items oi
+                    JOIN products p ON oi.product_id = p.id
+                    WHERE oi.order_id = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$order_id]);
+                $item = $stmt->fetch();
+                
+                if (!$item) {
+                    throw new Exception('Не найдены продукты в заказе');
+                }
+                
+                $prod_number = 'PO-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
+                
+                $stmt = $pdo->prepare("
+                    INSERT INTO production_orders 
+                    (production_number, product_id, quantity, status, priority, order_source, source_order_id, created_by, planned_start_date)
+                    VALUES (?, ?, ?, 'in_progress', 'normal', 'customer_order', ?, ?, NOW())
+                ");
+                $stmt->execute([$prod_number, $item['product_id'], $item['quantity'], $order_id, $_SESSION['user_id']]);
+                $production_order_id = $pdo->lastInsertId();
+                
+                $pdo->commit();
+                
+                logActivity($pdo, $_SESSION['user_id'], 'create_production_order', 'production_orders', $production_order_id);
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Производственный заказ создан и запущен в производство',
+                    'production_order_id' => $production_order_id
+                ]);
+            }
+            break;
+            
         default:
             throw new Exception('Неизвестное действие');
     }
