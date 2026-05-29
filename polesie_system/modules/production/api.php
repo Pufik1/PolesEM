@@ -1006,14 +1006,14 @@ try {
                     pcd.completion_date,
                     pcd.notes,
                     u.full_name as created_by_name,
-                    pcd.source_order_id,
+                    po.source_order_id,
                     o.order_number as customer_order_number,
                     c.company_name as customer_name
                 FROM production_completion_documents pcd
                 JOIN production_orders po ON pcd.production_order_id = po.id
                 JOIN products p ON pcd.product_id = p.id
                 LEFT JOIN users u ON pcd.created_by = u.id
-                LEFT JOIN orders o ON pcd.source_order_id = o.id
+                LEFT JOIN orders o ON po.source_order_id = o.id
                 LEFT JOIN clients c ON o.client_id = c.id
                 WHERE pcd.id = ?
             ");
