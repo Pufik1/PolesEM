@@ -357,8 +357,10 @@ try {
                                     </td>
                                     <td><?php echo $order['delivery_date']; ?></td>
                                     <td>
-                                        <?php if ($order['production_order_id'] && $order['production_status'] === 'completed'): ?>
-                                            <span class="badge badge-success">В производстве</span>
+                                        <?php if ($order['production_order_id'] && in_array($order['production_status'], ['completed', 'in_progress'])): ?>
+                                            <span class="badge badge-<?php echo $order['production_status'] === 'completed' ? 'success' : 'info'; ?>">
+                                                <?php echo $order['production_status'] === 'completed' ? 'Готово' : 'В производстве'; ?>
+                                            </span>
                                         <?php else: ?>
                                             <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewOrderMaterials(<?php echo $order['order_id']; ?>)">
                                                 <i class="fas fa-boxes"></i> Материалы
