@@ -127,7 +127,7 @@ try {
                     FROM production_materials pm
                     JOIN materials m ON pm.material_id = m.id
                     WHERE pm.production_order_id = ? AND pm.status IN ('issued', 'used')
-                    GROUP BY m.sku, m.name
+                    GROUP BY m.id, m.sku, m.name
                 ");
                 $stmt_issued->execute([$order['production_order_id']]);
                 $issued_raw = $stmt_issued->fetchAll(PDO::FETCH_ASSOC);
@@ -258,130 +258,12 @@ try {
 
                 <!-- Вкладки -->
                 <div class="tabs">
-                    <button class="tab-button active" onclick="showTab('plan')">План производства</button>
+                    <button class="tab-button active" onclick="showTab('orders')">Заказы клиентов</button>
                     <button class="tab-button" onclick="showTab('issued')">Выдано в производство</button>
-                    <button class="tab-button" onclick="showTab('orders')">Заказы клиентов</button>
-                </div>
-
-                <!-- План производства -->
-                <div id="plan" class="tab-content active">
-                    <div class="card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                            <h2><i class="fas fa-calendar-alt"></i> План производства</h2>
-                            <button class="btn btn-primary" onclick="createProductionOrder()">
-                                <i class="fas fa-plus"></i> Создать заказ
-                            </button>
-                        </div>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>№ заказа</th>
-                                    <th>Продукт</th>
-                                    <th>Количество</th>
-                                    <th>План начало</th>
-                                    <th>План окончание</th>
-                                    <th>Статус</th>
-                                    <th>Приоритет</th>
-                                    <th>Источник</th>
-                                    <th>Действия</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($productionOrders as $order): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($order['production_number']); ?></td>
-                                    <td><?php echo htmlspecialchars($order['product_name']); ?></td>
-                                    <td><?php echo $order['quantity']; ?></td>
-                                    <td><?php echo $order['planned_start_date']; ?></td>
-                                    <td><?php echo $order['planned_end_date']; ?></td>
-                                    <td>
-                                        <span class="badge badge-<?php 
-                                            echo $order['status'] == 'completed' ? 'success' : 
-                                                ($order['status'] == 'in_progress' ? 'info' : 'warning'); 
-                                        ?>">
-                                            <?php 
-                                                $statusLabels = [
-                                                    'planned' => 'Запланировано',
-                                                    'in_progress' => 'В работе',
-                                                    'completed' => 'Завершено',
-                                                    'cancelled' => 'Отменено',
-                                                    'on_hold' => 'На паузе'
-                                                ];
-                                                echo $statusLabels[$order['status']] ?? $order['status']; 
-                                            ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="badge badge-<?php 
-                                            echo $order['priority'] == 'urgent' ? 'danger' : 
-                                                ($order['priority'] == 'high' ? 'warning' : 'info'); 
-                                        ?>">
-                                            <?php 
-                                                $priorityLabels = [
-                                                    'low' => 'Низкий',
-                                                    'normal' => 'Обычный',
-                                                    'high' => 'Высокий',
-                                                    'urgent' => 'Срочно'
-                                                ];
-                                                echo $priorityLabels[$order['priority']] ?? $order['priority']; 
-                                            ?>
-                                        </span>
-                                    </td>
-                                    <td><?php echo $order['order_source'] == 'customer_order' ? 'Заказ клиента' : 'На склад'; ?></td>
-                                    <td>
-                                        <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewBOM(<?php echo $order['id']; ?>)">
-                                            <i class="fas fa-list"></i> Спецификация
-                                        </button>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                                <?php if (empty($productionOrders)): ?>
-                                <tr>
-                                    <td colspan="9" class="text-center">Производственные заказы не найдены</td>
-                                </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Выдано в производство -->
-                <div id="issued" class="tab-content">
-                    <div class="card">
-                        <h2><i class="fas fa-dolly"></i> Материалы в производстве</h2>
-                        <p style="color: #6b7280; margin-bottom: 20px;">Материалы выданные со склада и находящиеся в производстве</p>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Артикул</th>
-                                    <th>Наименование</th>
-                                    <th>Выдано всего</th>
-                                    <th>Использовано</th>
-                                    <th>Доступно в производстве</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($issuedMaterials as $item): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($item['sku']); ?></td>
-                                    <td><?php echo htmlspecialchars($item['material_name']); ?></td>
-                                    <td><?php echo $item['total_issued'] . ' шт'; ?></td>
-                                    <td><?php echo $item['total_used'] . ' шт'; ?></td>
-                                    <td><strong><?php echo $item['available_on_production'] . ' шт'; ?></strong></td>
-                                </tr>
-                                <?php endforeach; ?>
-                                <?php if (empty($issuedMaterials)): ?>
-                                <tr>
-                                    <td colspan="5" class="text-center">Материалы не выдавались</td>
-                                </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
 
                 <!-- Заказы клиентов -->
-                <div id="orders" class="tab-content">
+                <div id="orders" class="tab-content active">
                     <div class="card">
                         <h2><i class="fas fa-shopping-cart"></i> Заказы клиентов в производстве</h2>
                         <p style="color: #6b7280; margin-bottom: 20px;">Оплаченные заказы требующие производства</p>
@@ -441,6 +323,41 @@ try {
                                 <?php if (empty($customerOrdersForProduction)): ?>
                                 <tr>
                                     <td colspan="9" class="text-center">Заказов не найдено</td>
+                                </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Выдано в производство -->
+                <div id="issued" class="tab-content">
+                    <div class="card">
+                        <h2><i class="fas fa-dolly"></i> Материалы в производстве</h2>
+                        <p style="color: #6b7280; margin-bottom: 20px;">Материалы выданные со склада и находящиеся в производстве</p>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Артикул</th>
+                                    <th>Наименование</th>
+                                    <th>Выдано всего</th>
+                                    <th>Использовано</th>
+                                    <th>Доступно в производстве</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($issuedMaterials as $item): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($item['sku']); ?></td>
+                                    <td><?php echo htmlspecialchars($item['material_name']); ?></td>
+                                    <td><?php echo $item['total_issued'] . ' шт'; ?></td>
+                                    <td><?php echo $item['total_used'] . ' шт'; ?></td>
+                                    <td><strong><?php echo $item['available_on_production'] . ' шт'; ?></strong></td>
+                                </tr>
+                                <?php endforeach; ?>
+                                <?php if (empty($issuedMaterials)): ?>
+                                <tr>
+                                    <td colspan="5" class="text-center">Материалы не выдавались</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -600,10 +517,6 @@ try {
         
         function closeMaterialsModal() {
             document.getElementById('materialsModal').style.display = 'none';
-            // Обновляем страницу для отображения актуальных данных
-            setTimeout(function() {
-                location.reload();
-            }, 300);
         }
         
         function redirectToWarehouseIssue() {
