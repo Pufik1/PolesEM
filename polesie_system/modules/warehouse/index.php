@@ -1743,8 +1743,9 @@ try {
                 <h2>Выдача материалов в производство</h2>
                 <button class="modal-close">&times;</button>
             </div>
-            <form method="POST" action="">
+            <form method="POST" action="" onsubmit="return handleProductionIssueSubmit(this);">
                 <input type="hidden" name="action" value="outcome_material">
+                <input type="hidden" name="is_from_production_order" id="is_from_production_order" value="0">
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="req_material_id">Материал *</label>
@@ -2251,6 +2252,43 @@ try {
         window.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             const productId = urlParams.get('product_id');
+            const issueProduction = urlParams.get('issue_production');
+            
+            // Обработка запроса на выдачу материалов в производство из модуля производства
+            if (issueProduction === '1') {
+                const issueDataStr = sessionStorage.getItem('warehouse_issue_data');
+                if (issueDataStr) {
+                    const issueData = JSON.parse(issueDataStr);
+                    
+                    // Открываем модальное окно выдачи в производство
+                    openModal('createProductionRequestModal');
+                    
+                    // Устанавливаем первый материал и сохраняем остальные для последующей выдачи
+                    if (issueData.materials && issueData.materials.length > 0) {
+                        const materialSelect = document.getElementById('req_material_id');
+                        if (materialSelect && issueData.materials[0].material_id) {
+                            materialSelect.value = issueData.materials[0].material_id;
+                            updateMaterialInfo('req');
+                            
+                            // Устанавливаем количество
+                            const quantityInput = document.getElementById('req_quantity');
+                            if (quantityInput) {
+                                quantityInput.value = issueData.materials[0].quantity;
+                            }
+                            
+                            // Сохраняем оставшиеся материалы для последующей выдачи
+                            if (issueData.materials.length > 1) {
+                                sessionStorage.setItem('remaining_issue_materials', JSON.stringify({
+                                    order_id: issueData.order_id,
+                                    materials: issueData.materials.slice(1)
+                                }));
+                            } else {
+                                sessionStorage.removeItem('remaining_issue_materials');
+                            }
+                        }
+                    }
+                }
+            }
             
             if (productId) {
                 const selects = ['income_product_id', 'outcome_product_id', 'writeoff_product_id', 'writeoff_product_product_id'];
