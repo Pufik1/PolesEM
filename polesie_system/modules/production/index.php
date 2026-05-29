@@ -359,9 +359,15 @@ try {
                                     </td>
                                     <td><?php echo $order['delivery_date']; ?></td>
                                     <td>
-                                        <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewOrderMaterials(<?php echo $order['order_id']; ?>, '<?php echo $order['production_status'] ?? ''; ?>', <?php echo $order['production_order_id'] ?? 'null'; ?>)">
-                                            <i class="fas fa-boxes"></i> Материалы
-                                        </button>
+                                        <?php if ($order['production_order_id'] && in_array($order['production_status'], ['completed', 'in_progress'])): ?>
+                                            <span class="badge badge-<?php echo $order['production_status'] === 'completed' ? 'success' : 'info'; ?>">
+                                                <?php echo $order['production_status'] === 'completed' ? 'Готово' : 'В производстве'; ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <button class="btn btn-primary" style="padding: 4px 8px;" onclick="viewOrderMaterials(<?php echo $order['order_id']; ?>)">
+                                                <i class="fas fa-boxes"></i> Материалы
+                                            </button>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
@@ -588,9 +594,8 @@ try {
             <div id="modalContent"></div>
             <div style="margin-top:20px; text-align:right;" id="modalActions">
                 <button class="btn" onclick="closeMaterialsModal()" style="background:#6b7280; color:white; margin-right:10px;">Закрыть</button>
-                <button class="btn btn-primary" id="issueMaterialsBtn" style="display: none;" onclick="redirectToWarehouseIssue()">Выдать материалы/приступить к производству</button>
-                <button class="btn btn-primary" id="inProductionBtn" style="display: none; background: #3b82f6;" disabled>В производстве</button>
-                <button class="btn btn-primary" id="completedBtn" style="display: none; background: #10b981;" disabled>Готово</button>
+                <button class="btn btn-primary" id="issueMaterialsBtn" style="display: none;" onclick="redirectToWarehouseIssue()">Выдать материалы</button>
+                <button class="btn btn-primary" id="startProductionBtn" style="display: none; background: #10b981;" onclick="startProductionFromModal()">Приступить к производству</button>
             </div>
         </div>
     </div>
@@ -656,7 +661,7 @@ try {
                 });
         }
         
-        function viewOrderMaterials(orderId, productionStatus = '', productionOrderId = null) {
+        function viewOrderMaterials(orderId) {
             currentOrderId = orderId;
             fetch('api.php?action=get_customer_order_materials&order_id=' + orderId)
                 .then(response => response.json())
@@ -717,24 +722,20 @@ try {
                         document.getElementById('modalTitle').innerText = 'Материалы для заказа ' + data.order.order_number;
                         document.getElementById('modalContent').innerHTML = html;
                         
-                        // Скрываем все кнопки сначала
-                        document.getElementById('issueMaterialsBtn').style.display = 'none';
-                        document.getElementById('inProductionBtn').style.display = 'none';
-                        document.getElementById('completedBtn').style.display = 'none';
+                        // Проверяем общую достаточность выданных материалов (используем уже объявленную переменную)
+                        allIssued = true;
+                        data.materials.forEach(mat => {
+                            if (mat.available_in_production < mat.total_required) {
+                                allIssued = false;
+                            }
+                        });
                         
-                        // Определяем какую кнопку показать в зависимости от статуса производства
-                        if (productionStatus === 'completed') {
-                            // Производство завершено - показываем кнопку "Готово"
-                            document.getElementById('completedBtn').style.display = 'inline-block';
-                        } else if (productionStatus === 'in_progress') {
-                            // В производстве - показываем кнопку "В производстве"
-                            document.getElementById('inProductionBtn').style.display = 'inline-block';
-                        } else {
-                            // Еще не началось - показываем кнопку "Выдать материалы/приступить к производству"
-                            // Показываем кнопку только если есть материалы к выдаче или все выдано
-                            let hasMaterialsToIssue = data.materials.some(mat => mat.available_in_production < mat.total_required);
-                            document.getElementById('issueMaterialsBtn').style.display = data.materials.length > 0 ? 'inline-block' : 'none';
-                        }
+                        // Показываем кнопку "Выдать материалы" только если есть материалы к выдаче
+                        let hasMaterialsToIssue = data.materials.some(mat => mat.available_in_production < mat.total_required);
+                        document.getElementById('issueMaterialsBtn').style.display = hasMaterialsToIssue ? 'inline-block' : 'none';
+                        
+                        // Показываем кнопку "Приступить к производству" если все материалы выданы
+                        document.getElementById('startProductionBtn').style.display = allIssued && data.materials.length > 0 ? 'inline-block' : 'none';
                         
                         document.getElementById('materialsModal').style.display = 'block';
                     } else {
