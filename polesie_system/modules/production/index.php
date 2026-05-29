@@ -268,6 +268,7 @@ try {
                 <!-- Вкладки -->
                 <div class="tabs">
                     <button class="tab-button active" onclick="showTab('orders')">Заказы клиентов</button>
+                    <button class="tab-button" onclick="showTab('production-plan')">План производства</button>
                     <button class="tab-button" onclick="showTab('issued')">Выдано в производство</button>
                 </div>
 
@@ -374,6 +375,137 @@ try {
                     </div>
                 </div>
 
+                <!-- План производства -->
+                <div id="production-plan" class="tab-content">
+                    <div class="card">
+                        <h2><i class="fas fa-clipboard-list"></i> План производства</h2>
+                        <p style="color: #6b7280; margin-bottom: 20px;">Производственные заказы в работе</p>
+                        
+                        <!-- Карточки статусов производства -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                            <div style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: white; padding: 20px; border-radius: 8px;">
+                                <h4 style="margin: 0 0 10px 0; font-size: 14px; opacity: 0.9;"><i class="fas fa-clock"></i> Запланировано</h4>
+                                <p style="margin: 0; font-size: 28px; font-weight: bold;" id="count-planned">0</p>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 20px; border-radius: 8px;">
+                                <h4 style="margin: 0 0 10px 0; font-size: 14px; opacity: 0.9;"><i class="fas fa-cogs"></i> В производстве</h4>
+                                <p style="margin: 0; font-size: 28px; font-weight: bold;" id="count-in-progress">0</p>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; border-radius: 8px;">
+                                <h4 style="margin: 0 0 10px 0; font-size: 14px; opacity: 0.9;"><i class="fas fa-check-circle"></i> Готово</h4>
+                                <p style="margin: 0; font-size: 28px; font-weight: bold;" id="count-completed">0</p>
+                            </div>
+                        </div>
+
+                        <!-- Фильтры -->
+                        <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                            <select id="filter-status" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" onchange="filterProductionOrders()">
+                                <option value="all">Все статусы</option>
+                                <option value="planned">Запланировано</option>
+                                <option value="in_progress">В производстве</option>
+                                <option value="completed">Готово</option>
+                                <option value="cancelled">Отменено</option>
+                            </select>
+                            <select id="filter-priority" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" onchange="filterProductionOrders()">
+                                <option value="all">Все приоритеты</option>
+                                <option value="high">Высокий</option>
+                                <option value="normal">Нормальный</option>
+                                <option value="low">Низкий</option>
+                            </select>
+                            <input type="text" id="search-production" placeholder="Поиск по номеру или продукту..." style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; flex: 1; min-width: 200px;" onkeyup="filterProductionOrders()">
+                        </div>
+
+                        <!-- Таблица производственных заказов -->
+                        <table class="data-table" id="production-orders-table">
+                            <thead>
+                                <tr>
+                                    <th>№ произв. заказа</th>
+                                    <th>Продукт</th>
+                                    <th>Кол-во</th>
+                                    <th>Статус</th>
+                                    <th>Приоритет</th>
+                                    <th>План. начало</th>
+                                    <th>План. окончание</th>
+                                    <th>Источник</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="production-orders-body">
+                                <?php foreach ($productionOrders as $order): ?>
+                                <tr data-status="<?php echo htmlspecialchars($order['status']); ?>" data-priority="<?php echo htmlspecialchars($order['priority']); ?>">
+                                    <td><?php echo htmlspecialchars($order['production_number']); ?></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($order['product_name']); ?></strong><br>
+                                        <small style="color: #6b7280;"><?php echo htmlspecialchars($order['product_code']); ?></small>
+                                    </td>
+                                    <td><?php echo $order['quantity']; ?> шт</td>
+                                    <td>
+                                        <span class="badge badge-<?php 
+                                            echo $order['status'] == 'completed' ? 'success' : 
+                                                ($order['status'] == 'in_progress' ? 'info' : 
+                                                ($order['status'] == 'cancelled' ? 'danger' : 'warning')); 
+                                        ?>">
+                                            <?php 
+                                                $statusLabels = [
+                                                    'planned' => 'Запланировано',
+                                                    'in_progress' => 'В производстве',
+                                                    'completed' => 'Готово',
+                                                    'cancelled' => 'Отменено'
+                                                ];
+                                                echo $statusLabels[$order['status']] ?? $order['status']; 
+                                            ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span style="color: <?php echo $order['priority'] == 'high' ? '#dc2626' : ($order['priority'] == 'low' ? '#6b7280' : '#2563eb'); ?>;">
+                                            <i class="fas fa-flag"></i> 
+                                            <?php 
+                                                $priorityLabels = [
+                                                    'high' => 'Высокий',
+                                                    'normal' => 'Нормальный',
+                                                    'low' => 'Низкий'
+                                                ];
+                                                echo $priorityLabels[$order['priority']] ?? $order['priority']; 
+                                            ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo $order['planned_start_date'] ?? '-'; ?></td>
+                                    <td><?php echo $order['planned_end_date'] ?? '-'; ?></td>
+                                    <td>
+                                        <?php if ($order['customer_order']): ?>
+                                            <small>Заказ: <?php echo htmlspecialchars($order['customer_order']); ?></small><br>
+                                            <small style="color: #6b7280;"><?php echo htmlspecialchars($order['customer_name'] ?? ''); ?></small>
+                                        <?php else: ?>
+                                            <small style="color: #6b7280;">План</small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($order['status'] == 'planned'): ?>
+                                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="startProduction(<?php echo $order['id']; ?>)">
+                                                <i class="fas fa-play"></i> Начать
+                                            </button>
+                                        <?php elseif ($order['status'] == 'in_progress'): ?>
+                                            <button class="btn" style="padding: 4px 8px; font-size: 12px; background: #10b981; color: white;" onclick="completeProduction(<?php echo $order['id']; ?>, <?php echo $order['quantity']; ?>)">
+                                                <i class="fas fa-check"></i> Завершить
+                                            </button>
+                                        <?php elseif ($order['status'] == 'completed'): ?>
+                                            <button class="btn" style="padding: 4px 8px; font-size: 12px; background: #6b7280; color: white;" onclick="viewCompletionDetails(<?php echo $order['id']; ?>)" disabled>
+                                                <i class="fas fa-eye"></i> Детали
+                                            </button>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                                <?php if (empty($productionOrders)): ?>
+                                <tr>
+                                    <td colspan="9" class="text-center">Производственных заказов не найдено</td>
+                                </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -387,6 +519,7 @@ try {
             <div style="margin-top:20px; text-align:right;" id="modalActions">
                 <button class="btn" onclick="closeMaterialsModal()" style="background:#6b7280; color:white; margin-right:10px;">Закрыть</button>
                 <button class="btn btn-primary" id="issueMaterialsBtn" style="display: none;" onclick="redirectToWarehouseIssue()">Выдать материалы</button>
+                <button class="btn btn-primary" id="startProductionBtn" style="display: none; background: #10b981;" onclick="startProductionFromModal()">Приступить к производству</button>
             </div>
         </div>
     </div>
@@ -513,9 +646,20 @@ try {
                         document.getElementById('modalTitle').innerText = 'Материалы для заказа ' + data.order.order_number;
                         document.getElementById('modalContent').innerHTML = html;
                         
+                        // Проверяем общую достаточность выданных материалов
+                        let allIssued = true;
+                        data.materials.forEach(mat => {
+                            if (mat.available_in_production < mat.total_required) {
+                                allIssued = false;
+                            }
+                        });
+                        
                         // Показываем кнопку "Выдать материалы" только если есть материалы к выдаче
                         let hasMaterialsToIssue = data.materials.some(mat => mat.available_in_production < mat.total_required);
                         document.getElementById('issueMaterialsBtn').style.display = hasMaterialsToIssue ? 'inline-block' : 'none';
+                        
+                        // Показываем кнопку "Приступить к производству" если все материалы выданы
+                        document.getElementById('startProductionBtn').style.display = allIssued && data.materials.length > 0 ? 'inline-block' : 'none';
                         
                         document.getElementById('materialsModal').style.display = 'block';
                     } else {
@@ -526,6 +670,34 @@ try {
         
         function closeMaterialsModal() {
             document.getElementById('materialsModal').style.display = 'none';
+        }
+        
+        // Новая функция для запуска производства из модального окна материалов
+        function startProductionFromModal() {
+            if (!currentOrderId) {
+                alert('Ошибка: не указан ID заказа');
+                return;
+            }
+            
+            // Создаем производственный заказ и переводим в статус "в производстве"
+            let formData = new FormData();
+            formData.append('action', 'create_production_order_from_customer');
+            formData.append('order_id', currentOrderId);
+            
+            fetch('api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    closeMaterialsModal();
+                    location.reload();
+                } else {
+                    alert('Ошибка: ' + data.message);
+                }
+            });
         }
         
         function redirectToWarehouseIssue() {
@@ -607,6 +779,86 @@ try {
                 }
             });
         }
+        
+        // Функция для начала производства
+        function startProduction(productionOrderId) {
+            if (!confirm('Начать производство? Убедитесь, что все материалы готовы.')) {
+                return;
+            }
+            
+            let formData = new FormData();
+            formData.append('action', 'start_production');
+            formData.append('production_order_id', productionOrderId);
+            
+            fetch('api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Ошибка: ' + data.message);
+                }
+            });
+        }
+        
+        // Фильтрация производственных заказов
+        function filterProductionOrders() {
+            const statusFilter = document.getElementById('filter-status').value;
+            const priorityFilter = document.getElementById('filter-priority').value;
+            const searchQuery = document.getElementById('search-production').value.toLowerCase();
+            
+            const rows = document.querySelectorAll('#production-orders-body tr[data-status]');
+            let plannedCount = 0;
+            let inProgressCount = 0;
+            let completedCount = 0;
+            
+            rows.forEach(row => {
+                const status = row.getAttribute('data-status');
+                const priority = row.getAttribute('data-priority');
+                const text = row.textContent.toLowerCase();
+                
+                // Подсчет статистики
+                if (status === 'planned') plannedCount++;
+                else if (status === 'in_progress') inProgressCount++;
+                else if (status === 'completed') completedCount++;
+                
+                // Фильтрация
+                let showRow = true;
+                
+                if (statusFilter !== 'all' && status !== statusFilter) {
+                    showRow = false;
+                }
+                
+                if (priorityFilter !== 'all' && priority !== priorityFilter) {
+                    showRow = false;
+                }
+                
+                if (searchQuery && !text.includes(searchQuery)) {
+                    showRow = false;
+                }
+                
+                row.style.display = showRow ? '' : 'none';
+            });
+            
+            // Обновление счетчиков
+            document.getElementById('count-planned').textContent = plannedCount;
+            document.getElementById('count-in-progress').textContent = inProgressCount;
+            document.getElementById('count-completed').textContent = completedCount;
+        }
+        
+        // Просмотр деталей завершения
+        function viewCompletionDetails(productionOrderId) {
+            alert('Функция просмотра деталей завершения будет реализована. ID заказа: ' + productionOrderId);
+        }
+        
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            filterProductionOrders();
+        });
     </script>
 </body>
 </html>
