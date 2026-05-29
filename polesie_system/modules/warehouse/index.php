@@ -338,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (empty($materials_data) || !is_array($materials_data)) {
                 $error = 'Ошибка: Не выбраны материалы для выдачи';
             } else {
-                // Получаем производственный заказ для этого заказа клиента если указан order_id
+                // Получаем или создаем производственный заказ для этого заказа клиента если указан order_id
                 $production_order_id = null;
                 if ($order_id > 0) {
                     $stmt = $pdo->prepare("SELECT id FROM production_orders WHERE source_order_id = ?");
@@ -346,6 +346,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $po = $stmt->fetch();
                     if ($po) {
                         $production_order_id = $po['id'];
+                    } else {
+                        // Создаем новый производственный заказ так как его еще нет
+                        $stmt = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ? LIMIT 1");
+                        $stmt->execute([$order_id]);
+                        $item = $stmt->fetch();
+                        
+                        if ($item) {
+                            $prod_number = 'PO-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
+                            $stmt = $pdo->prepare("
+                                INSERT INTO production_orders 
+                                (production_number, product_id, quantity, status, priority, order_source, source_order_id, created_by)
+                                VALUES (?, ?, ?, 'planned', 'normal', 'customer_order', ?, ?)
+                            ");
+                            $stmt->execute([$prod_number, $item['product_id'], $item['quantity'], $order_id, $_SESSION['user_id']]);
+                            $production_order_id = $pdo->lastInsertId();
+                        }
                     }
                 }
                 
