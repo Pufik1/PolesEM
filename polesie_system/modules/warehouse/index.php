@@ -522,6 +522,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     logActivity($pdo, $_SESSION['user_id'], 'Массовая выдача материалов', 'warehouse_operations', $writeoff_id);
                     $success = 'Материалы успешно выданы в производство (' . $total_items . ' поз.). Документ: ' . htmlspecialchars($document_number);
                     
+                    // Очищаем sessionStorage после успешной выдачи
+                    echo "<script>sessionStorage.removeItem('warehouse_issue_data');</script>";
+                    
                 } catch (Exception $e) {
                     $pdo->rollBack();
                     $error = 'Ошибка при проведении операции: ' . $e->getMessage();
@@ -624,11 +627,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':material_id' => $material_id
             ]);
             
-            // Добавляем запись в production_materials без привязки к заказу
+            // Добавляем запись в production_materials с привязкой к производственному заказу если указан order_id
+            $production_order_id = null;
+            $order_id = isset($_POST['order_id']) ? (int)$_POST['order_id'] : 0;
+            if ($order_id > 0) {
+                // Получаем или создаем производственный заказ
+                $stmt_po = $pdo->prepare("SELECT id FROM production_orders WHERE source_order_id = ?");
+                $stmt_po->execute([$order_id]);
+                $po = $stmt_po->fetch();
+                if ($po) {
+                    $production_order_id = $po['id'];
+                } else {
+                    // Создаем новый производственный заказ
+                    $stmt = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ? LIMIT 1");
+                    $stmt->execute([$order_id]);
+                    $item = $stmt->fetch();
+                    
+                    if ($item) {
+                        $prod_number = 'PO-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
+                        $stmt = $pdo->prepare("
+                            INSERT INTO production_orders 
+                            (production_number, product_id, quantity, status, priority, order_source, source_order_id, created_by)
+                            VALUES (?, ?, ?, 'planned', 'normal', 'customer_order', ?, ?)
+                        ");
+                        $stmt->execute([$prod_number, $item['product_id'], $item['quantity'], $order_id, $_SESSION['user_id']]);
+                        $production_order_id = $pdo->lastInsertId();
+                    }
+                }
+            }
+            
             $stmt = $pdo->prepare("INSERT INTO production_materials 
-                                   (material_id, quantity_issued, unit, warehouse_document_id, created_by, status) 
-                                   VALUES (:material_id, :quantity, :unit, :writeoff_id, :user_id, 'issued')");
+                                   (production_order_id, material_id, quantity_issued, unit, warehouse_document_id, created_by, status) 
+                                   VALUES (:production_order_id, :material_id, :quantity, :unit, :writeoff_id, :user_id, 'issued')");
             $stmt->execute([
+                ':production_order_id' => $production_order_id,
                 ':material_id' => $material_id,
                 ':quantity' => $quantity,
                 ':unit' => $materialData['unit'],
@@ -637,8 +669,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             
             $pdo->commit();
-            logActivity($pdo, $_SESSION['user_id'], 'Расход материалов', 'warehouse_operations', $pdo->lastInsertId());
+            logActivity($pdo, $_SESSION['user_id'], 'Расход материалов', 'warehouse_operations', $writeoff_id);
             $success = 'Материалы успешно выданы в производство. Документ: ' . htmlspecialchars($document_number);
+            
+            // Очищаем sessionStorage после успешной выдачи если это была выдача из производства
+            if ($order_id > 0) {
+                echo "<script>sessionStorage.removeItem('warehouse_issue_data');</script>";
+            }
             }
             
         } elseif ($action === 'transfer_product') {

@@ -600,6 +600,12 @@ try {
         
         function closeMaterialsModal() {
             document.getElementById('materialsModal').style.display = 'none';
+            // При закрытии модального окна обновляем данные о материалах для текущего заказа
+            if (currentOrderId) {
+                setTimeout(function() {
+                    viewOrderMaterials(currentOrderId);
+                }, 500);
+            }
         }
         
         function redirectToWarehouseIssue() {
@@ -634,6 +640,13 @@ try {
             
             // Переходим на страницу склада во вкладку материалы с флагом массовой выдачи
             window.location.href = '../../modules/warehouse/index.php?tab=materials&issue_production=1&mode=batch';
+            
+            // После возврата обновляем данные о материалах
+            if (currentOrderId) {
+                setTimeout(function() {
+                    viewOrderMaterials(currentOrderId);
+                }, 1000);
+            }
         }
         
         function completeProduction(productionOrderId, orderQuantity) {
