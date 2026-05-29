@@ -324,31 +324,33 @@ try {
             
             // Списываем материалы из производства согласно BOM
             if (!empty($bom_data) && is_array($bom_data)) {
-                // Получаем все выданные материалы для этого производственного заказа
+                // Получаем все выданные материалы для этого производственного заказа ИЛИ для связанного заказа клиента
+                // Материалы могут быть выданы как с production_order_id, так и без него (только с source_order_id через прямую выдачу)
                 $stmt_issued = $pdo->prepare("
                     SELECT 
                         pm.id as pm_id,
                         pm.material_id,
                         pm.quantity_issued,
                         pm.quantity_used,
+                        pm.production_order_id,
                         m.name as material_name,
                         m.sku as material_sku,
                         m.unit
                     FROM production_materials pm
                     JOIN materials m ON pm.material_id = m.id
-                    WHERE pm.production_order_id = ?
+                    WHERE (pm.production_order_id = ? OR pm.production_order_id IS NULL)
                     AND pm.status IN ('issued', 'used')
                 ");
                 $stmt_issued->execute([$production_order_id]);
                 $issued_materials = $stmt_issued->fetchAll(PDO::FETCH_ASSOC);
                 
-                // Создаем карту выданных материалов по material_id
+                // Создаем карту выданных материалов по material_id (агрегируем все записи)
                 $issued_map = [];
                 foreach ($issued_materials as $im) {
                     $mid = (int)$im['material_id'];
                     if (!isset($issued_map[$mid])) {
                         $issued_map[$mid] = [
-                            'pm_id' => $im['pm_id'],
+                            'pm_ids' => [$im['pm_id']],
                             'material_id' => $mid,
                             'material_name' => $im['material_name'],
                             'material_sku' => $im['material_sku'],
@@ -357,6 +359,7 @@ try {
                             'quantity_used' => floatval($im['quantity_used'])
                         ];
                     } else {
+                        $issued_map[$mid]['pm_ids'][] = $im['pm_id'];
                         $issued_map[$mid]['quantity_issued'] += floatval($im['quantity_issued']);
                         $issued_map[$mid]['quantity_used'] += floatval($im['quantity_used']);
                     }
@@ -391,12 +394,50 @@ try {
                         
                         // Обновляем quantity_used в production_materials, но не больше чем выдано
                         $new_used = min($quantity_planned, $total_issued);
-                        $stmt_update = $pdo->prepare("
-                            UPDATE production_materials 
-                            SET quantity_used = ?, status = 'used'
-                            WHERE production_order_id = ? AND material_id = ?
-                        ");
-                        $stmt_update->execute([$new_used, $production_order_id, $material_id]);
+                        
+                        // Если есть несколько записей для этого материала, обновляем их пропорционально
+                        $pm_ids = $issued_map[$material_id]['pm_ids'];
+                        if (count($pm_ids) === 1) {
+                            // Одна запись - простое обновление
+                            $stmt_update = $pdo->prepare("
+                                UPDATE production_materials 
+                                SET quantity_used = ?, status = 'used'
+                                WHERE id = ?
+                            ");
+                            $stmt_update->execute([$new_used, $pm_ids[0]]);
+                        } else {
+                            // Несколько записей - распределяем new_used пропорционально quantity_issued
+                            $remaining_to_allocate = $new_used;
+                            $total_for_proportional = $total_issued;
+                            
+                            foreach ($pm_ids as $index => $pm_id) {
+                                if ($index === count($pm_ids) - 1) {
+                                    // Последняя запись получает всё оставшееся
+                                    $allocated = $remaining_to_allocate;
+                                } else {
+                                    // Пропорциональное распределение
+                                    $stmt_get_qty = $pdo->prepare("SELECT quantity_issued FROM production_materials WHERE id = ?");
+                                    $stmt_get_qty->execute([$pm_id]);
+                                    $rec = $stmt_get_qty->fetch();
+                                    $rec_issued = floatval($rec['quantity_issued']);
+                                    
+                                    if ($total_for_proportional > 0) {
+                                        $allocated = ($rec_issued / $total_for_proportional) * $new_used;
+                                    } else {
+                                        $allocated = 0;
+                                    }
+                                    $remaining_to_allocate -= $allocated;
+                                    $total_for_proportional -= $rec_issued;
+                                }
+                                
+                                $stmt_update = $pdo->prepare("
+                                    UPDATE production_materials 
+                                    SET quantity_used = quantity_used + ?, status = 'used'
+                                    WHERE id = ?
+                                ");
+                                $stmt_update->execute([$allocated, $pm_id]);
+                            }
+                        }
                     }
                 }
             }
