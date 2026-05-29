@@ -466,7 +466,6 @@ try {
                                     <th>План. начало</th>
                                     <th>План. окончание</th>
                                     <th>Источник</th>
-                                    <th>Действия</th>
                                 </tr>
                             </thead>
                             <tbody id="production-orders-body">
@@ -518,26 +517,11 @@ try {
                                             <small style="color: #6b7280;">План</small>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
-                                        <?php if ($order['status'] == 'planned'): ?>
-                                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="startProduction(<?php echo $order['id']; ?>)">
-                                                <i class="fas fa-play"></i> Начать
-                                            </button>
-                                        <?php elseif ($order['status'] == 'in_progress'): ?>
-                                            <button class="btn" style="padding: 4px 8px; font-size: 12px; background: #10b981; color: white;" onclick="completeProduction(<?php echo $order['id']; ?>, <?php echo $order['quantity']; ?>)">
-                                                <i class="fas fa-check"></i> Завершить
-                                            </button>
-                                        <?php elseif ($order['status'] == 'completed'): ?>
-                                            <button class="btn" style="padding: 4px 8px; font-size: 12px; background: #6b7280; color: white;" onclick="viewCompletionDetails(<?php echo $order['id']; ?>)" disabled>
-                                                <i class="fas fa-eye"></i> Детали
-                                            </button>
-                                        <?php endif; ?>
-                                    </td>
                                 </tr>
                                 <?php endforeach; ?>
                                 <?php if (empty($productionOrders)): ?>
                                 <tr>
-                                    <td colspan="9" class="text-center">Производственных заказов не найдено</td>
+                                    <td colspan="8" class="text-center">Производственных заказов не найдено</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
