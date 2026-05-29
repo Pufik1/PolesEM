@@ -2440,6 +2440,11 @@ try {
             if (modal) {
                 modal.style.display = 'flex';
                 
+                // Special handling for production request modal - initialize issue mode
+                if (modalId === 'createProductionRequestModal') {
+                    toggleIssueMode();
+                }
+                
                 // Auto-select product if passed
                 if (productId) {
                     const select = modal.querySelector('select[name="product_id"], select[name="material_id"]');
