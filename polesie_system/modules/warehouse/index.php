@@ -333,10 +333,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $materials_data = isset($_POST['materials']) ? $_POST['materials'] : [];
             $document_number = isset($_POST['document_number']) ? trim($_POST['document_number']) : '';
             $notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
+            $order_id = isset($_POST['order_id']) ? (int)$_POST['order_id'] : 0;
             
             if (empty($materials_data) || !is_array($materials_data)) {
                 $error = 'Ошибка: Не выбраны материалы для выдачи';
             } else {
+                // Получаем производственный заказ для этого заказа клиента если указан order_id
+                $production_order_id = null;
+                if ($order_id > 0) {
+                    $stmt = $pdo->prepare("SELECT id FROM production_orders WHERE source_order_id = ?");
+                    $stmt->execute([$order_id]);
+                    $po = $stmt->fetch();
+                    if ($po) {
+                        $production_order_id = $po['id'];
+                    }
+                }
+                
                 // Проверяем достаточность количества для всех материалов
                 foreach ($materials_data as $mat_data) {
                     $material_id = (int)$mat_data['material_id'];
@@ -476,11 +488,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ':material_id' => $item['material_id']
                         ]);
                         
-                        // Добавляем запись в production_materials
+                        // Добавляем запись в production_materials с привязкой к производственному заказу
                         $stmt = $pdo->prepare("INSERT INTO production_materials 
-                                               (material_id, quantity_issued, unit, warehouse_document_id, created_by, status) 
-                                               VALUES (:material_id, :quantity, :unit, :writeoff_id, :user_id, 'issued')");
+                                               (production_order_id, material_id, quantity_issued, unit, warehouse_document_id, created_by, status) 
+                                               VALUES (:production_order_id, :material_id, :quantity, :unit, :writeoff_id, :user_id, 'issued')");
                         $stmt->execute([
+                            ':production_order_id' => $production_order_id,
                             ':material_id' => $item['material_id'],
                             ':quantity' => $item['quantity'],
                             ':unit' => $item['unit'],
@@ -2491,6 +2504,7 @@ try {
             const urlParams = new URLSearchParams(window.location.search);
             const productId = urlParams.get('product_id');
             const issueProduction = urlParams.get('issue_production');
+            const mode = urlParams.get('mode');
             
             // Обработка запроса на выдачу материалов в производство из модуля производства
             if (issueProduction === '1') {
@@ -2501,27 +2515,47 @@ try {
                     // Открываем модальное окно выдачи в производство
                     openModal('createProductionRequestModal');
                     
-                    // Устанавливаем первый материал и сохраняем остальные для последующей выдачи
-                    if (issueData.materials && issueData.materials.length > 0) {
-                        const materialSelect = document.getElementById('req_material_id');
-                        if (materialSelect && issueData.materials[0].material_id) {
-                            materialSelect.value = issueData.materials[0].material_id;
-                            updateMaterialInfo('req');
+                    // Проверяем режим выдачи (одиночная или массовая)
+                    if (mode === 'batch' || issueData.mode === 'batch') {
+                        // Режим массовой выдачи - переключаемся на batch форму
+                        const batchRadio = document.querySelector('input[name="issue_mode"][value="batch"]');
+                        if (batchRadio) {
+                            batchRadio.checked = true;
+                            toggleIssueMode();
+                        }
+                        
+                        // Заполняем все материалы в batch форму
+                        if (issueData.materials && issueData.materials.length > 0) {
+                            const container = document.getElementById('batch_materials_container');
+                            container.innerHTML = ''; // Очищаем контейнер
                             
-                            // Устанавливаем количество
-                            const quantityInput = document.getElementById('req_quantity');
-                            if (quantityInput) {
-                                quantityInput.value = issueData.materials[0].quantity;
-                            }
-                            
-                            // Сохраняем оставшиеся материалы для последующей выдачи
-                            if (issueData.materials.length > 1) {
-                                sessionStorage.setItem('remaining_issue_materials', JSON.stringify({
-                                    order_id: issueData.order_id,
-                                    materials: issueData.materials.slice(1)
-                                }));
-                            } else {
-                                sessionStorage.removeItem('remaining_issue_materials');
+                            issueData.materials.forEach((mat, index) => {
+                                addBatchRowWithData(mat, index);
+                            });
+                        }
+                    } else {
+                        // Одиночный режим - устанавливаем первый материал
+                        if (issueData.materials && issueData.materials.length > 0) {
+                            const materialSelect = document.getElementById('req_material_id');
+                            if (materialSelect && issueData.materials[0].material_id) {
+                                materialSelect.value = issueData.materials[0].material_id;
+                                updateMaterialInfo('req');
+                                
+                                // Устанавливаем количество
+                                const quantityInput = document.getElementById('req_quantity');
+                                if (quantityInput) {
+                                    quantityInput.value = issueData.materials[0].quantity;
+                                }
+                                
+                                // Сохраняем оставшиеся материалы для последующей выдачи
+                                if (issueData.materials.length > 1) {
+                                    sessionStorage.setItem('remaining_issue_materials', JSON.stringify({
+                                        order_id: issueData.order_id,
+                                        materials: issueData.materials.slice(1)
+                                    }));
+                                } else {
+                                    sessionStorage.removeItem('remaining_issue_materials');
+                                }
                             }
                         }
                     }
@@ -2638,6 +2672,54 @@ try {
             container.appendChild(newRow);
         }
         
+        // Add batch material row with data (for pre-filling from production module)
+        function addBatchRowWithData(materialData, index) {
+            const container = document.getElementById('batch_materials_container');
+            
+            const newRow = document.createElement('div');
+            newRow.className = 'batch-material-row';
+            newRow.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end;';
+            newRow.innerHTML = `
+                <div style="flex: 2;">
+                    <select name="materials[${index}][material_id]" class="batch-material-select" required onchange="updateBatchMaterialInfo(this)">
+                        <option value="">Выберите материал</option>
+                        <?php foreach ($materials as $material): ?>
+                            <option value="<?php echo $material['id']; ?>" 
+                                    data-sku="<?php echo htmlspecialchars($material['sku']); ?>"
+                                    data-stock="<?php echo $material['current_stock']; ?>"
+                                    data-unit="<?php echo htmlspecialchars($material['unit']); ?>">
+                                <?php echo htmlspecialchars($material['sku'] . ' - ' . $material['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <input type="number" name="materials[${index}][quantity]" class="batch-quantity-input" required min="0.01" step="0.01" placeholder="Кол-во" onchange="checkBatchStockAvailability(this)">
+                </div>
+                <div>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeBatchRow(this)">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(newRow);
+            
+            // Устанавливаем значения после добавления строки
+            setTimeout(() => {
+                const select = newRow.querySelector('.batch-material-select');
+                const input = newRow.querySelector('.batch-quantity-input');
+                
+                if (select && materialData.material_id) {
+                    select.value = materialData.material_id;
+                    updateBatchMaterialInfo(select);
+                }
+                
+                if (input && materialData.quantity) {
+                    input.value = materialData.quantity;
+                }
+            }, 0);
+        }
+        
         // Remove batch material row
         function removeBatchRow(button) {
             const container = document.getElementById('batch_materials_container');
@@ -2740,6 +2822,20 @@ try {
                 
                 if (!isValid) {
                     return false;
+                }
+                
+                // Добавляем order_id из sessionStorage если есть
+                const issueDataStr = sessionStorage.getItem('warehouse_issue_data');
+                if (issueDataStr) {
+                    const issueData = JSON.parse(issueDataStr);
+                    if (issueData.order_id) {
+                        // Создаем скрытое поле для order_id
+                        const hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'hidden';
+                        hiddenInput.name = 'order_id';
+                        hiddenInput.value = issueData.order_id;
+                        form.appendChild(hiddenInput);
+                    }
                 }
             } else {
                 // Single mode - use default action

@@ -620,17 +620,20 @@ try {
             let issueData = materialsToIssue.map(mat => ({
                 material_id: mat.material_id,
                 quantity: mat.total_required - mat.already_issued,
-                unit: 'шт'
+                unit: 'шт',
+                material_name: mat.material_name,
+                sku: mat.sku
             }));
             
             // Сохраняем в sessionStorage для использования на складе
             sessionStorage.setItem('warehouse_issue_data', JSON.stringify({
                 order_id: currentOrderId,
-                materials: issueData
+                materials: issueData,
+                mode: 'batch' // Режим массовой выдачи
             }));
             
-            // Переходим на страницу склада во вкладку материалы
-            window.location.href = '../../modules/warehouse/index.php?tab=materials&issue_production=1';
+            // Переходим на страницу склада во вкладку материалы с флагом массовой выдачи
+            window.location.href = '../../modules/warehouse/index.php?tab=materials&issue_production=1&mode=batch';
         }
         
         function completeProduction(productionOrderId, orderQuantity) {
