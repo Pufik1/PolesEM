@@ -328,6 +328,178 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $success = 'Готовая продукция успешно отгружена. Документ: ' . htmlspecialchars($document_number);
             }
             
+        } elseif ($action === 'outcome_material_batch') {
+            // Массовая выдача материалов в производство с созданием одного документа списания
+            $materials_data = isset($_POST['materials']) ? $_POST['materials'] : [];
+            $document_number = isset($_POST['document_number']) ? trim($_POST['document_number']) : '';
+            $notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
+            
+            if (empty($materials_data) || !is_array($materials_data)) {
+                $error = 'Ошибка: Не выбраны материалы для выдачи';
+            } else {
+                // Проверяем достаточность количества для всех материалов
+                foreach ($materials_data as $mat_data) {
+                    $material_id = (int)$mat_data['material_id'];
+                    $quantity = (float)$mat_data['quantity'];
+                    
+                    if ($material_id <= 0 || $quantity <= 0) {
+                        continue;
+                    }
+                    
+                    $stmt = $pdo->prepare("SELECT current_stock FROM materials WHERE id = :material_id");
+                    $stmt->execute([':material_id' => $material_id]);
+                    $material = $stmt->fetch();
+                    
+                    if (!$material || $material['current_stock'] < $quantity) {
+                        $error = 'Недостаточно материала на складе (ID: ' . $material_id . ')';
+                        break 2;
+                    }
+                }
+                
+                // Генерируем номер акта списания если не указан
+                if (empty($document_number)) {
+                    $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(document_number, '-', -1) AS UNSIGNED)) as max_num FROM material_writeoff_documents WHERE document_number LIKE 'СП-М-%'");
+                    $result = $stmt->fetch();
+                    $next_num = ($result['max_num'] ?? 0) + 1;
+                    $document_number = 'СП-М-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
+                }
+                
+                $pdo->beginTransaction();
+                
+                try {
+                    $total_items = 0;
+                    $total_quantity = 0;
+                    $total_cost = 0;
+                    $writeoff_items = [];
+                    
+                    // Сначала собираем данные для всех позиций
+                    foreach ($materials_data as $mat_data) {
+                        $material_id = (int)$mat_data['material_id'];
+                        $quantity = (float)$mat_data['quantity'];
+                        
+                        if ($material_id <= 0 || $quantity <= 0) {
+                            continue;
+                        }
+                        
+                        // Получаем данные о материале
+                        $stmt = $pdo->prepare("SELECT name, sku, unit, price_per_unit FROM materials WHERE id = :material_id");
+                        $stmt->execute([':material_id' => $material_id]);
+                        $materialData = $stmt->fetch();
+                        
+                        if (!$materialData) {
+                            continue;
+                        }
+                        
+                        // Вычисляем стоимость
+                        $unit_cost = $materialData['price_per_unit'] ?? 0;
+                        $line_total = $unit_cost * $quantity;
+                        
+                        $total_items++;
+                        $total_quantity += $quantity;
+                        $total_cost += $line_total;
+                        
+                        $writeoff_items[] = [
+                            'material_id' => $material_id,
+                            'name' => $materialData['name'],
+                            'sku' => $materialData['sku'] ?? '',
+                            'unit' => $materialData['unit'],
+                            'quantity' => $quantity,
+                            'unit_cost' => $unit_cost,
+                            'line_total' => $line_total
+                        ];
+                    }
+                    
+                    if (empty($writeoff_items)) {
+                        throw new Exception('Нет valid материалов для выдачи');
+                    }
+                    
+                    // Создаем документ списания
+                    $stmt = $pdo->prepare("INSERT INTO material_writeoff_documents 
+                                           (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, total_cost, status, reason, created_by) 
+                                           VALUES (:document_number, CURRENT_DATE, 'material', 1, :total_items, :total_quantity, :total_cost, 'confirmed', :reason, :user_id)");
+                    $stmt->execute([
+                        ':document_number' => $document_number,
+                        ':total_items' => $total_items,
+                        ':total_quantity' => $total_quantity,
+                        ':total_cost' => $total_cost,
+                        ':reason' => $notes,
+                        ':user_id' => $_SESSION['user_id']
+                    ]);
+                    $writeoff_id = $pdo->lastInsertId();
+                    
+                    // Добавляем позиции, операции и обновляем остатки
+                    foreach ($writeoff_items as $item) {
+                        // Добавляем позицию в документ списания
+                        $stmt = $pdo->prepare("INSERT INTO material_writeoff_items 
+                                               (writeoff_id, item_type, material_id, product_id, item_name, item_sku, item_unit, quantity_written, unit_cost, line_total) 
+                                               VALUES (:writeoff_id, 'material', :material_id, NULL, :item_name, :item_sku, :item_unit, :quantity, :unit_cost, :line_total)");
+                        $stmt->execute([
+                            ':writeoff_id' => $writeoff_id,
+                            ':material_id' => $item['material_id'],
+                            ':item_name' => $item['name'],
+                            ':item_sku' => $item['sku'],
+                            ':item_unit' => $item['unit'],
+                            ':quantity' => $item['quantity'],
+                            ':unit_cost' => $item['unit_cost'],
+                            ':line_total' => $item['line_total']
+                        ]);
+                        
+                        // Добавляем операцию расхода материала
+                        $stmt = $pdo->prepare("INSERT INTO warehouse_operations 
+                                               (operation_type, material_id, quantity, warehouse_from, user_id, document_number, batch_number, expiry_date, quality_cert, notes, writeoff_id) 
+                                               VALUES ('outcome', :material_id, :quantity, 1, :user_id, :document_number, NULL, NULL, NULL, :notes, :writeoff_id)");
+                        $stmt->execute([
+                            ':material_id' => $item['material_id'],
+                            ':quantity' => $item['quantity'],
+                            ':user_id' => $_SESSION['user_id'],
+                            ':document_number' => $document_number,
+                            ':notes' => $notes,
+                            ':writeoff_id' => $writeoff_id
+                        ]);
+                        
+                        // Добавляем запись в движения материалов
+                        $stmt = $pdo->prepare("INSERT INTO material_stock_movements 
+                                               (material_id, operation_type, quantity, warehouse_from, user_id, document_number, notes) 
+                                               VALUES (:material_id, 'outcome', :quantity, 1, :user_id, :document_number, :notes)");
+                        $stmt->execute([
+                            ':material_id' => $item['material_id'],
+                            ':quantity' => $item['quantity'],
+                            ':user_id' => $_SESSION['user_id'],
+                            ':document_number' => $document_number,
+                            ':notes' => $notes
+                        ]);
+                        
+                        // Обновляем остаток материала
+                        $stmt = $pdo->prepare("UPDATE materials SET current_stock = current_stock - :quantity WHERE id = :material_id");
+                        $stmt->execute([
+                            ':quantity' => $item['quantity'],
+                            ':material_id' => $item['material_id']
+                        ]);
+                        
+                        // Добавляем запись в production_materials
+                        $stmt = $pdo->prepare("INSERT INTO production_materials 
+                                               (material_id, quantity_issued, unit, warehouse_document_id, created_by, status) 
+                                               VALUES (:material_id, :quantity, :unit, :writeoff_id, :user_id, 'issued')");
+                        $stmt->execute([
+                            ':material_id' => $item['material_id'],
+                            ':quantity' => $item['quantity'],
+                            ':unit' => $item['unit'],
+                            ':writeoff_id' => $writeoff_id,
+                            ':user_id' => $_SESSION['user_id']
+                        ]);
+                    }
+                    
+                    $pdo->commit();
+                    logActivity($pdo, $_SESSION['user_id'], 'Массовая выдача материалов', 'warehouse_operations', $writeoff_id);
+                    $success = 'Материалы успешно выданы в производство (' . $total_items . ' поз.). Документ: ' . htmlspecialchars($document_number);
+                    
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    $error = 'Ошибка при проведении операции: ' . $e->getMessage();
+                    error_log("Warehouse outcome_material_batch error: " . $e->getMessage());
+                }
+            }
+            
         } elseif ($action === 'outcome_material') {
             // Расход материалов со склада (в производство) с созданием документа списания
             $material_id = (int)$_POST['material_id'];
@@ -1738,7 +1910,7 @@ try {
     
     <!-- Create Production Request Modal -->
     <div id="createProductionRequestModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-lg">
             <div class="modal-header">
                 <h2>Выдача материалов в производство</h2>
                 <button class="modal-close">&times;</button>
@@ -1747,43 +1919,109 @@ try {
                 <input type="hidden" name="action" value="outcome_material">
                 <input type="hidden" name="is_from_production_order" id="is_from_production_order" value="0">
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label for="req_material_id">Материал *</label>
-                        <select id="req_material_id" name="material_id" required onchange="updateMaterialInfo('req')">
-                            <option value="">Выберите материал</option>
-                            <?php foreach ($materials as $material): ?>
-                                <option value="<?php echo $material['id']; ?>" 
-                                        data-sku="<?php echo htmlspecialchars($material['sku']); ?>"
-                                        data-stock="<?php echo $material['current_stock']; ?>"
-                                        data-unit="<?php echo htmlspecialchars($material['unit']); ?>">
-                                    <?php echo htmlspecialchars($material['sku'] . ' - ' . $material['name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                    <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+                        <p style="margin: 0 0 10px 0; color: #0369a1;"><strong>Режим выдачи:</strong></p>
+                        <label style="display: inline-flex; align-items: center; margin-right: 20px; cursor: pointer;">
+                            <input type="radio" name="issue_mode" value="single" checked onchange="toggleIssueMode()" style="margin-right: 8px;">
+                            Одиночная выдача
+                        </label>
+                        <label style="display: inline-flex; align-items: center; cursor: pointer;">
+                            <input type="radio" name="issue_mode" value="batch" onchange="toggleIssueMode()" style="margin-right: 8px;">
+                            Массовая выдача (несколько материалов)
+                        </label>
                     </div>
                     
-                    <div class="form-row">
+                    <!-- Single issue mode -->
+                    <div id="single_issue_form">
                         <div class="form-group">
-                            <label for="req_quantity">Количество к выдаче *</label>
-                            <input type="number" id="req_quantity" name="quantity" required min="0.01" step="0.01" value="1" onchange="checkStockAvailability('req')">
+                            <label for="req_material_id">Материал *</label>
+                            <select id="req_material_id" name="material_id" required onchange="updateMaterialInfo('req')">
+                                <option value="">Выберите материал</option>
+                                <?php foreach ($materials as $material): ?>
+                                    <option value="<?php echo $material['id']; ?>" 
+                                            data-sku="<?php echo htmlspecialchars($material['sku']); ?>"
+                                            data-stock="<?php echo $material['current_stock']; ?>"
+                                            data-unit="<?php echo htmlspecialchars($material['unit']); ?>">
+                                        <?php echo htmlspecialchars($material['sku'] . ' - ' . $material['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="req_quantity">Количество к выдаче *</label>
+                                <input type="number" id="req_quantity" name="quantity" required min="0.01" step="0.01" value="1" onchange="checkStockAvailability('req')">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="req_document_number">Требование-накладная №</label>
+                                <input type="text" id="req_document_number" name="document_number" placeholder="Например: М-11 №456">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="req_notes">Комментарий</label>
+                            <textarea id="req_notes" name="notes" rows="2" placeholder="Информация о выдаче"></textarea>
+                        </div>
+                        
+                        <div id="req_stock_info" style="margin-top: 15px; padding: 15px; background: #f0f9ff; border-radius: 8px; display: none;">
+                            <p><strong>Доступно на складе:</strong> <span id="req_available_stock">0</span> <span id="req_stock_unit"></span></p>
+                            <p id="req_stock_warning" style="color: #ef4444; display: none;"><strong>Внимание:</strong> Недостаточно материала на складе!</p>
                         </div>
                     </div>
                     
-                    <div class="form-row">
+                    <!-- Batch issue mode -->
+                    <div id="batch_issue_form" style="display: none;">
                         <div class="form-group">
-                            <label for="req_document_number">Требование-накладная №</label>
-                            <input type="text" id="req_document_number" name="document_number" placeholder="Например: М-11 №456">
+                            <label>Материалы для выдачи</label>
+                            <div id="batch_materials_container" style="margin-bottom: 15px;">
+                                <div class="batch-material-row" style="display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end;">
+                                    <div style="flex: 2;">
+                                        <select name="materials[0][material_id]" class="batch-material-select" required onchange="updateBatchMaterialInfo(this)">
+                                            <option value="">Выберите материал</option>
+                                            <?php foreach ($materials as $material): ?>
+                                                <option value="<?php echo $material['id']; ?>" 
+                                                        data-sku="<?php echo htmlspecialchars($material['sku']); ?>"
+                                                        data-stock="<?php echo $material['current_stock']; ?>"
+                                                        data-unit="<?php echo htmlspecialchars($material['unit']); ?>">
+                                                    <?php echo htmlspecialchars($material['sku'] . ' - ' . $material['name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <input type="number" name="materials[0][quantity]" class="batch-quantity-input" required min="0.01" step="0.01" placeholder="Кол-во" onchange="checkBatchStockAvailability(this)">
+                                    </div>
+                                    <div>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="removeBatchRow(this)" disabled title="Нельзя удалить единственную строку">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="addBatchRow()">
+                                <i class="fas fa-plus"></i> Добавить материал
+                            </button>
                         </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="req_notes">Комментарий</label>
-                        <textarea id="req_notes" name="notes" rows="2" placeholder="Информация о выдаче"></textarea>
-                    </div>
-                    
-                    <div id="req_stock_info" style="margin-top: 15px; padding: 15px; background: #f0f9ff; border-radius: 8px; display: none;">
-                        <p><strong>Доступно на складе:</strong> <span id="req_available_stock">0</span> <span id="req_stock_unit"></span></p>
-                        <p id="req_stock_warning" style="color: #ef4444; display: none;"><strong>Внимание:</strong> Недостаточно материала на складе!</p>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="batch_document_number">Требование-накладная №</label>
+                                <input type="text" id="batch_document_number" name="document_number" placeholder="Например: М-11 №456">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="batch_notes">Комментарий</label>
+                            <textarea id="batch_notes" name="notes" rows="2" placeholder="Информация о выдаче"></textarea>
+                        </div>
+                        
+                        <div id="batch_stock_info" style="margin-top: 15px; padding: 15px; background: #fef3c7; border-radius: 8px; display: none;">
+                            <p id="batch_stock_warning" style="color: #b45309; margin: 0;"><strong>Внимание:</strong> Проверьте доступность материалов на складе!</p>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -2332,6 +2570,191 @@ try {
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Обработка...';
+            }
+            
+            return true;
+        }
+        
+        // Toggle between single and batch issue mode
+        function toggleIssueMode() {
+            const mode = document.querySelector('input[name="issue_mode"]:checked').value;
+            const singleForm = document.getElementById('single_issue_form');
+            const batchForm = document.getElementById('batch_issue_form');
+            
+            if (mode === 'batch') {
+                singleForm.style.display = 'none';
+                batchForm.style.display = 'block';
+                // Remove required from single form fields
+                document.getElementById('req_material_id').required = false;
+                document.getElementById('req_quantity').required = false;
+                // Add required to first batch row
+                const firstSelect = document.querySelector('.batch-material-select');
+                const firstInput = document.querySelector('.batch-quantity-input');
+                if (firstSelect) firstSelect.required = true;
+                if (firstInput) firstInput.required = true;
+            } else {
+                singleForm.style.display = 'block';
+                batchForm.style.display = 'none';
+                // Add required to single form fields
+                document.getElementById('req_material_id').required = true;
+                document.getElementById('req_quantity').required = true;
+                // Remove required from batch form fields
+                document.querySelectorAll('.batch-material-select').forEach(el => el.required = false);
+                document.querySelectorAll('.batch-quantity-input').forEach(el => el.required = false);
+            }
+        }
+        
+        // Add new batch material row
+        function addBatchRow() {
+            const container = document.getElementById('batch_materials_container');
+            const rowCount = container.getElementsByClassName('batch-material-row').length;
+            
+            const newRow = document.createElement('div');
+            newRow.className = 'batch-material-row';
+            newRow.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end;';
+            newRow.innerHTML = `
+                <div style="flex: 2;">
+                    <select name="materials[${rowCount}][material_id]" class="batch-material-select" required onchange="updateBatchMaterialInfo(this)">
+                        <option value="">Выберите материал</option>
+                        <?php foreach ($materials as $material): ?>
+                            <option value="<?php echo $material['id']; ?>" 
+                                    data-sku="<?php echo htmlspecialchars($material['sku']); ?>"
+                                    data-stock="<?php echo $material['current_stock']; ?>"
+                                    data-unit="<?php echo htmlspecialchars($material['unit']); ?>">
+                                <?php echo htmlspecialchars($material['sku'] . ' - ' . $material['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <input type="number" name="materials[${rowCount}][quantity]" class="batch-quantity-input" required min="0.01" step="0.01" placeholder="Кол-во" onchange="checkBatchStockAvailability(this)">
+                </div>
+                <div>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeBatchRow(this)">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(newRow);
+        }
+        
+        // Remove batch material row
+        function removeBatchRow(button) {
+            const container = document.getElementById('batch_materials_container');
+            const rows = container.getElementsByClassName('batch-material-row');
+            
+            if (rows.length > 1) {
+                button.closest('.batch-material-row').remove();
+                // Re-index remaining rows
+                const selects = container.querySelectorAll('.batch-material-select');
+                const inputs = container.querySelectorAll('.batch-quantity-input');
+                selects.forEach((select, index) => {
+                    select.name = `materials[${index}][material_id]`;
+                });
+                inputs.forEach((input, index) => {
+                    input.name = `materials[${index}][quantity]`;
+                });
+            } else {
+                alert('Нельзя удалить единственную строку');
+            }
+        }
+        
+        // Update batch material info
+        function updateBatchMaterialInfo(select) {
+            const stock = select.options[select.selectedIndex].getAttribute('data-stock');
+            const unit = select.options[select.selectedIndex].getAttribute('data-unit');
+            const quantityInput = select.closest('.batch-material-row').querySelector('.batch-quantity-input');
+            
+            if (quantityInput && stock) {
+                quantityInput.max = stock;
+                quantityInput.title = 'Доступно: ' + stock + ' ' + unit;
+            }
+            
+            checkBatchStockAvailability(select);
+        }
+        
+        // Check batch stock availability
+        function checkBatchStockAvailability(element) {
+            const container = document.getElementById('batch_materials_container');
+            const rows = container.getElementsByClassName('batch-material-row');
+            const stockWarning = document.getElementById('batch_stock_info');
+            let hasWarning = false;
+            
+            for (let row of rows) {
+                const select = row.querySelector('.batch-material-select');
+                const input = row.querySelector('.batch-quantity-input');
+                
+                if (select && input && select.value && input.value) {
+                    const stock = parseFloat(select.options[select.selectedIndex].getAttribute('data-stock')) || 0;
+                    const quantity = parseFloat(input.value) || 0;
+                    
+                    if (quantity > stock) {
+                        hasWarning = true;
+                        input.style.borderColor = '#ef4444';
+                        input.style.backgroundColor = '#fef2f2';
+                    } else {
+                        input.style.borderColor = '';
+                        input.style.backgroundColor = '';
+                    }
+                }
+            }
+            
+            if (stockWarning) {
+                stockWarning.style.display = hasWarning ? 'block' : 'none';
+            }
+        }
+        
+        // Handle production issue submit
+        function handleProductionIssueSubmit(form) {
+            const mode = document.querySelector('input[name="issue_mode"]:checked').value;
+            
+            if (mode === 'batch') {
+                // Switch action to batch outcome
+                form.querySelector('[name="action"]').value = 'outcome_material_batch';
+                
+                // Validate batch materials
+                const container = document.getElementById('batch_materials_container');
+                const selects = container.querySelectorAll('.batch-material-select');
+                const inputs = container.querySelectorAll('.batch-quantity-input');
+                let isValid = true;
+                let hasData = false;
+                
+                for (let i = 0; i < selects.length; i++) {
+                    if (selects[i].value && inputs[i].value) {
+                        hasData = true;
+                        const stock = parseFloat(selects[i].options[selects[i].selectedIndex].getAttribute('data-stock')) || 0;
+                        const quantity = parseFloat(inputs[i].value) || 0;
+                        
+                        if (quantity > stock) {
+                            alert('Ошибка: Количество для материала "' + selects[i].options[selects[i].selectedIndex].text + '" превышает доступное на складе!');
+                            isValid = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!hasData) {
+                    alert('Ошибка: Добавьте хотя бы один материал для выдачи');
+                    return false;
+                }
+                
+                if (!isValid) {
+                    return false;
+                }
+            } else {
+                // Single mode - use default action
+                form.querySelector('[name="action"]').value = 'outcome_material';
+                
+                // Check stock for single mode
+                const select = document.getElementById('req_material_id');
+                const input = document.getElementById('req_quantity');
+                const stock = parseFloat(select.options[select.selectedIndex].getAttribute('data-stock')) || 0;
+                const quantity = parseFloat(input.value) || 0;
+                
+                if (quantity > stock) {
+                    alert('Ошибка: Количество превышает доступное на складе!');
+                    return false;
+                }
             }
             
             return true;
