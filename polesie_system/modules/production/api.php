@@ -70,7 +70,7 @@ try {
                         FROM production_materials pm
                         JOIN materials m ON pm.material_id = m.id
                         WHERE pm.production_order_id = ? AND pm.status IN ('issued', 'used')
-                        GROUP BY m.sku
+                        GROUP BY m.id, m.sku
                     ");
                     $stmt->execute([$production_order['id']]);
                     $issued_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
