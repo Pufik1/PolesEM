@@ -414,7 +414,7 @@ try {
             if ($order['source_order_id']) {
                 $stmt = $pdo->prepare("
                     UPDATE orders 
-                    SET status = 'ready_for_shipment' 
+                    SET status = 'ready' 
                     WHERE id = ?
                 ");
                 $stmt->execute([$order['source_order_id']]);
