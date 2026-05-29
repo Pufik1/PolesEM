@@ -352,7 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     if (!$material || $material['current_stock'] < $quantity) {
                         $error = 'Недостаточно материала на складе (ID: ' . $material_id . ')';
-                        break 2;
+                        break;
                     }
                 }
                 
