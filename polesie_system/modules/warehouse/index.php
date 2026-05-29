@@ -334,7 +334,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $quantity = (float)$_POST['quantity'];
             $document_number = trim($_POST['document_number']);
             $notes = trim($_POST['notes']);
-            $production_order_id = isset($_POST['production_order_id']) ? (int)$_POST['production_order_id'] : null;
             
             // Проверяем достаточность количества
             $stmt = $pdo->prepare("SELECT current_stock FROM materials WHERE id = :material_id");
@@ -424,16 +423,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':material_id' => $material_id
             ]);
             
-            // Добавляем запись в production_materials с привязкой к производственному заказу если указан
+            // Добавляем запись в production_materials без привязки к заказу
             $stmt = $pdo->prepare("INSERT INTO production_materials 
-                                   (material_id, quantity_issued, unit, warehouse_document_id, production_order_id, created_by, status) 
-                                   VALUES (:material_id, :quantity, :unit, :writeoff_id, :production_order_id, :user_id, 'issued')");
+                                   (material_id, quantity_issued, unit, warehouse_document_id, created_by, status) 
+                                   VALUES (:material_id, :quantity, :unit, :writeoff_id, :user_id, 'issued')");
             $stmt->execute([
                 ':material_id' => $material_id,
                 ':quantity' => $quantity,
                 ':unit' => $materialData['unit'],
                 ':writeoff_id' => $writeoff_id,
-                ':production_order_id' => $production_order_id,
                 ':user_id' => $_SESSION['user_id']
             ]);
             
@@ -1740,7 +1738,7 @@ try {
     
     <!-- Create Production Request Modal -->
     <div id="createProductionRequestModal" class="modal">
-        <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2>Выдача материалов в производство</h2>
                 <button class="modal-close">&times;</button>
@@ -1748,30 +1746,7 @@ try {
             <form method="POST" action="" onsubmit="return handleProductionIssueSubmit(this);">
                 <input type="hidden" name="action" value="outcome_material">
                 <input type="hidden" name="is_from_production_order" id="is_from_production_order" value="0">
-                <input type="hidden" name="production_order_id" id="production_order_id" value="">
                 <div class="modal-body">
-                    <!-- Блок для отображения списка материалов при пакетной выдаче -->
-                    <div id="batchMaterialsList" style="display: none; margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border: 2px solid #3b82f6;">
-                        <h3 style="margin-top: 0; color: #1e40af;">Материалы для заказа №<span id="batchOrderNumber"></span></h3>
-                        <div style="max-height: 300px; overflow-y: auto;">
-                            <table class="data-table" style="font-size: 13px;">
-                                <thead>
-                                    <tr>
-                                        <th>№</th>
-                                        <th>Материал</th>
-                                        <th>Артикул</th>
-                                        <th>Требуется</th>
-                                        <th>Выдано</th>
-                                        <th>К выдаче</th>
-                                        <th>Статус</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="batchMaterialsBody"></tbody>
-                            </table>
-                        </div>
-                        <p style="margin-top: 10px; color: #1e40af;"><strong>Всего материалов:</strong> <span id="totalMaterialsCount">0</span></p>
-                    </div>
-                    
                     <div class="form-group">
                         <label for="req_material_id">Материал *</label>
                         <select id="req_material_id" name="material_id" required onchange="updateMaterialInfo('req')">
@@ -1810,23 +1785,11 @@ try {
                         <p><strong>Доступно на складе:</strong> <span id="req_available_stock">0</span> <span id="req_stock_unit"></span></p>
                         <p id="req_stock_warning" style="color: #ef4444; display: none;"><strong>Внимание:</strong> Недостаточно материала на складе!</p>
                     </div>
-                    
-                    <!-- Индикатор прогресса для пакетной выдачи -->
-                    <div id="batchProgress" style="display: none; margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border: 2px solid #f59e0b;">
-                        <p style="margin-top: 0;"><strong>Прогресс выдачи:</strong> <span id="progressCurrent">0</span> из <span id="progressTotal">0</span></p>
-                        <div style="background: #e5e7eb; border-radius: 4px; height: 20px; overflow: hidden;">
-                            <div id="progressBar" style="background: #10b981; height: 100%; width: 0%; transition: width 0.3s;"></div>
-                        </div>
-                        <p id="nextMaterialInfo" style="margin-top: 10px; color: #92400e;"></p>
-                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('createProductionRequestModal')">Отмена</button>
                     <button type="submit" class="btn btn-primary" id="req_submit_btn">
                         <i class="fas fa-file-alt"></i> Создать требование
-                    </button>
-                    <button type="button" class="btn btn-success" id="req_next_btn" style="display: none;" onclick="issueNextMaterial()">
-                        <i class="fas fa-arrow-right"></i> Следующий материал
                     </button>
                 </div>
             </form>
@@ -2286,10 +2249,6 @@ try {
         }
         
         // Auto-select product if passed in URL
-        let batchMaterialsQueue = [];
-        let currentBatchIndex = 0;
-        let productionOrderId = null;
-        
         window.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             const productId = urlParams.get('product_id');
@@ -2301,29 +2260,31 @@ try {
                 if (issueDataStr) {
                     const issueData = JSON.parse(issueDataStr);
                     
-                    // Сохраняем ID производственного заказа
-                    productionOrderId = issueData.order_id;
-                    document.getElementById('production_order_id').value = productionOrderId;
+                    // Открываем модальное окно выдачи в производство
+                    openModal('createProductionRequestModal');
                     
-                    // Инициализируем очередь материалов
-                    batchMaterialsQueue = issueData.materials || [];
-                    currentBatchIndex = 0;
-                    
-                    // Показываем список всех материалов для выдачи
-                    if (batchMaterialsQueue.length > 0) {
-                        showBatchMaterialsList(issueData.order_id, batchMaterialsQueue);
-                    }
-                    
-                    // Устанавливаем первый материал
-                    if (batchMaterialsQueue.length > 0) {
-                        setupFirstMaterial(batchMaterialsQueue[0]);
-                        
-                        // Сохраняем оставшиеся материалы для последующей выдачи
-                        if (batchMaterialsQueue.length > 1) {
-                            currentBatchIndex = 1;
-                            updateBatchProgress();
-                            document.getElementById('batchProgress').style.display = 'block';
-                            document.getElementById('req_next_btn').style.display = 'inline-block';
+                    // Устанавливаем первый материал и сохраняем остальные для последующей выдачи
+                    if (issueData.materials && issueData.materials.length > 0) {
+                        const materialSelect = document.getElementById('req_material_id');
+                        if (materialSelect && issueData.materials[0].material_id) {
+                            materialSelect.value = issueData.materials[0].material_id;
+                            updateMaterialInfo('req');
+                            
+                            // Устанавливаем количество
+                            const quantityInput = document.getElementById('req_quantity');
+                            if (quantityInput) {
+                                quantityInput.value = issueData.materials[0].quantity;
+                            }
+                            
+                            // Сохраняем оставшиеся материалы для последующей выдачи
+                            if (issueData.materials.length > 1) {
+                                sessionStorage.setItem('remaining_issue_materials', JSON.stringify({
+                                    order_id: issueData.order_id,
+                                    materials: issueData.materials.slice(1)
+                                }));
+                            } else {
+                                sessionStorage.removeItem('remaining_issue_materials');
+                            }
                         }
                     }
                 }
@@ -2344,149 +2305,6 @@ try {
             // Initialize filters on page load
             applyFilters();
         });
-        
-        // Показать список материалов для пакетной выдачи
-        function showBatchMaterialsList(orderId, materials) {
-            const batchListDiv = document.getElementById('batchMaterialsList');
-            const batchOrderNumberSpan = document.getElementById('batchOrderNumber');
-            const batchBody = document.getElementById('batchMaterialsBody');
-            const totalCountSpan = document.getElementById('totalMaterialsCount');
-            
-            if (!batchListDiv || !batchBody) return;
-            
-            batchOrderNumberSpan.textContent = orderId || '?';
-            totalCountSpan.textContent = materials.length;
-            
-            let html = '';
-            materials.forEach((mat, index) => {
-                const materialOption = document.querySelector(`#req_material_id option[value="${mat.material_id}"]`);
-                const materialName = materialOption ? materialOption.textContent : `Материал #${mat.material_id}`;
-                const sku = materialOption ? materialOption.getAttribute('data-sku') : '';
-                
-                html += '<tr>' +
-                    '<td>' + (index + 1) + '</td>' +
-                    '<td>' + materialName + '</td>' +
-                    '<td>' + sku + '</td>' +
-                    '<td>' + mat.quantity + ' шт</td>' +
-                    '<td>0 шт</td>' +
-                    '<td>' + mat.quantity + ' шт</td>' +
-                    '<td><span class="badge badge-warning">Ожидает выдачи</span></td>' +
-                    '</tr>';
-            });
-            
-            batchBody.innerHTML = html;
-            batchListDiv.style.display = 'block';
-        }
-        
-        // Установить первый материал в форме
-        function setupFirstMaterial(materialData) {
-            const materialSelect = document.getElementById('req_material_id');
-            const quantityInput = document.getElementById('req_quantity');
-            
-            if (materialSelect && materialData.material_id) {
-                materialSelect.value = materialData.material_id;
-                updateMaterialInfo('req');
-                
-                if (quantityInput) {
-                    quantityInput.value = materialData.quantity;
-                    checkStockAvailability('req');
-                }
-            }
-        }
-        
-        // Обновить прогресс выдачи
-        function updateBatchProgress() {
-            const progressCurrent = document.getElementById('progressCurrent');
-            const progressTotal = document.getElementById('progressTotal');
-            const progressBar = document.getElementById('progressBar');
-            const nextMaterialInfo = document.getElementById('nextMaterialInfo');
-            
-            if (!progressCurrent || !progressTotal) return;
-            
-            progressCurrent.textContent = currentBatchIndex;
-            progressTotal.textContent = batchMaterialsQueue.length;
-            
-            const percent = (currentBatchIndex / batchMaterialsQueue.length) * 100;
-            progressBar.style.width = percent + '%';
-            
-            if (currentBatchIndex < batchMaterialsQueue.length) {
-                const nextMat = batchMaterialsQueue[currentBatchIndex];
-                const materialOption = document.querySelector(`#req_material_id option[value="${nextMat.material_id}"]`);
-                const materialName = materialOption ? materialOption.textContent.split(' - ')[1] : `Материал #${nextMat.material_id}`;
-                nextMaterialInfo.textContent = 'Следующий: ' + materialName + ' (' + nextMat.quantity + ' шт)';
-            } else {
-                nextMaterialInfo.textContent = 'Все материалы выданы!';
-            }
-        }
-        
-        // Выдать следующий материал
-        function issueNextMaterial() {
-            if (currentBatchIndex >= batchMaterialsQueue.length) {
-                alert('Все материалы уже выданы');
-                closeModal('createProductionRequestModal');
-                return;
-            }
-            
-            const nextMaterial = batchMaterialsQueue[currentBatchIndex];
-            setupFirstMaterial(nextMaterial);
-            
-            currentBatchIndex++;
-            updateBatchProgress();
-            
-            // Обновить таблицу списка материалов
-            updateBatchMaterialsTable();
-        }
-        
-        // Обновить таблицу списка материалов после выдачи
-        function updateBatchMaterialsTable() {
-            const batchBody = document.getElementById('batchMaterialsBody');
-            if (!batchBody) return;
-            
-            const rows = batchBody.querySelectorAll('tr');
-            for (let i = 0; i < Math.min(currentBatchIndex, rows.length); i++) {
-                const row = rows[i];
-                const cells = row.querySelectorAll('td');
-                if (cells.length >= 7) {
-                    cells[4].textContent = batchMaterialsQueue[i].quantity + ' шт';
-                    cells[5].textContent = '0 шт';
-                    cells[6].innerHTML = '<span class="badge badge-success">Выдано</span>';
-                }
-            }
-        }
-        
-        // Обработка отправки формы выдачи в производство
-        function handleProductionIssueSubmit(form) {
-            const materialSelect = document.getElementById('req_material_id');
-            const quantityInput = document.getElementById('req_quantity');
-            
-            if (!materialSelect || !materialSelect.value) {
-                alert('Ошибка: Выберите материал');
-                return false;
-            }
-            
-            if (!quantityInput || parseFloat(quantityInput.value) <= 0) {
-                alert('Ошибка: Количество должно быть больше нуля');
-                return false;
-            }
-            
-            const selectedOption = materialSelect.options[materialSelect.selectedIndex];
-            const stock = parseFloat(selectedOption.getAttribute('data-stock')) || 0;
-            const quantity = parseFloat(quantityInput.value) || 0;
-            
-            if (quantity > stock) {
-                alert('Ошибка: Недостаточно материала на складе. Доступно: ' + stock + ' шт.');
-                return false;
-            }
-            
-            // Если это пакетная выдача, обновляем прогресс после успешной отправки
-            if (batchMaterialsQueue.length > 0 && currentBatchIndex > 0) {
-                // Помечаем текущий материал как выданный
-                updateBatchMaterialsTable();
-            }
-            
-            // Разрешаем отправку формы
-            return true;
-        }
         
         // Validate income material form before submission
         function validateIncomeMaterialForm(form) {
