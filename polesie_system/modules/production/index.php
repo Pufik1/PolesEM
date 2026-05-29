@@ -460,7 +460,7 @@ try {
             <div id="modalContent"></div>
             <div style="margin-top:20px; text-align:right;" id="modalActions">
                 <button class="btn" onclick="closeMaterialsModal()" style="background:#6b7280; color:white; margin-right:10px;">Закрыть</button>
-                <button class="btn btn-primary" onclick="issueMaterialsToProduction()">Выдать материалы</button>
+                <button class="btn btn-primary" id="issueMaterialsBtn" style="display: none;" onclick="redirectToWarehouseIssue()">Выдать материалы</button>
             </div>
         </div>
     </div>
@@ -586,6 +586,11 @@ try {
                         html += '</tbody></table>';
                         document.getElementById('modalTitle').innerText = 'Материалы для заказа ' + data.order.order_number;
                         document.getElementById('modalContent').innerHTML = html;
+                        
+                        // Показываем кнопку "Выдать материалы" только если есть материалы к выдаче
+                        let hasMaterialsToIssue = data.materials.some(mat => mat.already_issued < mat.total_required);
+                        document.getElementById('issueMaterialsBtn').style.display = hasMaterialsToIssue ? 'inline-block' : 'none';
+                        
                         document.getElementById('materialsModal').style.display = 'block';
                     } else {
                         alert('Ошибка: ' + data.message);
@@ -597,45 +602,35 @@ try {
             document.getElementById('materialsModal').style.display = 'none';
         }
         
-        function issueMaterialsToProduction() {
-            if (!currentOrderId) return;
-            
-            let materialsData = [];
-            currentMaterials.forEach((mat, index) => {
-                let qtyInput = document.getElementById('mat_qty_' + index);
-                let qty = parseFloat(qtyInput.value) || 0;
-                if (qty > 0) {
-                    materialsData.push({
-                        material_id: mat.material_id,
-                        quantity: qty
-                    });
-                }
-            });
-            
-            if (materialsData.length === 0) {
-                alert('Выберите материалы для выдачи');
+        function redirectToWarehouseIssue() {
+            if (!currentOrderId || !currentMaterials || currentMaterials.length === 0) {
+                alert('Нет материалов для выдачи');
                 return;
             }
             
-            let formData = new FormData();
-            formData.append('action', 'issue_materials');
-            formData.append('order_id', currentOrderId);
-            formData.append('materials_data', JSON.stringify(materialsData));
+            // Фильтруем только те материалы, которые нужно выдать
+            let materialsToIssue = currentMaterials.filter(mat => mat.already_issued < mat.total_required);
             
-            fetch('api.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(data.message);
-                    closeMaterialsModal();
-                    location.reload();
-                } else {
-                    alert('Ошибка: ' + data.message);
-                }
-            });
+            if (materialsToIssue.length === 0) {
+                alert('Все материалы уже выданы');
+                return;
+            }
+            
+            // Формируем данные для передачи на склад
+            let issueData = materialsToIssue.map(mat => ({
+                material_id: mat.material_id,
+                quantity: mat.total_required - mat.already_issued,
+                unit: 'шт'
+            }));
+            
+            // Сохраняем в sessionStorage для использования на складе
+            sessionStorage.setItem('warehouse_issue_data', JSON.stringify({
+                order_id: currentOrderId,
+                materials: issueData
+            }));
+            
+            // Переходим на страницу склада во вкладку материалы
+            window.location.href = '../../modules/warehouse/index.php?tab=materials&issue_production=1';
         }
         
         function completeProduction(productionOrderId, orderQuantity) {
