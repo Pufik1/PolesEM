@@ -66,17 +66,19 @@ try {
                     $stmt = $pdo->prepare("
                         SELECT 
                             pm.material_id,
+                            m.sku,
                             SUM(pm.quantity_issued) as total_issued
                         FROM production_materials pm
+                        JOIN materials m ON pm.material_id = m.id
                         WHERE pm.production_order_id = ? AND pm.status IN ('issued', 'used')
-                        GROUP BY pm.material_id
+                        GROUP BY pm.material_id, m.sku
                     ");
                     $stmt->execute([$production_order['id']]);
                     $issued_materials = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
-                    // Создаем карту выданных материалов
+                    // Создаем карту выданных материалов по SKU (так как в BOM используется sku)
                     foreach ($issued_materials as $im) {
-                        $issued_map[$im['material_id']] = floatval($im['total_issued']);
+                        $issued_map[$im['sku']] = floatval($im['total_issued']);
                     }
                 }
                 
@@ -118,8 +120,8 @@ try {
                         $warehouse_stock = floatval($sku_map[$sku]['warehouse_stock']);
                     }
                     
-                    // Получаем уже выданное количество для этого материала
-                    $already_issued = isset($issued_map[$material_id]) ? floatval($issued_map[$material_id]) : 0;
+                    // Получаем уже выданное количество для этого материала (по SKU)
+                    $already_issued = isset($issued_map[$sku]) ? floatval($issued_map[$sku]) : 0;
                     $to_issue = max(0, $total_required - $already_issued);
                     
                     // Проверяем достаточность материала
