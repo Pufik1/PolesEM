@@ -424,8 +424,8 @@ try {
             $doc_number = 'PR-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
             $stmt = $pdo->prepare("
                 INSERT INTO production_completion_documents 
-                (document_number, production_order_id, product_id, quantity, defect_quantity, completion_date, notes, created_by, source_order_id, product_name, product_code)
-                VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
+                (document_number, production_order_id, product_id, quantity, defect_quantity, completion_date, notes, created_by)
+                VALUES (?, ?, ?, ?, ?, NOW(), ?, ?)
             ");
             $stmt->execute([
                 $doc_number, 
@@ -434,10 +434,7 @@ try {
                 $quantity_completed, 
                 $quantity_defect, 
                 $notes, 
-                $_SESSION['user_id'],
-                $order['source_order_id'],
-                $order['product_name'],
-                $order['product_code']
+                $_SESSION['user_id']
             ]);
             
             $completion_document_id = $pdo->lastInsertId();
