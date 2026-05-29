@@ -954,8 +954,7 @@ try {
                         let printContent = `
                             <div style="font-family: Arial, sans-serif; padding: 40px; background: white; max-width: 800px; margin: 0 auto;">
                                 <div style="text-align: center; border-bottom: 3px solid #333; padding-bottom: 20px; margin-bottom: 30px;">
-                                    <h1 style="color: #333; margin: 0;">ПОЛЕСЬЕЭЛЕКТРОМАШ</h1>
-                                    <p style="margin: 5px 0; color: #666;">Производственное предприятие</p>
+                                    <h1 style="color: #333; margin: 0;">ОАО «ПОЛЕСЬЕЭЛЕКТРОМАШ»</h1>
                                 </div>
                                 
                                 <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
@@ -985,8 +984,8 @@ try {
                                             <td style="padding: 10px; border: 1px solid #ddd; color: red;">${doc.defect_quantity > 0 ? doc.defect_quantity + ' шт' : '-'}</td>
                                         </tr>
                                         <tr style="background: #f9f9f9;">
-                                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Заказ клиента:</strong></td>
-                                            <td style="padding: 10px; border: 1px solid #ddd;">${doc.customer_order_number || 'План производства'} ${doc.customer_name ? '(' + doc.customer_name + ')' : ''}</td>
+                                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Заказчик:</strong></td>
+                                            <td style="padding: 10px; border: 1px solid #ddd;">${doc.customer_name || '—'}</td>
                                         </tr>
                                     </table>
                                 </div>
@@ -1001,7 +1000,6 @@ try {
                                                 <th style="padding: 10px; border: 1px solid #ddd;">Материал</th>
                                                 <th style="padding: 10px; border: 1px solid #ddd;">Артикул</th>
                                                 <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">План</th>
-                                                <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Выдано</th>
                                                 <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Списано</th>
                                                 <th style="padding: 10px; border: 1px solid #ddd;">Ед.</th>
                                             </tr>
@@ -1013,7 +1011,6 @@ try {
                                                 <td style="padding: 8px; border: 1px solid #ddd;">${mat.material_name}</td>
                                                 <td style="padding: 8px; border: 1px solid #ddd;">${mat.material_sku}</td>
                                                 <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${mat.quantity_planned}</td>
-                                                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${mat.quantity_issued}</td>
                                                 <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">${mat.quantity_used}</td>
                                                 <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${mat.unit}</td>
                                             </tr>
@@ -1053,9 +1050,7 @@ try {
                                 ` : ''}
                                 
                                 <div style="margin-top: 40px; border-top: 2px solid #333; padding-top: 20px;">
-                                    <p><strong>Документ создал:</strong> ${doc.created_by_name || 'Неизвестно'}</p>
                                     <p style="color: #666; font-size: 12px; margin-top: 20px;">
-                                        Документ сформирован автоматически системой учёта Полесьеэлектромаш<br>
                                         Дата печати: ${new Date().toLocaleDateString('ru-RU')} ${new Date().toLocaleTimeString('ru-RU')}
                                     </p>
                                 </div>
