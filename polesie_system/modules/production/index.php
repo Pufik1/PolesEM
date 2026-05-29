@@ -949,6 +949,7 @@ try {
                         let doc = data.document;
                         let materials = data.materials || [];
                         let productsInfo = data.products_info || [];
+                        let totalMaterialCost = data.total_material_cost || 0;
                         
                         // Формируем реалистичный печатный документ
                         let printContent = `
@@ -1018,6 +1019,12 @@ try {
                                         </tbody>
                                     </table>
                                     ` : '<p>Информация о материалах отсутствует</p>'}
+                                    
+                                    ${totalMaterialCost > 0 ? `
+                                    <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
+                                        <p style="margin: 0; font-size: 16px;"><strong>Общая стоимость списанных материалов: ${totalMaterialCost.toLocaleString('ru-RU')} руб.</strong></p>
+                                    </div>
+                                    ` : ''}
                                 </div>
                                 
                                 <div style="margin-bottom: 25px;">
