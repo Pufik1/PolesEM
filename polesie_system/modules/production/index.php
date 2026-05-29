@@ -454,7 +454,7 @@ try {
     <script src="../../assets/js/main.js"></script>
     
     <!-- Модальное окно для просмотра материалов и выдачи -->
-    <div id="materialsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+    <div id="materialsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;" onclick="if(event.target===this) closeMaterialsModal();">
         <div style="background:white; margin:50px auto; padding:20px; border-radius:8px; max-width:900px; max-height:80vh; overflow-y:auto;">
             <h3 id="modalTitle">Материалы для заказа</h3>
             <div id="modalContent"></div>
@@ -466,7 +466,7 @@ try {
     </div>
     
     <!-- Модальное окно для завершения производства -->
-    <div id="completionModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+    <div id="completionModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;" onclick="if(event.target===this) closeCompletionModal();">
         <div style="background:white; margin:50px auto; padding:20px; border-radius:8px; max-width:500px;">
             <h3>Завершение производства</h3>
             <input type="hidden" id="completionProductionOrderId">
@@ -600,12 +600,10 @@ try {
         
         function closeMaterialsModal() {
             document.getElementById('materialsModal').style.display = 'none';
-            // При закрытии модального окна обновляем данные о материалах для текущего заказа
-            if (currentOrderId) {
-                setTimeout(function() {
-                    viewOrderMaterials(currentOrderId);
-                }, 500);
-            }
+            // Обновляем страницу для отображения актуальных данных
+            setTimeout(function() {
+                location.reload();
+            }, 300);
         }
         
         function redirectToWarehouseIssue() {
@@ -640,13 +638,6 @@ try {
             
             // Переходим на страницу склада во вкладку материалы с флагом массовой выдачи
             window.location.href = '../../modules/warehouse/index.php?tab=materials&issue_production=1&mode=batch';
-            
-            // После возврата обновляем данные о материалах
-            if (currentOrderId) {
-                setTimeout(function() {
-                    viewOrderMaterials(currentOrderId);
-                }, 1000);
-            }
         }
         
         function completeProduction(productionOrderId, orderQuantity) {
