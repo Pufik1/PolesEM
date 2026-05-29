@@ -291,11 +291,11 @@ try {
                 <div class="stats-grid">
                     <div class="stat-card">
                         <h3><?php echo count($productionOrders); ?></h3>
-                        <p>Производственных заказов</p>
+                        <p>Заказов в производстве</p>
                     </div>
                     <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                         <h3><?php echo count($customerOrdersForProduction); ?></h3>
-                        <p>Заказов в производстве</p>
+                        <p>Заказы</p>
                     </div>
                 </div>
 
@@ -345,7 +345,7 @@ try {
                                             ?>">
                                                 <?php 
                                                     $prodStatusLabels = [
-                                                        'planned' => 'Запланировано',
+                                                        'planned' => 'В плане',
                                                         'in_progress' => 'В производстве',
                                                         'completed' => 'Готово',
                                                         'cancelled' => 'Отменено'
@@ -424,10 +424,6 @@ try {
                         
                         <!-- Карточки статусов производства -->
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;">
-                            <div style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: white; padding: 20px; border-radius: 8px;">
-                                <h4 style="margin: 0 0 10px 0; font-size: 14px; opacity: 0.9;"><i class="fas fa-clock"></i> Запланировано</h4>
-                                <p style="margin: 0; font-size: 28px; font-weight: bold;" id="count-planned">0</p>
-                            </div>
                             <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 20px; border-radius: 8px;">
                                 <h4 style="margin: 0 0 10px 0; font-size: 14px; opacity: 0.9;"><i class="fas fa-cogs"></i> В производстве</h4>
                                 <p style="margin: 0; font-size: 28px; font-weight: bold;" id="count-in-progress">0</p>
@@ -442,7 +438,6 @@ try {
                         <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
                             <select id="filter-status" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" onchange="filterProductionOrders()">
                                 <option value="all">Все статусы</option>
-                                <option value="planned">Запланировано</option>
                                 <option value="in_progress">В производстве</option>
                                 <option value="completed">Готово</option>
                                 <option value="cancelled">Отменено</option>
@@ -465,8 +460,6 @@ try {
                                     <th>Кол-во</th>
                                     <th>Статус</th>
                                     <th>Приоритет</th>
-                                    <th>План. начало</th>
-                                    <th>План. окончание</th>
                                     <th>Источник</th>
                                 </tr>
                             </thead>
@@ -487,7 +480,7 @@ try {
                                         ?>">
                                             <?php 
                                                 $statusLabels = [
-                                                    'planned' => 'Запланировано',
+                                                    'planned' => 'В плане',
                                                     'in_progress' => 'В производстве',
                                                     'completed' => 'Готово',
                                                     'cancelled' => 'Отменено'
@@ -509,8 +502,6 @@ try {
                                             ?>
                                         </span>
                                     </td>
-                                    <td><?php echo $order['planned_start_date'] ?? '-'; ?></td>
-                                    <td><?php echo $order['planned_end_date'] ?? '-'; ?></td>
                                     <td>
                                         <?php if ($order['customer_order']): ?>
                                             <small>Заказ: <?php echo htmlspecialchars($order['customer_order']); ?></small><br>
@@ -523,7 +514,7 @@ try {
                                 <?php endforeach; ?>
                                 <?php if (empty($productionOrders)): ?>
                                 <tr>
-                                    <td colspan="8" class="text-center">Производственных заказов не найдено</td>
+                                    <td colspan="6" class="text-center">Производственных заказов не найдено</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -897,7 +888,6 @@ try {
             const searchQuery = document.getElementById('search-production').value.toLowerCase();
             
             const rows = document.querySelectorAll('#production-orders-body tr[data-status]');
-            let plannedCount = 0;
             let inProgressCount = 0;
             let completedCount = 0;
             
@@ -907,8 +897,7 @@ try {
                 const text = row.textContent.toLowerCase();
                 
                 // Подсчет статистики
-                if (status === 'planned') plannedCount++;
-                else if (status === 'in_progress') inProgressCount++;
+                if (status === 'in_progress') inProgressCount++;
                 else if (status === 'completed') completedCount++;
                 
                 // Фильтрация
@@ -930,7 +919,6 @@ try {
             });
             
             // Обновление счетчиков
-            document.getElementById('count-planned').textContent = plannedCount;
             document.getElementById('count-in-progress').textContent = inProgressCount;
             document.getElementById('count-completed').textContent = completedCount;
         }
