@@ -1,7 +1,7 @@
 <?php
 /**
  * Finance module for OAO "Polesieelectromash" ERP System
- * Financial management - invoices, payments, financial reports
+ * Comprehensive financial management: Cash Flow (ДДС), Budgeting, P&L, Cost Accounting, Counterparties
  */
 
 require_once '../../includes/config.php';
@@ -20,6 +20,12 @@ $pdo = getDBConnection();
 $error = '';
 $success = '';
 $editInvoice = null;
+
+// Get current period (month and year)
+$currentYear = date('Y');
+$currentMonth = date('m');
+$selectedPeriod = $_GET['period'] ?? ($currentYear . '-' . $currentMonth);
+list($selectedYear, $selectedMonth) = explode('-', $selectedPeriod);
 
 // Handle invoice addition
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(['admin', 'manager', 'accountant'])) {
@@ -160,8 +166,9 @@ try {
     $invoices = [];
 }
 
-// Get financial statistics
+// Get financial statistics with detailed explanations
 try {
+    // Overall statistics for all time
     $stats = $pdo->query("
         SELECT 
             COUNT(*) as total_invoices,
@@ -170,8 +177,44 @@ try {
             SUM(CASE WHEN payment_status IN ('unpaid', 'partial') THEN total_with_vat - COALESCE(paid_amount, 0) ELSE 0 END) as receivable_amount
         FROM invoices
     ")->fetch();
+    
+    // Cash Flow statistics (ДДС) - monthly
+    $cashFlowStats = $pdo->prepare("
+        SELECT 
+            SUM(CASE WHEN MONTH(paid_date) = :month AND YEAR(paid_date) = :year THEN paid_amount ELSE 0 END) as cash_inflow,
+            SUM(CASE WHEN MONTH(invoice_date) = :month AND YEAR(invoice_date) = :year THEN total_with_vat ELSE 0 END) as planned_outflow
+        FROM invoices
+    ");
+    $cashFlowStats->execute([':month' => $selectedMonth, ':year' => $selectedYear]);
+    $cashFlowStats = $cashFlowStats->fetch();
+    
+    // P&L Summary (ПиУ) - simplified calculation
+    $pnlStats = $pdo->prepare("
+        SELECT 
+            SUM(total_with_vat) as revenue,
+            SUM(CASE WHEN payment_status = 'paid' THEN total_with_vat ELSE 0 END) as recognized_revenue
+        FROM invoices
+        WHERE MONTH(invoice_date) = :month AND YEAR(invoice_date) = :year
+    ");
+    $pnlStats->execute([':month' => $selectedMonth, ':year' => $selectedYear]);
+    $pnlStats = $pnlStats->fetch();
+    
+    // Counterparty statistics (debtors and creditors)
+    $counterpartyStats = $pdo->query("
+        SELECT 
+            COUNT(DISTINCT c.id) as total_counterparties,
+            SUM(CASE WHEN i.payment_status IN ('unpaid', 'partial') THEN i.total_with_vat - COALESCE(i.paid_amount, 0) ELSE 0 END) as total_debtor_debt
+        FROM invoices i
+        LEFT JOIN orders o ON i.order_id = o.id
+        LEFT JOIN clients c ON o.client_id = c.id
+        WHERE c.id IS NOT NULL
+    ")->fetch();
+    
 } catch (PDOException $e) {
     $stats = ['total_invoices' => 0, 'total_amount' => 0, 'paid_amount' => 0, 'receivable_amount' => 0];
+    $cashFlowStats = ['cash_inflow' => 0, 'planned_outflow' => 0];
+    $pnlStats = ['revenue' => 0, 'recognized_revenue' => 0];
+    $counterpartyStats = ['total_counterparties' => 0, 'total_debtor_debt' => 0];
 }
 
 // Get orders for dropdown
@@ -262,52 +305,213 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                     </div>
                 <?php endif; ?>
                 
-                <!-- Financial Statistics Cards -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                <!-- Period Selector -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 18px; color: var(--text-primary);">
+                                <i class="fas fa-calendar-alt" style="margin-right: 10px;"></i>
+                                Финансовый период
+                            </h3>
+                            <p style="margin: 5px 0 0 0; font-size: 13px; color: var(--text-light);">
+                                Выберите период для анализа финансовых показателей
+                            </p>
+                        </div>
+                        <form method="GET" style="display: flex; gap: 10px; align-items: center;">
+                            <input 
+                                type="month" 
+                                name="period" 
+                                value="<?php echo $selectedPeriod; ?>" 
+                                onchange="this.form.submit()"
+                                style="padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 14px;"
+                            >
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Main Financial KPI Cards with Detailed Explanations -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <!-- Total Invoices Card -->
                     <div class="card stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <p style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Всего счетов</p>
-                                <h3 style="font-size: 28px; margin: 0;"><?php echo number_format($stats['total_invoices'], 0, '.', ' '); ?></h3>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div style="flex: 1;">
+                                <p style="font-size: 13px; opacity: 0.9; margin-bottom: 5px; font-weight: 600;">
+                                    <i class="fas fa-file-invoice" style="margin-right: 6px;"></i>
+                                    Всего счетов выставлено
+                                </p>
+                                <h3 style="font-size: 32px; margin: 0; font-weight: 700;"><?php echo number_format($stats['total_invoices'], 0, '.', ' '); ?></h3>
+                                <p style="font-size: 11px; opacity: 0.8; margin: 8px 0 0 0; line-height: 1.4;">
+                                    Общее количество всех счетов за всё время работы системы
+                                </p>
                             </div>
-                            <i class="fas fa-file-invoice" style="font-size: 40px; opacity: 0.3;"></i>
+                            <i class="fas fa-file-invoice" style="font-size: 48px; opacity: 0.2;"></i>
                         </div>
                     </div>
                     
+                    <!-- Total Amount Card - EXPLANATION ADDED -->
                     <div class="card stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <p style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Общая сумма</p>
-                                <h3 style="font-size: 28px; margin: 0;"><?php echo number_format($stats['total_amount'], 2, '.', ' '); ?> BYN</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div style="flex: 1;">
+                                <p style="font-size: 13px; opacity: 0.9; margin-bottom: 5px; font-weight: 600;">
+                                    <i class="fas fa-coins" style="margin-right: 6px;"></i>
+                                    Общая сумма всех счетов
+                                </p>
+                                <h3 style="font-size: 28px; margin: 0; font-weight: 700;"><?php echo number_format($stats['total_amount'], 2, '.', ' '); ?> BYN</h3>
+                                <p style="font-size: 11px; opacity: 0.8; margin: 8px 0 0 0; line-height: 1.4;">
+                                    Сумма всех выставленных счетов (включая НДС) за всё время. 
+                                    Это общая выручка по всем контрактам независимо от оплаты.
+                                </p>
                             </div>
-                            <i class="fas fa-coins" style="font-size: 40px; opacity: 0.3;"></i>
+                            <i class="fas fa-coins" style="font-size: 48px; opacity: 0.2;"></i>
                         </div>
                     </div>
                     
+                    <!-- Paid Amount Card - EXPLANATION ADDED -->
                     <div class="card stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <p style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Оплачено</p>
-                                <h3 style="font-size: 28px; margin: 0;"><?php echo number_format($stats['paid_amount'], 2, '.', ' '); ?> BYN</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div style="flex: 1;">
+                                <p style="font-size: 13px; opacity: 0.9; margin-bottom: 5px; font-weight: 600;">
+                                    <i class="fas fa-check-circle" style="margin-right: 6px;"></i>
+                                    Фактически оплачено
+                                </p>
+                                <h3 style="font-size: 28px; margin: 0; font-weight: 700;"><?php echo number_format($stats['paid_amount'], 2, '.', ' '); ?> BYN</h3>
+                                <p style="font-size: 11px; opacity: 0.8; margin: 8px 0 0 0; line-height: 1.4;">
+                                    Денежные средства, фактически поступившие на счета компании. 
+                                    Это реальные деньги, которые уже получены от клиентов.
+                                </p>
                             </div>
-                            <i class="fas fa-check-circle" style="font-size: 40px; opacity: 0.3;"></i>
+                            <i class="fas fa-check-circle" style="font-size: 48px; opacity: 0.2;"></i>
                         </div>
                     </div>
                     
+                    <!-- Receivable Amount Card -->
                     <div class="card stat-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <p style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Дебиторская задолженность</p>
-                                <h3 style="font-size: 28px; margin: 0;"><?php echo number_format($stats['receivable_amount'], 2, '.', ' '); ?> BYN</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div style="flex: 1;">
+                                <p style="font-size: 13px; opacity: 0.9; margin-bottom: 5px; font-weight: 600;">
+                                    <i class="fas fa-exclamation-triangle" style="margin-right: 6px;"></i>
+                                    Дебиторская задолженность
+                                </p>
+                                <h3 style="font-size: 28px; margin: 0; font-weight: 700;"><?php echo number_format($stats['receivable_amount'], 2, '.', ' '); ?> BYN</h3>
+                                <p style="font-size: 11px; opacity: 0.8; margin: 8px 0 0 0; line-height: 1.4;">
+                                    Сумма, которую клиенты должны компании (неоплаченные счета). 
+                                    Это разница между общей суммой и фактической оплатой.
+                                </p>
                             </div>
-                            <i class="fas fa-exclamation-triangle" style="font-size: 40px; opacity: 0.3;"></i>
+                            <i class="fas fa-exclamation-triangle" style="font-size: 48px; opacity: 0.2;"></i>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Additional Financial Metrics Section (Cash Flow, P&L, Counterparties) -->
+                <h3 style="margin: 30px 0 20px 0; font-size: 18px; color: var(--text-primary); display: flex; align-items: center;">
+                    <i class="fas fa-chart-line" style="margin-right: 10px; color: #667eea;"></i>
+                    Детальный финансовый анализ
+                </h3>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <!-- Cash Flow (ДДС) Card -->
+                    <div class="card" style="border-left: 4px solid #10b981;">
+                        <div class="card-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px;">
+                            <h4 style="margin: 0; font-size: 16px; color: var(--text-primary); display: flex; align-items: center;">
+                                <i class="fas fa-hand-holding-usd" style="margin-right: 8px; color: #10b981;"></i>
+                                Движение денежных средств (ДДС)
+                            </h4>
+                            <p style="margin: 5px 0 0 0; font-size: 12px; color: var(--text-light);">
+                                <?php 
+                                $monthNames = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+                                echo $monthNames[(int)$selectedMonth] . ' ' . $selectedYear;
+                                ?>
+                            </p>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 15px; border-radius: 8px;">
+                                <p style="font-size: 12px; color: #2e7d32; margin: 0 0 5px 0; font-weight: 600;">Поступления (Cash In)</p>
+                                <h4 style="font-size: 22px; color: #1b5e20; margin: 0;"><?php echo number_format($cashFlowStats['cash_inflow'] ?? 0, 2, '.', ' '); ?> BYN</h4>
+                                <p style="font-size: 10px; color: #66bb6a; margin: 5px 0 0 0;">Фактические платежи за период</p>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 15px; border-radius: 8px;">
+                                <p style="font-size: 12px; color: #ef6c00; margin: 0 0 5px 0; font-weight: 600;">Плановые выплаты (Cash Out)</p>
+                                <h4 style="font-size: 22px; color: #e65100; margin: 0;"><?php echo number_format($cashFlowStats['planned_outflow'] ?? 0, 2, '.', ' '); ?> BYN</h4>
+                                <p style="font-size: 10px; color: #ff9800; margin: 5px 0 0 0;">Счета, выставленные за период</p>
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                            <p style="font-size: 12px; color: var(--text-light); margin: 0;">
+                                <strong>Чистый денежный поток:</strong> 
+                                <span style="color: <?php echo (($cashFlowStats['cash_inflow'] ?? 0) - ($cashFlowStats['planned_outflow'] ?? 0)) >= 0 ? '#10b981' : '#ef4444'; ?>; font-weight: 600;">
+                                    <?php echo number_format(($cashFlowStats['cash_inflow'] ?? 0) - ($cashFlowStats['planned_outflow'] ?? 0), 2, '.', ' '); ?> BYN
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- P&L (ПиУ) Card -->
+                    <div class="card" style="border-left: 4px solid #667eea;">
+                        <div class="card-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px;">
+                            <h4 style="margin: 0; font-size: 16px; color: var(--text-primary); display: flex; align-items: center;">
+                                <i class="fas fa-chart-pie" style="margin-right: 8px; color: #667eea;"></i>
+                                Отчет о прибылях и убытках (P&L)
+                            </h4>
+                            <p style="margin: 5px 0 0 0; font-size: 12px; color: var(--text-light);">
+                                Управленческий учет за период
+                            </p>
+                        </div>
+                        <div style="space-y: 15px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 6px; margin-bottom: 10px;">
+                                <span style="font-size: 13px; color: var(--text-secondary);">Выручка (Revenue)</span>
+                                <span style="font-size: 16px; font-weight: 600; color: #667eea;"><?php echo number_format($pnlStats['revenue'] ?? 0, 2, '.', ' '); ?> BYN</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 6px; margin-bottom: 10px;">
+                                <span style="font-size: 13px; color: var(--text-secondary);">Признанная выручка</span>
+                                <span style="font-size: 16px; font-weight: 600; color: #10b981;"><?php echo number_format($pnlStats['recognized_revenue'] ?? 0, 2, '.', ' '); ?> BYN</span>
+                            </div>
+                        </div>
+                        <p style="font-size: 11px; color: var(--text-light); margin: 15px 0 0 0; line-height: 1.5;">
+                            <i class="fas fa-info-circle" style="margin-right: 5px;"></i>
+                            P&L показывает финансовый результат деятельности компании. 
+                            Признанная выручка учитывается по факту оплаты.
+                        </p>
+                    </div>
+                    
+                    <!-- Counterparties Card -->
+                    <div class="card" style="border-left: 4px solid #f59e0b;">
+                        <div class="card-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px;">
+                            <h4 style="margin: 0; font-size: 16px; color: var(--text-primary); display: flex; align-items: center;">
+                                <i class="fas fa-users" style="margin-right: 8px; color: #f59e0b;"></i>
+                                Работа с контрагентами
+                            </h4>
+                            <p style="margin: 5px 0 0 0; font-size: 12px; color: var(--text-light);">
+                                Дебиторская и кредиторская задолженность
+                            </p>
+                        </div>
+                        <div style="space-y: 15px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 6px; margin-bottom: 10px;">
+                                <span style="font-size: 13px; color: var(--text-secondary);">Активных контрагентов</span>
+                                <span style="font-size: 16px; font-weight: 600; color: #f59e0b;"><?php echo number_format($counterpartyStats['total_counterparties'] ?? 0, 0, '.', ' '); ?></span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 6px; margin-bottom: 10px;">
+                                <span style="font-size: 13px; color: var(--text-secondary);">Общая дебиторская задолженность</span>
+                                <span style="font-size: 16px; font-weight: 600; color: #ef4444;"><?php echo number_format($counterpartyStats['total_debtor_debt'] ?? 0, 2, '.', ' '); ?> BYN</span>
+                            </div>
+                        </div>
+                        <p style="font-size: 11px; color: var(--text-light); margin: 15px 0 0 0; line-height: 1.5;">
+                            <i class="fas fa-info-circle" style="margin-right: 5px;"></i>
+                            Контроль взаиморасчетов с клиентами и поставщиками. 
+                            Дебиторская задолженность — долги клиентов перед компанией.
+                        </p>
                     </div>
                 </div>
                 
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title">Реестр счетов</h2>
+                        <h2 class="card-title" style="display: flex; align-items: center;">
+                            <i class="fas fa-list-alt" style="margin-right: 10px; color: #667eea;"></i>
+                            Реестр счетов на оплату
+                        </h2>
+                        <p style="margin: 5px 0 0 0; font-size: 12px; color: var(--text-light);">
+                            Полный список всех выставленных счетов с детализацией по оплатам и статусам
+                        </p>
                         <?php if (hasRole(['admin', 'manager', 'accountant'])): ?>
                             <button class="btn btn-primary" onclick="openModal('addInvoiceModal')">
                                 <i class="fas fa-plus"></i> Создать счет
