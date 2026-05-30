@@ -81,7 +81,7 @@ try {
     ");
     $reportData['recent_orders'] = $stmt->fetchAll();
     
-    // 6. Динамика продаж за последние 30 дней (по дням)
+    // 6. Динамика продаж за последние 30 дней (по дням) - только оплаченные заказы
     $stmt = $pdo->query("
         SELECT 
             DATE_FORMAT(order_date, '%d.%m') as day,
@@ -90,6 +90,7 @@ try {
             SUM(final_amount) as revenue
         FROM orders
         WHERE order_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+          AND status IN ('paid', 'completed', 'shipped')
         GROUP BY DATE_FORMAT(order_date, '%Y-%m-%d'), DATE_FORMAT(order_date, '%d.%m')
         ORDER BY full_date
     ");
