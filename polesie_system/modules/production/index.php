@@ -745,34 +745,117 @@ try {
         function openRouteSheet(orderId, productionNumber, productName, quantity) {
             document.getElementById('routeSheetTitle').innerText = 'Маршрутный лист № ' + productionNumber;
             
-            let html = '<div style="background:#f3f4f6; padding:20px; border-radius:8px; margin-bottom:20px;">';
-            html += '<h4 style="margin:0 0 15px 0;"><i class="fas fa-clipboard-list"></i> Общая информация</h4>';
-            html += '<p><strong>№ заказа:</strong> ' + productionNumber + '</p>';
-            html += '<p><strong>Продукт:</strong> ' + productName + '</p>';
-            html += '<p><strong>Количество:</strong> ' + quantity + ' шт</p>';
-            html += '</div>';
+            // Загружаем этапы производства из БД
+            fetch(`api.php?action=get_production_stages&production_order_id=${orderId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        alert('Ошибка загрузки этапов: ' + data.message);
+                        return;
+                    }
+                    
+                    const stages = data.stages || [];
+                    const completedCount = stages.filter(s => s.status === 'completed').length;
+                    const progressPercent = stages.length > 0 ? Math.round((completedCount / stages.length) * 100) : 0;
+                    
+                    let html = '<div style="background:#f3f4f6; padding:20px; border-radius:8px; margin-bottom:20px;">';
+                    html += '<h4 style="margin:0 0 15px 0;"><i class="fas fa-clipboard-list"></i> Общая информация</h4>';
+                    html += '<p><strong>№ заказа:</strong> ' + productionNumber + '</p>';
+                    html += '<p><strong>Продукт:</strong> ' + productName + '</p>';
+                    html += '<p><strong>Количество:</strong> ' + quantity + ' шт</p>';
+                    html += '</div>';
+                    
+                    // Шкала прогресса
+                    html += '<div style="background:#f3f4f6; padding:20px; border-radius:8px; margin-bottom:20px;">';
+                    html += '<h4 style="margin:0 0 15px 0;"><i class="fas fa-chart-line"></i> Прогресс производства</h4>';
+                    html += '<div style="background:#e5e7eb; border-radius:10px; height:30px; overflow:hidden;">';
+                    html += '<div style="background:linear-gradient(90deg, #3b82f6, #10b981); width:' + progressPercent + '%; height:100%; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; transition:width 0.5s;">' + progressPercent + '%</div>';
+                    html += '</div>';
+                    html += '<p style="margin-top:10px; color:#6b7280;">Завершено этапов: ' + completedCount + ' из ' + stages.length + '</p>';
+                    html += '</div>';
+                    
+                    html += '<div style="background:#f3f4f6; padding:20px; border-radius:8px; margin-bottom:20px;">';
+                    html += '<h4 style="margin:0 0 15px 0;"><i class="fas fa-tasks"></i> Этапы производства</h4>';
+                    html += '<table class="data-table"><thead><tr><th>№</th><th>Этап</th><th>Описание</th><th>Статус</th><th>Действия</th></tr></thead><tbody>';
+                    
+                    stages.forEach(stage => {
+                        let statusBadge;
+                        let actionButton = '';
+                        
+                        if (stage.status === 'completed') {
+                            statusBadge = '<span class="badge badge-success">Завершен</span>';
+                        } else if (stage.status === 'available') {
+                            statusBadge = '<span class="badge badge-info">Доступен</span>';
+                            actionButton = '<button class="btn btn-primary" style="padding:4px 12px;" onclick="completeStage(' + stage.id + ', ' + stage.stage_number + ', ' + orderId + ')">Завершить</button>';
+                        } else {
+                            statusBadge = '<span class="badge badge-warning">В ожидании</span>';
+                        }
+                        
+                        html += '<tr>' +
+                                '<td>' + stage.stage_number + '</td>' +
+                                '<td>' + stage.stage_name + '</td>' +
+                                '<td>' + (stage.stage_description || '') + '</td>' +
+                                '<td>' + statusBadge + '</td>' +
+                                '<td>' + actionButton + '</td>' +
+                                '</tr>';
+                    });
+                    
+                    html += '</tbody></table>';
+                    html += '</div>';
+                    
+                    html += '<div style="background:#f3f4f6; padding:20px; border-radius:8px;">';
+                    html += '<h4 style="margin:0 0 15px 0;"><i class="fas fa-calendar-alt"></i> Даты</h4>';
+                    html += '<p><strong>Дата начала:</strong> ' + (data.start_date || '_________________') + '</p>';
+                    html += '<p><strong>Дата окончания:</strong> ' + (data.end_date || '_________________') + '</p>';
+                    html += '</div>';
+                    
+                    document.getElementById('routeSheetContent').innerHTML = html;
+                    document.getElementById('routeSheetModal').style.display = 'block';
+                })
+                .catch(error => {
+                    alert('Ошибка загрузки данных: ' + error);
+                });
+        }
+        
+        // Функция для завершения этапа производства
+        function completeStage(stageId, stageNumber, productionOrderId) {
+            if (!confirm('Вы уверены, что хотите завершить этот этап?')) {
+                return;
+            }
             
-            html += '<div style="background:#f3f4f6; padding:20px; border-radius:8px; margin-bottom:20px;">';
-            html += '<h4 style="margin:0 0 15px 0;"><i class="fas fa-tasks"></i> Этапы производства</h4>';
-            html += '<table class="data-table"><thead><tr><th>№</th><th>Этап</th><th>Описание</th><th>Статус</th></tr></thead><tbody>';
-            html += '<tr><td>1</td><td>Заготовка материалов</td><td>Подготовка и выдача необходимых материалов со склада</td><td><span class="badge badge-warning">В ожидании</span></td></tr>';
-            html += '<tr><td>2</td><td>Основное производство</td><td>Изготовление основного изделия согласно технологии</td><td><span class="badge badge-warning">В ожидании</span></td></tr>';
-            html += '<tr><td>3</td><td>Контроль качества</td><td>Проверка готового изделия на соответствие стандартам</td><td><span class="badge badge-warning">В ожидании</span></td></tr>';
-            html += '<tr><td>4</td><td>Упаковка</td><td>Упаковка готовой продукции</td><td><span class="badge badge-warning">В ожидании</span></td></tr>';
-            html += '<tr><td>5</td><td>Передача на склад</td><td>Оприходование готовой продукции на склад</td><td><span class="badge badge-warning">В ожидании</span></td></tr>';
-            html += '</tbody></table>';
-            html += '</div>';
+            const formData = new FormData();
+            formData.append('action', 'complete_production_stage');
+            formData.append('stage_id', stageId);
+            formData.append('production_order_id', productionOrderId);
+            formData.append('stage_number', stageNumber);
             
-            html += '<div style="background:#f3f4f6; padding:20px; border-radius:8px;">';
-            html += '<h4 style="margin:0 0 15px 0;"><i class="fas fa-user-cog"></i> Ответственные</h4>';
-            html += '<p><strong>Мастер смены:</strong> _________________</p>';
-            html += '<p><strong>Контролер ОТК:</strong> _________________</p>';
-            html += '<p><strong>Дата начала:</strong> _________________</p>';
-            html += '<p><strong>Дата окончания:</strong> _________________</p>';
-            html += '</div>';
-            
-            document.getElementById('routeSheetContent').innerHTML = html;
-            document.getElementById('routeSheetModal').style.display = 'block';
+            fetch('api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Этап успешно завершен!');
+                    // Перезагружаем модальное окно с обновленными данными
+                    const titleText = document.getElementById('routeSheetTitle').innerText;
+                    const productionNumber = titleText.replace('Маршрутный лист № ', '');
+                    // Находим productId и quantity из текущей таблицы
+                    const row = document.querySelector(`button[onclick*="'${productionNumber}'"]`);
+                    if (row) {
+                        const td = row.closest('td');
+                        const tr = td.closest('tr');
+                        const qty = tr.querySelector('td:nth-child(3)').textContent.replace(' шт', '').trim();
+                        const productName = tr.querySelector('td:nth-child(2) strong').textContent;
+                        openRouteSheet(productionOrderId, productionNumber, productName, qty);
+                    }
+                } else {
+                    alert('Ошибка: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Ошибка: ' + error);
+            });
         }
         
         // Функция для закрытия модального окна маршрутного листа

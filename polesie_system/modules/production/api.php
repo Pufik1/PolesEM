@@ -1127,6 +1127,236 @@ try {
             }
             break;
             
+        case 'get_production_stages':
+            // Получение этапов производства для маршрутного листа
+            $production_order_id = (int)($_GET['production_order_id'] ?? 0);
+            if (!$production_order_id) {
+                throw new Exception('Не указан ID производственного заказа');
+            }
+            
+            // Получаем этапы производства
+            $stmt = $pdo->prepare("
+                SELECT 
+                    id,
+                    stage_number,
+                    stage_name,
+                    stage_description,
+                    status,
+                    completed_at,
+                    completed_by
+                FROM production_stages
+                WHERE production_order_id = ?
+                ORDER BY stage_number ASC
+            ");
+            $stmt->execute([$production_order_id]);
+            $stages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Если этапы еще не созданы, создаем их
+            if (empty($stages)) {
+                $stage_templates = [
+                    ['Заготовка материалов', 'Подготовка и выдача необходимых материалов со склада'],
+                    ['Основное производство', 'Изготовление основного изделия согласно технологии'],
+                    ['Контроль качества', 'Проверка готового изделия на соответствие стандартам'],
+                    ['Упаковка', 'Упаковка готовой продукции'],
+                    ['Передача на склад', 'Оприходование готовой продукции на склад']
+                ];
+                
+                $stmt_insert = $pdo->prepare("
+                    INSERT INTO production_stages 
+                    (production_order_id, stage_number, stage_name, stage_description, status)
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                
+                foreach ($stage_templates as $index => $template) {
+                    $status = ($index === 0) ? 'available' : 'waiting';
+                    $stmt_insert->execute([
+                        $production_order_id,
+                        $index + 1,
+                        $template[0],
+                        $template[1],
+                        $status
+                    ]);
+                }
+                
+                // Получаем созданные этапы
+                $stmt->execute([$production_order_id]);
+                $stages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+            
+            // Получаем даты начала и завершения
+            $start_date = null;
+            $end_date = null;
+            
+            $stmt_dates = $pdo->prepare("
+                SELECT created_at, updated_at 
+                FROM production_orders 
+                WHERE id = ?
+            ");
+            $stmt_dates->execute([$production_order_id]);
+            $order_dates = $stmt_dates->fetch();
+            
+            if ($order_dates) {
+                $start_date = date('d.m.Y H:i', strtotime($order_dates['created_at']));
+                
+                // Проверяем, завершен ли последний этап
+                $last_stage_completed = false;
+                foreach ($stages as $stage) {
+                    if ($stage['stage_number'] == 5 && $stage['status'] == 'completed') {
+                        $last_stage_completed = true;
+                        $end_date = date('d.m.Y H:i', strtotime($stage['completed_at']));
+                        break;
+                    }
+                }
+                
+                if (!$last_stage_completed) {
+                    $end_date = '_________________';
+                }
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'stages' => $stages,
+                'start_date' => $start_date,
+                'end_date' => $end_date
+            ]);
+            break;
+            
+        case 'complete_production_stage':
+            // Завершение этапа производства
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Метод не разрешен');
+            }
+            
+            $stage_id = (int)$_POST['stage_id'];
+            $production_order_id = (int)$_POST['production_order_id'];
+            $stage_number = (int)$_POST['stage_number'];
+            
+            $pdo->beginTransaction();
+            
+            try {
+                // Получаем текущий этап
+                $stmt = $pdo->prepare("SELECT status FROM production_stages WHERE id = ?");
+                $stmt->execute([$stage_id]);
+                $stage = $stmt->fetch();
+                
+                if (!$stage) {
+                    throw new Exception('Этап не найден');
+                }
+                
+                if ($stage['status'] !== 'available') {
+                    throw new Exception('Этот этап еще не доступен для завершения');
+                }
+                
+                // Завершаем текущий этап
+                $stmt_update = $pdo->prepare("
+                    UPDATE production_stages 
+                    SET status = 'completed', completed_at = NOW(), completed_by = ?
+                    WHERE id = ?
+                ");
+                $stmt_update->execute([$_SESSION['user_id'], $stage_id]);
+                
+                // Делаем доступным следующий этап
+                $next_stage_number = $stage_number + 1;
+                $stmt_next = $pdo->prepare("
+                    UPDATE production_stages 
+                    SET status = 'available'
+                    WHERE production_order_id = ? AND stage_number = ?
+                ");
+                $stmt_next->execute([$production_order_id, $next_stage_number]);
+                
+                // Если это последний этап (5), переносим продукцию на склад
+                if ($stage_number == 5) {
+                    // Получаем информацию о производственном заказе
+                    $stmt_po = $pdo->prepare("
+                        SELECT product_id, quantity, source_order_id
+                        FROM production_orders
+                        WHERE id = ?
+                    ");
+                    $stmt_po->execute([$production_order_id]);
+                    $po_data = $stmt_po->fetch();
+                    
+                    if ($po_data) {
+                        // Оприходуем готовую продукцию на склад
+                        $stmt_stock = $pdo->prepare("
+                            UPDATE products 
+                            SET stock_quantity = stock_quantity + ?
+                            WHERE id = ?
+                        ");
+                        $stmt_stock->execute([$po_data['quantity'], $po_data['product_id']]);
+                        
+                        // Обновляем статус производственного заказа
+                        $stmt_status = $pdo->prepare("
+                            UPDATE production_orders 
+                            SET status = 'completed'
+                            WHERE id = ?
+                        ");
+                        $stmt_status->execute([$production_order_id]);
+                        
+                        // Создаем документ о завершении производства
+                        $doc_number = 'PCD-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
+                        $stmt_doc = $pdo->prepare("
+                            INSERT INTO production_completion_documents
+                            (document_number, production_order_id, product_id, quantity, defect_quantity, completion_date, created_by, source_order_id)
+                            VALUES (?, ?, ?, ?, 0, NOW(), ?, ?)
+                        ");
+                        $stmt_doc->execute([
+                            $doc_number,
+                            $production_order_id,
+                            $po_data['product_id'],
+                            $po_data['quantity'],
+                            $_SESSION['user_id'],
+                            $po_data['source_order_id']
+                        ]);
+                        
+                        // Списываем материалы согласно BOM
+                        // Получаем BOM продукта
+                        $stmt_bom = $pdo->prepare("SELECT bom_json FROM products WHERE id = ?");
+                        $stmt_bom->execute([$po_data['product_id']]);
+                        $product_data = $stmt_bom->fetch();
+                        
+                        if (!empty($product_data['bom_json'])) {
+                            $bom_data = json_decode($product_data['bom_json'], true);
+                            
+                            if (is_array($bom_data)) {
+                                foreach ($bom_data as $bom_item) {
+                                    $sku = $bom_item['sku'] ?? '';
+                                    $qty_per_unit = floatval($bom_item['quantity'] ?? 0);
+                                    $total_required = $qty_per_unit * $po_data['quantity'];
+                                    
+                                    // Находим материал по SKU
+                                    $stmt_mat = $pdo->prepare("SELECT id FROM materials WHERE sku = ?");
+                                    $stmt_mat->execute([$sku]);
+                                    $material = $stmt_mat->fetch();
+                                    
+                                    if ($material) {
+                                        // Обновляем запись в production_materials как использованную
+                                        $stmt_use = $pdo->prepare("
+                                            UPDATE production_materials
+                                            SET quantity_used = quantity_used + ?, status = 'used'
+                                            WHERE production_order_id = ? AND material_id = ?
+                                        ");
+                                        $stmt_use->execute([$total_required, $production_order_id, $material['id']]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                $pdo->commit();
+                
+                logActivity($pdo, $_SESSION['user_id'], 'complete_stage', 'production_stages', $stage_id);
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Этап успешно завершен'
+                ]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+            break;
+
         default:
             throw new Exception('Неизвестное действие');
     }
