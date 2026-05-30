@@ -1,7 +1,7 @@
 <?php
 /**
  * Finance module for OAO "Polesieelectromash" ERP System
- * Financial management - invoices, payments, financial reports
+ * Financial management - invoices, payments, financial reports with advanced analytics
  */
 
 require_once '../../includes/config.php';
@@ -30,12 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
             $invoiceDate = $_POST['invoice_date'];
             $dueDate = $_POST['due_date'] ?: null;
             $totalAmount = (float)$_POST['total_amount'];
-            $vatAmount = (float)($_POST['vat_amount'] ?? 0);
+            $vatRate = (float)($_POST['vat_rate'] ?? 20); // Default 20% VAT for Belarus
+            $vatAmount = ($totalAmount * $vatRate) / 100;
             $totalWithVat = $totalAmount + $vatAmount;
             $notes = trim($_POST['notes'] ?? '');
             
-            $stmt = $pdo->prepare("INSERT INTO invoices (invoice_number, order_id, invoice_date, due_date, total_amount, vat_amount, total_with_vat, notes) 
-                                   VALUES (:invoice_number, :order_id, :invoice_date, :due_date, :total_amount, :vat_amount, :total_with_vat, :notes)");
+            $stmt = $pdo->prepare("INSERT INTO invoices (invoice_number, order_id, invoice_date, due_date, total_amount, vat_amount, vat_rate, total_with_vat, notes) 
+                                   VALUES (:invoice_number, :order_id, :invoice_date, :due_date, :total_amount, :vat_amount, :vat_rate, :total_with_vat, :notes)");
             $stmt->execute([
                 ':invoice_number' => $invoiceNumber,
                 ':order_id' => $orderId,
@@ -43,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 ':due_date' => $dueDate,
                 ':total_amount' => $totalAmount,
                 ':vat_amount' => $vatAmount,
+                ':vat_rate' => $vatRate,
                 ':total_with_vat' => $totalWithVat,
                 ':notes' => $notes
             ]);
@@ -56,12 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
             $invoiceDate = $_POST['invoice_date'];
             $dueDate = $_POST['due_date'] ?: null;
             $totalAmount = (float)$_POST['total_amount'];
-            $vatAmount = (float)($_POST['vat_amount'] ?? 0);
+            $vatRate = (float)($_POST['vat_rate'] ?? 20);
+            $vatAmount = ($totalAmount * $vatRate) / 100;
             $totalWithVat = $totalAmount + $vatAmount;
             $notes = trim($_POST['notes'] ?? '');
             
             $stmt = $pdo->prepare("UPDATE invoices SET invoice_date = :invoice_date, due_date = :due_date, 
-                                   total_amount = :total_amount, vat_amount = :vat_amount, total_with_vat = :total_with_vat, notes = :notes 
+                                   total_amount = :total_amount, vat_amount = :vat_amount, vat_rate = :vat_rate, total_with_vat = :total_with_vat, notes = :notes 
                                    WHERE id = :id");
             $stmt->execute([
                 ':id' => $invoiceId,
@@ -69,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 ':due_date' => $dueDate,
                 ':total_amount' => $totalAmount,
                 ':vat_amount' => $vatAmount,
+                ':vat_rate' => $vatRate,
                 ':total_with_vat' => $totalWithVat,
                 ':notes' => $notes
             ]);
@@ -172,6 +176,100 @@ try {
     ")->fetch();
 } catch (PDOException $e) {
     $stats = ['total_invoices' => 0, 'total_amount' => 0, 'paid_amount' => 0, 'receivable_amount' => 0];
+}
+
+// Calculate advanced financial metrics
+try {
+    // Collection Effectiveness Index (CEI)
+    $ceiData = $pdo->query("
+        SELECT 
+            SUM(CASE WHEN payment_status = 'paid' THEN total_with_vat ELSE 0 END) as collected,
+            SUM(total_with_vat) as total_receivable
+        FROM invoices
+        WHERE invoice_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    ")->fetch();
+    
+    $collectionEffectiveness = $ceiData['total_receivable'] > 0 
+        ? ($ceiData['collected'] / $ceiData['total_receivable']) * 100 
+        : 0;
+    
+    // Days Sales Outstanding (DSO)
+    $dsoData = $pdo->query("
+        SELECT 
+            AVG(DATEDIFF(COALESCE(paid_date, CURDATE()), invoice_date)) as avg_days,
+            COUNT(CASE WHEN payment_status = 'paid' THEN 1 END) as paid_count
+        FROM invoices
+        WHERE payment_status = 'paid'
+    ")->fetch();
+    
+    $dso = $dsoData['avg_days'] ?? 0;
+    $paidInvoicesCount = $dsoData['paid_count'] ?? 0;
+    
+    // Monthly revenue for last 6 months
+    $monthlyRevenue = $pdo->query("
+        SELECT 
+            DATE_FORMAT(invoice_date, '%Y-%m') as month,
+            SUM(total_with_vat) as revenue,
+            COUNT(*) as invoice_count
+        FROM invoices
+        WHERE invoice_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY DATE_FORMAT(invoice_date, '%Y-%m')
+        ORDER BY month ASC
+    ")->fetchAll();
+    
+    // Payment status distribution
+    $paymentDistribution = $pdo->query("
+        SELECT 
+            payment_status,
+            COUNT(*) as count,
+            SUM(total_with_vat) as total_amount
+        FROM invoices
+        GROUP BY payment_status
+    ")->fetchAll();
+    
+    // Top clients by revenue
+    $topClients = $pdo->query("
+        SELECT 
+            c.company_name,
+            COUNT(i.id) as invoice_count,
+            SUM(i.total_with_vat) as total_revenue,
+            SUM(CASE WHEN i.payment_status = 'paid' THEN i.total_with_vat ELSE 0 END) as paid_revenue
+        FROM invoices i
+        LEFT JOIN orders o ON i.order_id = o.id
+        LEFT JOIN clients c ON o.client_id = c.id
+        WHERE c.id IS NOT NULL
+        GROUP BY c.id, c.company_name
+        ORDER BY total_revenue DESC
+        LIMIT 5
+    ")->fetchAll();
+    
+    // Cash flow forecast (next 30 days based on due dates)
+    $cashFlowForecast = $pdo->query("
+        SELECT 
+            CASE 
+                WHEN due_date <= CURDATE() THEN 'overdue'
+                WHEN due_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN 'week1'
+                WHEN due_date <= DATE_ADD(CURDATE(), INTERVAL 14 DAY) THEN 'week2'
+                WHEN due_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'month1'
+                ELSE 'later'
+            END as period,
+            SUM(total_with_vat - COALESCE(paid_amount, 0)) as expected_amount,
+            COUNT(*) as invoice_count
+        FROM invoices
+        WHERE payment_status != 'paid'
+        GROUP BY period
+        ORDER BY FIELD(period, 'overdue', 'week1', 'week2', 'month1', 'later')
+    ")->fetchAll();
+    
+} catch (PDOException $e) {
+    $collectionEffectiveness = 0;
+    $dso = 0;
+    $paidInvoicesCount = 0;
+    $monthlyRevenue = [];
+    $paymentDistribution = [];
+    $topClients = [];
+    $cashFlowForecast = [];
+    error_log($e->getMessage());
 }
 
 // Get orders for dropdown
@@ -302,6 +400,161 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                             </div>
                             <i class="fas fa-exclamation-triangle" style="font-size: 40px; opacity: 0.3;"></i>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Advanced Financial Metrics -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <div class="card" style="border-left: 4px solid #10b981;">
+                        <div style="padding: 15px;">
+                            <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">
+                                <i class="fas fa-chart-line"></i> Эффективность сбора (CEI)
+                            </p>
+                            <h3 style="font-size: 24px; margin: 0; color: #10b981;">
+                                <?php echo number_format($collectionEffectiveness, 1, '.', ' '); ?>%
+                            </h3>
+                            <small style="color: var(--text-light); font-size: 11px;">за последние 30 дней</small>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="border-left: 4px solid #3b82f6;">
+                        <div style="padding: 15px;">
+                            <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">
+                                <i class="fas fa-calendar-day"></i> Средний срок оплаты (DSO)
+                            </p>
+                            <h3 style="font-size: 24px; margin: 0; color: #3b82f6;">
+                                <?php echo number_format($dso, 1, '.', ' '); ?> дн.
+                            </h3>
+                            <small style="color: var(--text-light); font-size: 11px;">оплачено счетов: <?php echo $paidInvoicesCount; ?></small>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="border-left: 4px solid #8b5cf6;">
+                        <div style="padding: 15px;">
+                            <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">
+                                <i class="fas fa-percent"></i> Процент оплаченных
+                            </p>
+                            <h3 style="font-size: 24px; margin: 0; color: #8b5cf6;">
+                                <?php 
+                                $paidPercent = $stats['total_amount'] > 0 ? ($stats['paid_amount'] / $stats['total_amount']) * 100 : 0;
+                                echo number_format($paidPercent, 1, '.', ' '); ?>%
+                            </h3>
+                            <small style="color: var(--text-light); font-size: 11px;">от общей суммы</small>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="border-left: 4px solid #f59e0b;">
+                        <div style="padding: 15px;">
+                            <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">
+                                <i class="fas fa-wallet"></i> Ожидаемый Cash Flow
+                            </p>
+                            <h3 style="font-size: 24px; margin: 0; color: #f59e0b;">
+                                <?php 
+                                $expectedCashFlow = array_sum(array_column($cashFlowForecast, 'expected_amount'));
+                                echo number_format($expectedCashFlow, 2, '.', ' '); ?> BYN
+                            </h3>
+                            <small style="color: var(--text-light); font-size: 11px;">к поступлению (30 дней)</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Monthly Revenue Chart & Top Clients Row -->
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 30px;">
+                    <!-- Monthly Revenue Chart -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-chart-bar"></i> Динамика выручки (6 мес.)</h2>
+                        </div>
+                        <div style="padding: 20px;">
+                            <canvas id="revenueChart" height="100"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Top Clients -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-trophy"></i> Топ клиентов</h2>
+                        </div>
+                        <div style="padding: 15px;">
+                            <?php if (empty($topClients)): ?>
+                                <p style="color: var(--text-light); text-align: center;">Нет данных</p>
+                            <?php else: ?>
+                                <div style="display: flex; flex-direction: column; gap: 12px;">
+                                    <?php foreach ($topClients as $index => $client): ?>
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <div style="width: 28px; height: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
+                                                <?php echo $index + 1; ?>
+                                            </div>
+                                            <div style="flex: 1;">
+                                                <p style="margin: 0; font-size: 13px; font-weight: 600;"><?php echo htmlspecialchars($client['company_name']); ?></p>
+                                                <p style="margin: 0; font-size: 11px; color: var(--text-light);"><?php echo number_format($client['total_revenue'], 2, '.', ' '); ?> BYN</p>
+                                            </div>
+                                            <div style="text-align: right;">
+                                                <p style="margin: 0; font-size: 11px; color: #10b981;">
+                                                    <?php echo $client['invoice_count']; ?> сч.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Cash Flow Forecast -->
+                <div class="card" style="margin-bottom: 30px;">
+                    <div class="card-header">
+                        <h2 class="card-title"><i class="fas fa-stream"></i> Прогноз денежных потоков</h2>
+                    </div>
+                    <div style="padding: 0;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Период</th>
+                                    <th>Количество счетов</th>
+                                    <th>Ожидаемая сумма (BYN)</th>
+                                    <th>Прогресс</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                $periodLabels = [
+                                    'overdue' => ['label' => 'Просрочено', 'icon' => 'fa-exclamation-circle', 'color' => '#ef4444'],
+                                    'week1' => ['label' => 'До 7 дней', 'icon' => 'fa-calendar-week', 'color' => '#f59e0b'],
+                                    'week2' => ['label' => '8-14 дней', 'icon' => 'fa-calendar-alt', 'color' => '#3b82f6'],
+                                    'month1' => ['label' => '15-30 дней', 'icon' => 'fa-calendar', 'color' => '#10b981'],
+                                    'later' => ['label' => 'Более 30 дней', 'icon' => 'fa-clock', 'color' => '#6b7280']
+                                ];
+                                $maxAmount = max(array_column($cashFlowForecast, 'expected_amount')) ?: 1;
+                                ?>
+                                <?php if (empty($cashFlowForecast)): ?>
+                                    <tr>
+                                        <td colspan="4" class="text-center">Нет данных для прогноза</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($cashFlowForecast as $forecast): ?>
+                                        <?php 
+                                        $periodInfo = $periodLabels[$forecast['period']] ?? ['label' => $forecast['period'], 'icon' => 'fa-question', 'color' => '#6b7280'];
+                                        $progressPercent = ($forecast['expected_amount'] / $maxAmount) * 100;
+                                        ?>
+                                        <tr>
+                                            <td>
+                                                <i class="fas <?php echo $periodInfo['icon']; ?>" style="color: <?php echo $periodInfo['color']; ?>; margin-right: 8px;"></i>
+                                                <?php echo $periodInfo['label']; ?>
+                                            </td>
+                                            <td><?php echo $forecast['invoice_count']; ?></td>
+                                            <td><strong><?php echo number_format($forecast['expected_amount'], 2, '.', ' '); ?></strong></td>
+                                            <td>
+                                                <div style="width: 100%; background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+                                                    <div style="width: <?php echo $progressPercent; ?>%; background: <?php echo $periodInfo['color']; ?>; height: 100%; border-radius: 4px;"></div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
                 
@@ -469,15 +722,24 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                         </div>
                     </div>
                     
-                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
                         <div class="form-group">
                             <label for="total_amount">Сумма без НДС (BYN) *</label>
-                            <input type="number" step="0.01" id="total_amount" name="total_amount" required min="0">
+                            <input type="number" step="0.01" id="total_amount" name="total_amount" required min="0" oninput="calculateVAT()">
                         </div>
                         
                         <div class="form-group">
-                            <label for="vat_amount">НДС (BYN)</label>
-                            <input type="number" step="0.01" id="vat_amount" name="vat_amount" min="0" value="0">
+                            <label for="vat_rate">Ставка НДС (%)</label>
+                            <select id="vat_rate" name="vat_rate" onchange="calculateVAT()">
+                                <option value="20" selected>20%</option>
+                                <option value="10">10%</option>
+                                <option value="0">0% (без НДС)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="total_with_vat_display">Итого с НДС</label>
+                            <input type="text" id="total_with_vat_display" readonly style="background: #f3f4f6; font-weight: bold;">
                         </div>
                     </div>
                     
@@ -642,17 +904,120 @@ $initials = strtoupper(substr($userFullName, 0, 1));
             openModal('paymentModal');
         }
         
-        // Auto-calculate total with VAT when adding invoice
-        document.addEventListener('input', function(e) {
-            if (e.target.id === 'total_amount' || e.target.id === 'vat_amount') {
-                const total = parseFloat(document.getElementById('total_amount').value) || 0;
-                const vat = parseFloat(document.getElementById('vat_amount').value) || 0;
-                console.log('Total with VAT: ' + (total + vat).toFixed(2));
+        // Calculate VAT automatically
+        function calculateVAT() {
+            const totalAmount = parseFloat(document.getElementById('total_amount').value) || 0;
+            const vatRate = parseFloat(document.getElementById('vat_rate').value) || 20;
+            const vatAmount = (totalAmount * vatRate) / 100;
+            const totalWithVat = totalAmount + vatAmount;
+            
+            document.getElementById('total_with_vat_display').value = totalWithVat.toFixed(2) + ' BYN';
+        }
+        
+        // Filter invoices by search and status
+        function filterInvoices() {
+            const searchTerm = document.getElementById('invoiceSearch').value.toLowerCase();
+            const statusFilter = document.getElementById('invoiceStatusFilter').value;
+            const table = document.getElementById('invoicesTable');
+            const rows = table.querySelectorAll('tbody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const statusCell = row.cells[5]; // Status column index
+                const status = statusCell ? statusCell.querySelector('span') : null;
+                const statusValue = status ? getStatusValue(status.textContent) : '';
+                
+                const matchesSearch = text.includes(searchTerm);
+                const matchesStatus = !statusFilter || statusValue === statusFilter;
+                
+                row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+            });
+        }
+        
+        function getStatusValue(statusText) {
+            if (statusText.includes('Не оплачен')) return 'unpaid';
+            if (statusText.includes('Частично')) return 'partial';
+            if (statusText.includes('Оплачен')) return 'paid';
+            if (statusText.includes('Просрочен')) return 'overdue';
+            return '';
+        }
+        
+        // Open payment modal
+        function openPaymentModal(invoiceId, invoiceNumber, totalAmount, paidAmount) {
+            document.getElementById('payment_invoice_id').value = invoiceId;
+            const remainingAmount = totalAmount - paidAmount;
+            document.getElementById('max_payment_info').textContent = 
+                'Счет: ' + invoiceNumber + '. Остаток к оплате: ' + remainingAmount.toFixed(2) + ' BYN (из ' + totalAmount.toFixed(2) + ' BYN)';
+            document.getElementById('paid_amount').max = remainingAmount;
+            document.getElementById('paid_amount').value = remainingAmount > 0 ? remainingAmount.toFixed(2) : '';
+            openModal('paymentModal');
+        }
+        
+        // Initialize revenue chart
+        function initRevenueChart() {
+            const ctx = document.getElementById('revenueChart');
+            if (!ctx) return;
+            
+            const chartData = <?php echo json_encode($monthlyRevenue); ?>;
+            
+            if (chartData.length === 0) {
+                ctx.parentElement.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 40px;">Нет данных для отображения</p>';
+                return;
             }
-        });
+            
+            const labels = chartData.map(item => {
+                const [year, month] = item.month.split('-');
+                return month + '.' + year.substring(2);
+            });
+            const data = chartData.map(item => parseFloat(item.revenue));
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Выручка (BYN)',
+                        data: data,
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' BYN';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString('ru-RU') + ' BYN';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
         
         // Initialize modals on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize revenue chart
+            initRevenueChart();
+            
             // Close modal buttons
             document.querySelectorAll('.modal-close').forEach(button => {
                 button.addEventListener('click', function() {
@@ -669,7 +1034,11 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                     }
                 });
             });
+            
+            // Initialize VAT calculation on page load
+            calculateVAT();
         });
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </body>
 </html>
