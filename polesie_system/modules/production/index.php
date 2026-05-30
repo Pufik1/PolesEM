@@ -288,16 +288,16 @@ try {
                 <?php endif; ?>
 
                 <!-- Статистика -->
-                <div class="stats-grid">
+                <div class="stats-grid" style="display: flex; gap: 20px; margin-bottom: 20px; max-width: 300px;">
                     <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                         <h3><?php echo count($customerOrdersForProduction); ?></h3>
-                        <p>Заказы</p>
+                        <p>Заказы клиентов</p>
                     </div>
                 </div>
 
                 <!-- Вкладки -->
                 <div class="tabs">
-                    <button class="tab-button active" onclick="showTab('orders')">Заказы</button>
+                    <button class="tab-button active" onclick="showTab('orders')">Заказы клиентов</button>
                     <button class="tab-button" onclick="showTab('production-plan')">План производства</button>
                     <button class="tab-button" onclick="showTab('issued')">Выдано в производство</button>
                     <button class="tab-button" onclick="showTab('documents')">Документы о производстве</button>
@@ -306,7 +306,7 @@ try {
                 <!-- Заказы -->
                 <div id="orders" class="tab-content active">
                     <div class="card">
-                        <h2><i class="fas fa-shopping-cart"></i> Заказы</h2>
+                        <h2><i class="fas fa-shopping-cart"></i> Заказы клиентов</h2>
                         <p style="color: #6b7280; margin-bottom: 20px;">Оплаченные заказы требующие производства</p>
                         <table class="data-table">
                             <thead>
