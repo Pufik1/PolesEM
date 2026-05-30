@@ -291,7 +291,7 @@ try {
                 <div class="stats-grid" style="display: flex; gap: 20px; margin-bottom: 20px; max-width: 300px;">
                     <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                         <h3><?php echo count($customerOrdersForProduction); ?></h3>
-                        <p>Заказы клиентов</p>
+                        <p>Заказы</p>
                     </div>
                 </div>
 
