@@ -22,7 +22,6 @@ try {
             po.planned_start_date,
             po.planned_end_date,
             po.status,
-            po.priority,
             po.order_source,
             o.order_number as customer_order,
             c.company_name as customer_name,
@@ -290,10 +289,6 @@ try {
 
                 <!-- Статистика -->
                 <div class="stats-grid">
-                    <div class="stat-card">
-                        <h3><?php echo count($productionOrders); ?></h3>
-                        <p>Заказов в производстве</p>
-                    </div>
                     <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                         <h3><?php echo count($customerOrdersForProduction); ?></h3>
                         <p>Заказы</p>
@@ -302,16 +297,16 @@ try {
 
                 <!-- Вкладки -->
                 <div class="tabs">
-                    <button class="tab-button active" onclick="showTab('orders')">Заказы клиентов</button>
+                    <button class="tab-button active" onclick="showTab('orders')">Заказы</button>
                     <button class="tab-button" onclick="showTab('production-plan')">План производства</button>
                     <button class="tab-button" onclick="showTab('issued')">Выдано в производство</button>
                     <button class="tab-button" onclick="showTab('documents')">Документы о производстве</button>
                 </div>
 
-                <!-- Заказы клиентов -->
+                <!-- Заказы -->
                 <div id="orders" class="tab-content active">
                     <div class="card">
-                        <h2><i class="fas fa-shopping-cart"></i> Заказы клиентов в производстве</h2>
+                        <h2><i class="fas fa-shopping-cart"></i> Заказы</h2>
                         <p style="color: #6b7280; margin-bottom: 20px;">Оплаченные заказы требующие производства</p>
                         <table class="data-table">
                             <thead>
@@ -443,12 +438,6 @@ try {
                                 <option value="completed">Готово</option>
                                 <option value="cancelled">Отменено</option>
                             </select>
-                            <select id="filter-priority" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" onchange="filterProductionOrders()">
-                                <option value="all">Все приоритеты</option>
-                                <option value="high">Высокий</option>
-                                <option value="normal">Нормальный</option>
-                                <option value="low">Низкий</option>
-                            </select>
                             <input type="text" id="search-production" placeholder="Поиск по номеру или продукту..." style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; flex: 1; min-width: 200px;" onkeyup="filterProductionOrders()">
                         </div>
 
@@ -460,14 +449,13 @@ try {
                                     <th>Продукт</th>
                                     <th>Кол-во</th>
                                     <th>Статус</th>
-                                    <th>Приоритет</th>
                                     <th>Источник</th>
                                     <th>Действия</th>
                                 </tr>
                             </thead>
                             <tbody id="production-orders-body">
                                 <?php foreach ($productionOrders as $order): ?>
-                                <tr data-status="<?php echo htmlspecialchars($order['status']); ?>" data-priority="<?php echo htmlspecialchars($order['priority']); ?>">
+                                <tr data-status="<?php echo htmlspecialchars($order['status']); ?>">
                                     <td><?php echo htmlspecialchars($order['production_number']); ?></td>
                                     <td>
                                         <strong><?php echo htmlspecialchars($order['product_name']); ?></strong><br>
@@ -492,19 +480,6 @@ try {
                                         </span>
                                     </td>
                                     <td>
-                                        <span style="color: <?php echo $order['priority'] == 'high' ? '#dc2626' : ($order['priority'] == 'low' ? '#6b7280' : '#2563eb'); ?>;">
-                                            <i class="fas fa-flag"></i> 
-                                            <?php 
-                                                $priorityLabels = [
-                                                    'high' => 'Высокий',
-                                                    'normal' => 'Нормальный',
-                                                    'low' => 'Низкий'
-                                                ];
-                                                echo $priorityLabels[$order['priority']] ?? $order['priority']; 
-                                            ?>
-                                        </span>
-                                    </td>
-                                    <td>
                                         <?php if ($order['customer_order']): ?>
                                             <small>Заказ: <?php echo htmlspecialchars($order['customer_order']); ?></small><br>
                                             <small style="color: #6b7280;"><?php echo htmlspecialchars($order['customer_name'] ?? ''); ?></small>
@@ -521,7 +496,7 @@ try {
                                 <?php endforeach; ?>
                                 <?php if (empty($productionOrders)): ?>
                                 <tr>
-                                    <td colspan="7" class="text-center">Производственных заказов не найдено</td>
+                                    <td colspan="6" class="text-center">Производственных заказов не найдено</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -941,7 +916,6 @@ try {
         // Фильтрация производственных заказов
         function filterProductionOrders() {
             const statusFilter = document.getElementById('filter-status').value;
-            const priorityFilter = document.getElementById('filter-priority').value;
             const searchQuery = document.getElementById('search-production').value.toLowerCase();
             
             const rows = document.querySelectorAll('#production-orders-body tr[data-status]');
@@ -950,7 +924,6 @@ try {
             
             rows.forEach(row => {
                 const status = row.getAttribute('data-status');
-                const priority = row.getAttribute('data-priority');
                 const text = row.textContent.toLowerCase();
                 
                 // Подсчет статистики
@@ -961,10 +934,6 @@ try {
                 let showRow = true;
                 
                 if (statusFilter !== 'all' && status !== statusFilter) {
-                    showRow = false;
-                }
-                
-                if (priorityFilter !== 'all' && priority !== priorityFilter) {
                     showRow = false;
                 }
                 
