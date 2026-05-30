@@ -276,7 +276,15 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                                     'warehouse' => 'Склад',
                                                     'production' => 'Производство',
                                                     'finance' => 'Финансы',
-                                                    'hr' => 'Кадры'
+                                                    'hr' => 'Кадры',
+                                                    'invoices' => 'Счета',
+                                                    'production_orders' => 'Производственные заказы',
+                                                    'quality_control' => 'Контроль качества',
+                                                    'production_materials' => 'Материалы производства',
+                                                    'goods_receipt_documents' => 'Документы приема товара',
+                                                    'shipment_documents' => 'Документы отгрузки',
+                                                    'material_writeoff_documents' => 'Документы списания материалов',
+                                                    'warehouse_operations' => 'Операции склада'
                                                 ];
                                                 $tableName = $activity['table_name'] ?? null;
                                                 echo htmlspecialchars($tableTranslations[$tableName] ?? $tableName ?? '-'); 
