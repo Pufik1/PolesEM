@@ -369,7 +369,6 @@ INSERT INTO roles (role_name, role_description, permissions) VALUES
 ('production_master', 'Мастер производства - управление производственными заданиями, контроль выпуска продукции', '{"production": true, "warehouse": true, "quality": true}'),
 ('warehouse_keeper', 'Кладовщик - учет ТМЦ, приход/расход материалов и готовой продукции', '{"warehouse": true, "inventory": true}'),
 ('accountant', 'Бухгалтер - финансовая отчетность, счета, акты, накладные', '{"finance": true, "reports": true, "documents": true}'),
-('hr_manager', 'HR-менеджер - управление доступом к кадрам', '{}');
 
 -- Insert default admin user (password: admin123)
 -- Insert users with different roles for demonstration
@@ -381,7 +380,6 @@ INSERT INTO users (username, password, full_name, email, role_id, department, po
 ('smirnova', 'smirnova123', 'Смирнова Елена Владимировна', 'smirnova@polesieelectromash.by', 5, 'ОТК', 'Старший инспектор ОТК'),
 ('kozlov', 'kozlov123', 'Козлов Андрей Михайлович', 'kozlov@polesieelectromash.by', 4, 'Склад', 'Заведующий складом'),
 ('novikov', 'novikov123', 'Новиков Сергей Павлович', 'novikov@polesieelectromash.by', 6, 'Производство', 'Мастер участка №1'),
-('morozov', 'morozov123', 'Морозов Владимир Иванович', 'morozov@polesieelectromash.by', 7, 'Производство', 'Рабочий-станочник 5 разряда');
 
 -- Insert product categories based on company info
 INSERT INTO product_categories (category_name, description) VALUES
