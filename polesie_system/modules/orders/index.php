@@ -925,10 +925,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 $stmtItems = $pdo->prepare("DELETE FROM order_items WHERE order_id = :order_id");
                 $stmtItems->execute([':order_id' => $orderId]);
                 
-                // Delete order status history
-                $stmtHistory = $pdo->prepare("DELETE FROM order_status_history WHERE order_id = :order_id");
-                $stmtHistory->execute([':order_id' => $orderId]);
-                
                 // Finally delete the order
                 $stmtDelete = $pdo->prepare("DELETE FROM orders WHERE id = :id");
                 $stmtDelete->execute([':id' => $orderId]);
