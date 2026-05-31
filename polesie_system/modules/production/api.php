@@ -1292,6 +1292,16 @@ try {
                         ");
                         $stmt_status->execute([$production_order_id]);
                         
+                        // Если это заказ клиента, обновляем статус заказа на "готов к отгрузке"
+                        if ($po_data['source_order_id']) {
+                            $stmt_order = $pdo->prepare("
+                                UPDATE orders 
+                                SET status = 'ready_for_shipment'
+                                WHERE id = ?
+                            ");
+                            $stmt_order->execute([$po_data['source_order_id']]);
+                        }
+                        
                         // Создаем документ о завершении производства
                         $doc_number = 'PCD-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
                         $stmt_doc = $pdo->prepare("
@@ -1308,14 +1318,48 @@ try {
                             $po_data['source_order_id']
                         ]);
                         
-                        // Списываем материалы согласно BOM
+                        // Создаем документ приема товаров на склад из производства
+                        $receipt_number = 'ПР-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
+                        $stmt_receipt = $pdo->prepare("
+                            INSERT INTO goods_receipt_documents
+                            (receipt_number, receipt_date, receipt_type, production_order_id, warehouse_id, total_items, total_quantity, status, created_by)
+                            VALUES (?, NOW(), 'from_production', ?, 1, 1, ?, 'confirmed', ?)
+                        ");
+                        $stmt_receipt->execute([
+                            $receipt_number,
+                            $production_order_id,
+                            $po_data['quantity'],
+                            $_SESSION['user_id']
+                        ]);
+                        $receipt_id = $pdo->lastInsertId();
+                        
+                        // Добавляем позицию в документ приема - готовая продукция
+                        $stmt_product = $pdo->prepare("SELECT product_name, product_code FROM products WHERE id = ?");
+                        $stmt_product->execute([$po_data['product_id']]);
+                        $product_data = $stmt_product->fetch();
+                        
+                        $stmt_receipt_item = $pdo->prepare("
+                            INSERT INTO goods_receipt_items
+                            (receipt_id, item_type, product_id, item_name, item_sku, item_unit, quantity_received, batch_number, storage_zone)
+                            VALUES (?, 'product', ?, ?, ?, 'шт', ?, ?, 'A1')
+                        ");
+                        $stmt_receipt_item->execute([
+                            $receipt_id,
+                            $po_data['product_id'],
+                            $product_data['product_name'],
+                            $product_data['product_code'],
+                            $po_data['quantity'],
+                            $doc_number
+                        ]);
+                        
+                        // Списываем материалы согласно BOM и создаем записи о списании
                         // Получаем BOM продукта
                         $stmt_bom = $pdo->prepare("SELECT bom_json FROM products WHERE id = ?");
                         $stmt_bom->execute([$po_data['product_id']]);
-                        $product_data = $stmt_bom->fetch();
+                        $product_bom = $stmt_bom->fetch();
                         
-                        if (!empty($product_data['bom_json'])) {
-                            $bom_data = json_decode($product_data['bom_json'], true);
+                        if (!empty($product_bom['bom_json'])) {
+                            $bom_data = json_decode($product_bom['bom_json'], true);
                             
                             if (is_array($bom_data)) {
                                 foreach ($bom_data as $bom_item) {
@@ -1324,7 +1368,7 @@ try {
                                     $total_required = $qty_per_unit * $po_data['quantity'];
                                     
                                     // Находим материал по SKU
-                                    $stmt_mat = $pdo->prepare("SELECT id FROM materials WHERE sku = ?");
+                                    $stmt_mat = $pdo->prepare("SELECT id, name, unit FROM materials WHERE sku = ?");
                                     $stmt_mat->execute([$sku]);
                                     $material = $stmt_mat->fetch();
                                     
