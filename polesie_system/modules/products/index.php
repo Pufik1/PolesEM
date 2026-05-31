@@ -914,6 +914,7 @@ try {
                         'grade': 'Марка',
                         'form': 'Форма',
                         'application': 'Применение',
+                        'storage': 'Хранение',
                         'storage_conditions': 'Условия хранения',
                         'note': 'Примечание',
                         'stator_d_mm': 'Диаметр статора (мм)',
