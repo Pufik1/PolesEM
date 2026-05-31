@@ -881,6 +881,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
                 header('Location: ' . $_SERVER['PHP_SELF'] . '?view=' . $orderId . '&success=' . urlencode($success));
                 exit;
             }
+        } elseif ($_POST['action'] === 'delete') {
+            if (!hasRole(['admin'])) {
+                $error = 'Недостаточно прав для удаления заказа';
+            } else {
+                $pdo->beginTransaction();
+                
+                $orderId = (int)$_POST['order_id'];
+                
+                // Check if order exists
+                $stmtCheck = $pdo->prepare("SELECT id FROM orders WHERE id = :id");
+                $stmtCheck->execute([':id' => $orderId]);
+                $order = $stmtCheck->fetch();
+                
+                if (!$order) {
+                    throw new Exception('Заказ не найден');
+                }
+                
+                // Delete related records first (foreign key constraints)
+                // Delete transport waybills
+                $stmtTW = $pdo->prepare("DELETE FROM transport_waybills WHERE order_id = :order_id");
+                $stmtTW->execute([':order_id' => $orderId]);
+                
+                // Delete delivery notes
+                $stmtDN = $pdo->prepare("DELETE FROM delivery_notes WHERE order_id = :order_id");
+                $stmtDN->execute([':order_id' => $orderId]);
+                
+                // Delete invoice items
+                $stmtInvItems = $pdo->prepare("DELETE ii FROM invoice_items ii 
+                                               INNER JOIN invoices i ON ii.invoice_id = i.id 
+                                               WHERE i.order_id = :order_id");
+                $stmtInvItems->execute([':order_id' => $orderId]);
+                
+                // Delete invoices
+                $stmtInv = $pdo->prepare("DELETE FROM invoices WHERE order_id = :order_id");
+                $stmtInv->execute([':order_id' => $orderId]);
+                
+                // Delete order documents
+                $stmtDoc = $pdo->prepare("DELETE FROM order_documents WHERE order_id = :order_id");
+                $stmtDoc->execute([':order_id' => $orderId]);
+                
+                // Delete order items
+                $stmtItems = $pdo->prepare("DELETE FROM order_items WHERE order_id = :order_id");
+                $stmtItems->execute([':order_id' => $orderId]);
+                
+                // Delete order status history
+                $stmtHistory = $pdo->prepare("DELETE FROM order_status_history WHERE order_id = :order_id");
+                $stmtHistory->execute([':order_id' => $orderId]);
+                
+                // Finally delete the order
+                $stmtDelete = $pdo->prepare("DELETE FROM orders WHERE id = :id");
+                $stmtDelete->execute([':id' => $orderId]);
+                
+                $pdo->commit();
+                
+                logActivity($pdo, $_SESSION['user_id'], 'order_deleted', 'orders', $orderId);
+                $success = 'Заказ успешно удален';
+                
+                header('Location: ' . $_SERVER['PHP_SELF'] . '?success=' . urlencode($success));
+                exit;
+            }
         }
         
         header('Location: ' . $_SERVER['PHP_SELF'] . '?success=' . urlencode($success));
@@ -2016,6 +2076,15 @@ $statusColors = [
                                                 <a href="?view=<?php echo $order['id']; ?>" class="btn btn-sm btn-icon btn-primary" title="Просмотр">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
+                                                <?php if (hasRole(['admin'])): ?>
+                                                <form method="POST" style="display: inline;" onsubmit="return confirm('Вы уверены, что хотите удалить этот заказ? Это действие необратимо.');">
+                                                    <input type="hidden" name="action" value="delete">
+                                                    <input type="hidden" name="order_id" value="<?php echo $order['id']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-icon btn-danger" title="Удалить">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                                <?php endif; ?>
                                             </div>
                                         </td>
                                     </tr>
