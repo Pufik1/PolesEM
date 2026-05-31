@@ -1318,6 +1318,8 @@ try {
                             $po_data['source_order_id']
                         ]);
                         
+                        $completion_document_id = $pdo->lastInsertId();
+                        
                         // Создаем документ приема товаров на склад из производства
                         $receipt_number = 'ПР-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
                         $stmt_receipt = $pdo->prepare("
@@ -1365,21 +1367,61 @@ try {
                                 foreach ($bom_data as $bom_item) {
                                     $sku = $bom_item['sku'] ?? '';
                                     $qty_per_unit = floatval($bom_item['quantity'] ?? 0);
-                                    $total_required = $qty_per_unit * $po_data['quantity'];
+                                    $quantity_planned = $qty_per_unit * $po_data['quantity'];
                                     
                                     // Находим материал по SKU
-                                    $stmt_mat = $pdo->prepare("SELECT id, name, unit FROM materials WHERE sku = ?");
-                                    $stmt_mat->execute([$sku]);
-                                    $material = $stmt_mat->fetch();
+                                    $material_id = 0;
+                                    $material_name = $bom_item['name'] ?? '';
+                                    try {
+                                        $stmt_mat = $pdo->prepare("SELECT id, name FROM materials WHERE sku = ?");
+                                        $stmt_mat->execute([$sku]);
+                                        $mat_result = $stmt_mat->fetch();
+                                        if ($mat_result) {
+                                            $material_id = (int)$mat_result['id'];
+                                            $material_name = $mat_result['name'];
+                                        }
+                                    } catch (Exception $e) {
+                                        continue;
+                                    }
                                     
-                                    if ($material) {
+                                    if ($material_id > 0) {
+                                        // Получаем фактически выданное количество для этого материала
+                                        $stmt_qty = $pdo->prepare("
+                                            SELECT SUM(quantity_issued) as total_issued, SUM(quantity_used) as total_used
+                                            FROM production_materials
+                                            WHERE production_order_id = ? AND material_id = ?
+                                        ");
+                                        $stmt_qty->execute([$production_order_id, $material_id]);
+                                        $qty_result = $stmt_qty->fetch();
+                                        $quantity_issued = floatval($qty_result['total_issued'] ?? 0);
+                                        
                                         // Обновляем запись в production_materials как использованную
                                         $stmt_use = $pdo->prepare("
                                             UPDATE production_materials
                                             SET quantity_used = quantity_used + ?, status = 'used'
                                             WHERE production_order_id = ? AND material_id = ?
                                         ");
-                                        $stmt_use->execute([$total_required, $production_order_id, $material['id']]);
+                                        $stmt_use->execute([$quantity_planned, $production_order_id, $material_id]);
+                                        
+                                        // Создаем запись о списании в production_material_writeoffs
+                                        $stmt_writeoff = $pdo->prepare("
+                                            INSERT INTO production_material_writeoffs
+                                            (completion_document_id, production_order_id, material_id, material_name, material_sku, 
+                                             quantity_planned, quantity_issued, quantity_used, unit, writeoff_date, created_by)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+                                        ");
+                                        $stmt_writeoff->execute([
+                                            $completion_document_id,
+                                            $production_order_id,
+                                            $material_id,
+                                            $material_name,
+                                            $sku,
+                                            $quantity_planned,
+                                            $quantity_issued,
+                                            $quantity_planned,
+                                            'шт',
+                                            $_SESSION['user_id']
+                                        ]);
                                     }
                                 }
                             }
