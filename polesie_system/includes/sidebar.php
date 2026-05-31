@@ -31,7 +31,6 @@ $menuItems = [
     'director' => [
         'main' => [
             ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-            ['icon' => 'fa-users', 'text' => 'Пользователи', 'url' => 'modules/users/index.php'],
             ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
         ],
         'operations' => [
