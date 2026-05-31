@@ -1296,7 +1296,7 @@ try {
                         if ($po_data['source_order_id']) {
                             $stmt_order = $pdo->prepare("
                                 UPDATE orders 
-                                SET status = 'ready_for_shipment'
+                                SET status = 'ready'
                                 WHERE id = ?
                             ");
                             $stmt_order->execute([$po_data['source_order_id']]);
