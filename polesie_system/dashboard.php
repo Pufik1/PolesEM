@@ -46,18 +46,6 @@ try {
     ");
     $stats['low_stock'] = $stmt->fetch()['count'];
     
-    // Recent orders
-    $stmt = $pdo->prepare("
-        SELECT o.*, c.company_name, u.full_name as manager_name
-        FROM orders o
-        LEFT JOIN clients c ON o.client_id = c.id
-        LEFT JOIN users u ON o.user_id = u.id
-        ORDER BY o.created_at DESC
-        LIMIT 5
-    ");
-    $stmt->execute();
-    $recentOrders = $stmt->fetchAll();
-    
     // Recent activity
     $stmt = $pdo->prepare("
         SELECT al.*, u.full_name as user_name
@@ -174,70 +162,6 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                             <h3><?php echo isset($stats['low_stock']) ? (int)$stats['low_stock'] : 0; ?></h3>
                             <p>Товаров с низким запасом</p>
                         </div>
-                    </div>
-                </div>
-                
-                <!-- Recent Orders -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2 class="card-title">Последние заказы</h2>
-                        <a href="modules/orders/index.php" class="btn btn-sm btn-primary">Все заказы</a>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>№ заказа</th>
-                                    <th>Клиент</th>
-                                    <th>Менеджер</th>
-                                    <th>Сумма</th>
-                                    <th>Статус</th>
-                                    <th>Дата</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($recentOrders)): ?>
-                                    <tr>
-                                        <td colspan="6" class="text-center">Заказов нет</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($recentOrders as $order): ?>
-                                        <tr>
-                                            <td><strong><?php echo htmlspecialchars($order['order_number']); ?></strong></td>
-                                            <td><?php echo htmlspecialchars($order['company_name'] ?? 'Не указан'); ?></td>
-                                            <td><?php echo htmlspecialchars($order['manager_name'] ?? 'Не назначен'); ?></td>
-                                            <td><?php echo number_format($order['final_amount'], 2); ?> BYN</td>
-                                            <td>
-                                                <?php
-                                                $statusBadges = [
-                                                    'new' => 'badge-info',
-                                                    'processing' => 'badge-warning',
-                                                    'production' => 'badge-primary',
-                                                    'ready' => 'badge-success',
-                                                    'shipped' => 'badge-info',
-                                                    'completed' => 'badge-success',
-                                                    'cancelled' => 'badge-danger'
-                                                ];
-                                                $statusLabels = [
-                                                    'new' => 'Новый',
-                                                    'processing' => 'В обработке',
-                                                    'production' => 'В производстве',
-                                                    'ready' => 'Готов',
-                                                    'shipped' => 'Отгружен',
-                                                    'completed' => 'Завершен',
-                                                    'cancelled' => 'Отменен'
-                                                ];
-                                                ?>
-                                                <span class="badge <?php echo $statusBadges[$order['status']] ?? 'badge-info'; ?>">
-                                                    <?php echo $statusLabels[$order['status']] ?? $order['status']; ?>
-                                                </span>
-                                            </td>
-                                            <td><?php echo date('d.m.Y', strtotime($order['order_date'])); ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
                 
