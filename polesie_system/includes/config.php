@@ -77,6 +77,21 @@ function redirect($url) {
     exit;
 }
 
+// Helper function to translate role names to Russian
+function translateRoleName($roleName) {
+    $roleTranslations = [
+        'admin' => 'Администратор',
+        'director' => 'Директор',
+        'manager' => 'Менеджер по продажам',
+        'production_master' => 'Мастер производства',
+        'warehouse_keeper' => 'Кладовщик',
+        'accountant' => 'Бухгалтер',
+        'hr_manager' => 'HR-менеджер'
+    ];
+    
+    return $roleTranslations[$roleName] ?? $roleName;
+}
+
 // Helper function to sanitize input
 function sanitize($data) {
     return htmlspecialchars(trim($data), ENT_QUOTES, 'UTF-8');

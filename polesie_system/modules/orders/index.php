@@ -1390,7 +1390,7 @@ $statusColors = [
                         <div class="user-avatar"><?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?></div>
                         <div class="user-details">
                             <span class="user-name"><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
-                            <span class="user-role"><?php echo ucfirst($_SESSION['user_role']); ?></span>
+                            <span class="user-role"><?php echo translateRoleName($_SESSION['user_role']); ?></span>
                         </div>
                     </div>
                 </div>

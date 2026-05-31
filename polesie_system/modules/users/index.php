@@ -197,6 +197,37 @@ try {
 // Данные текущего пользователя
 $userFullName = $_SESSION['full_name'];
 $initials = strtoupper(substr($userFullName, 0, 1));
+
+// Функция перевода названий ролей на русский язык
+function translateRole($roleName) {
+    $roleTranslations = [
+        'admin' => 'Администратор',
+        'director' => 'Директор',
+        'manager' => 'Менеджер по продажам',
+        'production_master' => 'Мастер производства',
+        'warehouse_keeper' => 'Кладовщик',
+        'accountant' => 'Бухгалтер',
+        'hr_manager' => 'HR-менеджер'
+    ];
+    
+    return $roleTranslations[$roleName] ?? $roleName;
+}
+
+// Переводим роли для всех пользователей
+foreach ($users as &$user) {
+    if (!empty($user['role_name'])) {
+        $user['role_name_display'] = translateRole($user['role_name']);
+    } else {
+        $user['role_name_display'] = 'Не назначена';
+    }
+}
+
+// Переводим роли для списка ролей
+foreach ($roles as &$role) {
+    if (!empty($role['role_name'])) {
+        $role['role_name_display'] = translateRole($role['role_name']);
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -336,7 +367,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                         </div>
                         <div class="user-details">
                             <span class="user-name"><?php echo htmlspecialchars($userFullName); ?></span>
-                            <span class="user-role"><?php echo ucfirst($_SESSION['user_role']); ?></span>
+                            <span class="user-role"><?php echo translateRole($_SESSION['user_role']); ?></span>
                         </div>
                     </div>
                 </div>
@@ -411,7 +442,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                             <td><strong><?php echo htmlspecialchars($user['username']); ?></strong></td>
                                             <td class="user-fullname"><?php echo htmlspecialchars($user['full_name']); ?></td>
                                             <td class="user-email"><?php echo htmlspecialchars($user['email']); ?></td>
-                                            <td><?php echo htmlspecialchars($user['role_name'] ?? 'Не назначена'); ?></td>
+                                            <td><?php echo htmlspecialchars($user['role_name_display'] ?? 'Не назначена'); ?></td>
                                             <td>
                                                 <div style="font-size: 11px;">
                                                     <div><?php echo htmlspecialchars($user['department'] ?? '-'); ?></div>
@@ -505,7 +536,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                             <option value="">Выберите роль</option>
                             <?php foreach ($roles as $role): ?>
                                 <option value="<?php echo $role['id']; ?>">
-                                    <?php echo htmlspecialchars($role['role_name']); ?>
+                                    <?php echo htmlspecialchars($role['role_name_display']); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
