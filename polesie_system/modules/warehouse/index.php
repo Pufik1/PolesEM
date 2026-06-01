@@ -676,6 +676,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Очищаем sessionStorage после успешной выдачи
                     echo "<script>sessionStorage.removeItem('warehouse_issue_data');</script>";
+                    // Перезагружаем страницу чтобы заявка исчезла из списка
+                    echo "<script>setTimeout(function() { location.reload(); }, 500);</script>";
                     
                 } catch (Exception $e) {
                     $pdo->rollBack();
@@ -828,6 +830,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($order_id > 0) {
                 echo "<script>sessionStorage.removeItem('warehouse_issue_data');</script>";
             }
+            // Перезагружаем страницу чтобы заявка исчезла из списка
+            echo "<script>setTimeout(function() { location.reload(); }, 500);</script>";
             }
             
         } elseif ($action === 'transfer_product') {
