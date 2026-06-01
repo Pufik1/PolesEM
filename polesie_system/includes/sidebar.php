@@ -57,7 +57,6 @@ $menuItems = [
         ],
         'operations' => [
             ['icon' => 'fa-industry', 'text' => 'Производство', 'url' => 'modules/production/index.php'],
-            ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
         ],
     ],
     'warehouse_keeper' => [
