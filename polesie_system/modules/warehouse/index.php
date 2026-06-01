@@ -2708,7 +2708,7 @@ try {
                             request.items.forEach(item => {
                                 itemsHtml += `<tr>
                                     <td>${escapeHtml(item.material_name || item.sku)}</td>
-                                    <td>${item.quantity_required}</td>
+                                    <td>${item.quantity_requested}</td>
                                     <td>${escapeHtml(item.unit || 'шт.')}</td>
                                     <td>${escapeHtml(item.note || '-')}</td>
                                 </tr>`;
@@ -2718,9 +2718,9 @@ try {
                         
                         detailsHtml = `
                             <div style="padding: 20px;">
-                                <h3 style="margin-bottom: 20px; color: var(--primary-color);">Заявка на списание материалов #${request.id}</h3>
+                                <h3 style="margin-bottom: 20px; color: var(--primary-color);">Заявка на списание материалов #${request.request_number}</h3>
                                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px;">
-                                    <div><strong>Дата создания:</strong> ${escapeHtml(request.created_at || '-')}</div>
+                                    <div><strong>Дата создания:</strong> ${escapeHtml(request.request_date || request.created_at || '-')}</div>
                                     <div><strong>Статус:</strong> ${statusBadge}</div>
                                     <div><strong>Производственный заказ:</strong> ${escapeHtml(request.production_order || 'Не указан')}</div>
                                     <div><strong>Запросил:</strong> ${escapeHtml(request.requested_by_name || request.requested_by || '-')}</div>

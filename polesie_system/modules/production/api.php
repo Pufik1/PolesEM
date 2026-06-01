@@ -1557,14 +1557,15 @@ try {
                     mr.production_order_id,
                     po.order_number as production_order,
                     mr.status,
+                    mr.request_date,
                     mr.created_at,
-                    mr.created_by,
+                    mr.requested_by,
                     u.username as requested_by,
                     u.full_name as requested_by_name,
-                    mr.comment
+                    mr.notes as comment
                 FROM material_requests mr
                 LEFT JOIN production_orders po ON mr.production_order_id = po.id
-                LEFT JOIN users u ON mr.created_by = u.id
+                LEFT JOIN users u ON mr.requested_by = u.id
                 WHERE mr.id = ?
             ");
             $stmt->execute([$request_id]);
@@ -1579,10 +1580,10 @@ try {
                 SELECT
                     mri.id,
                     mri.material_id,
-                    m.quantity_requested,
-                    m.quantity_issued,
-                    m.quantity_used,
-                    m.unit,
+                    mri.quantity_requested,
+                    COALESCE(m.quantity_issued, 0) as quantity_issued,
+                    COALESCE(m.quantity_used, 0) as quantity_used,
+                    mri.unit,
                     mat.sku,
                     mat.name as material_name,
                     mri.note
