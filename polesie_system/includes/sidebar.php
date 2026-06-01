@@ -45,7 +45,6 @@ $menuItems = [
     'manager' => [
         'main' => [
             ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-            ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
         ],
         'operations' => [
             ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
@@ -55,7 +54,6 @@ $menuItems = [
     'production_master' => [
         'main' => [
             ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-            ['icon' => 'fa-box', 'text' => 'Продукция', 'url' => 'modules/products/index.php'],
         ],
         'operations' => [
             ['icon' => 'fa-industry', 'text' => 'Производство', 'url' => 'modules/production/index.php'],
