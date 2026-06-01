@@ -2672,6 +2672,76 @@ try {
             showModal('materialDetailsModal', detailsHtml);
         }
         
+        // Show material request details
+        function showMaterialRequestDetails(requestId) {
+            // Find the request in the data (we'll need to pass requests data to JS or fetch via AJAX)
+            // For now, we'll create a simple modal with the request ID
+            let detailsHtml = `
+                <div style="padding: 20px;">
+                    <h3 style="margin-bottom: 20px; color: var(--primary-color);">Заявка на списание материалов #${requestId}</h3>
+                    <p>Загрузка подробной информации...</p>
+                </div>
+            `;
+            
+            showModal('materialRequestDetailsModal', detailsHtml);
+            
+            // Fetch request details via AJAX
+            fetch('../production/api.php?action=get_material_request_details&id=' + requestId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const request = data.request;
+                        let statusBadge = '';
+                        if (request.status === 'pending') {
+                            statusBadge = '<span class="status-badge" style="background-color: #ffc107; color: #000;">В ожидании</span>';
+                        } else if (request.status === 'approved') {
+                            statusBadge = '<span class="status-badge" style="background-color: #28a745; color: #fff;">Утверждена</span>';
+                        } else if (request.status === 'rejected') {
+                            statusBadge = '<span class="status-badge" style="background-color: #dc3545; color: #fff;">Отклонена</span>';
+                        } else if (request.status === 'completed') {
+                            statusBadge = '<span class="status-badge" style="background-color: #17a2b8; color: #fff;">Выполнена</span>';
+                        }
+                        
+                        let itemsHtml = '';
+                        if (request.items && request.items.length > 0) {
+                            itemsHtml = '<table class="table" style="width: 100%; margin-top: 20px;"><thead><tr><th>Материал</th><th>Требуется</th><th>Ед. изм.</th><th>Примечание</th></tr></thead><tbody>';
+                            request.items.forEach(item => {
+                                itemsHtml += `<tr>
+                                    <td>${escapeHtml(item.material_name || item.sku)}</td>
+                                    <td>${item.quantity_required}</td>
+                                    <td>${escapeHtml(item.unit || 'шт.')}</td>
+                                    <td>${escapeHtml(item.note || '-')}</td>
+                                </tr>`;
+                            });
+                            itemsHtml += '</tbody></table>';
+                        }
+                        
+                        detailsHtml = `
+                            <div style="padding: 20px;">
+                                <h3 style="margin-bottom: 20px; color: var(--primary-color);">Заявка на списание материалов #${request.id}</h3>
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px;">
+                                    <div><strong>Дата создания:</strong> ${escapeHtml(request.created_at || '-')}</div>
+                                    <div><strong>Статус:</strong> ${statusBadge}</div>
+                                    <div><strong>Производственный заказ:</strong> ${escapeHtml(request.production_order || 'Не указан')}</div>
+                                    <div><strong>Запросил:</strong> ${escapeHtml(request.requested_by_name || request.requested_by || '-')}</div>
+                                    <div><strong>Комментарий:</strong> ${escapeHtml(request.comment || 'Нет комментария')}</div>
+                                </div>
+                                <h4>Запрошенные материалы:</h4>
+                                ${itemsHtml}
+                            </div>
+                        `;
+                        
+                        document.getElementById('materialRequestDetailsModalBody').innerHTML = detailsHtml;
+                    } else {
+                        document.getElementById('materialRequestDetailsModalBody').innerHTML = '<div style="padding: 20px;"><p>Ошибка загрузки данных заявки.</p></div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching request details:', error);
+                    document.getElementById('materialRequestDetailsModalBody').innerHTML = '<div style="padding: 20px;"><p>Ошибка загрузки данных заявки.</p></div>';
+                });
+        }
+        
         // Helper function to escape HTML
         function escapeHtml(text) {
             if (!text) return '';
