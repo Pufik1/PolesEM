@@ -1386,23 +1386,11 @@ $statusColors = [
                     </div>
                 </div>
                 <div class="header-right">
-                    <div class="user-menu">
-                        <div class="user-info">
-                            <div class="user-avatar"><?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?></div>
-                            <div class="user-details">
-                                <span class="user-name"><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
-                                <span class="user-role"><?php echo translateRoleName($_SESSION['user_role']); ?></span>
-                            </div>
-                        </div>
-                        <div class="dropdown user-dropdown">
-                            <button class="dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="fas fa-chevron-down"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                                <li><a class="dropdown-item" href="#"><i class="fas fa-user"></i> Профиль</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="../../logout.php"><i class="fas fa-sign-out-alt"></i> Выйти</a></li>
-                            </ul>
+                    <div class="user-info">
+                        <div class="user-avatar"><?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?></div>
+                        <div class="user-details">
+                            <span class="user-name"><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
+                            <span class="user-role"><?php echo translateRoleName($_SESSION['user_role']); ?></span>
                         </div>
                     </div>
                 </div>
