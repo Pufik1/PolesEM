@@ -1249,6 +1249,19 @@ try {
     $stmt = $pdo->query("SELECT id, production_number, product_id, quantity, status FROM production_orders WHERE status IN ('planned', 'in_progress') ORDER BY created_at DESC LIMIT 20");
     $productionOrders = $stmt->fetchAll();
     
+    // Get pending material requests (заявки на списание)
+    $stmt = $pdo->prepare("
+        SELECT mr.*, po.production_number, u.full_name as requested_by_name
+        FROM material_requests mr
+        LEFT JOIN production_orders po ON mr.production_order_id = po.id
+        LEFT JOIN users u ON mr.requested_by = u.id
+        WHERE mr.status IN ('pending', 'approved')
+        ORDER BY mr.request_date DESC, mr.created_at DESC
+        LIMIT 50
+    ");
+    $stmt->execute();
+    $materialRequests = $stmt->fetchAll();
+    
 } catch (PDOException $e) {
     $error = 'Ошибка загрузки данных: ' . $e->getMessage();
     $products = [];
@@ -1261,6 +1274,7 @@ try {
     $lowStockProducts = [];
     $lowStockMaterials = [];
     $productionOrders = [];
+    $materialRequests = [];
     $stats = [
         'product_income_count' => 0, 'product_outcome_count' => 0,
         'material_income_count' => 0, 'material_outcome_count' => 0
@@ -1441,6 +1455,72 @@ try {
                         </button>
                     </div>
                 </div>
+                
+                <!-- Pending Material Requests (Заявки на списание) -->
+                <?php if (!empty($materialRequests)): ?>
+                <div class="card" style="margin-bottom: 30px;">
+                    <div class="card-header">
+                        <h2 class="card-title" style="color: #2563eb;">
+                            <i class="fas fa-clipboard-list"></i> Заявки на списание материалов
+                        </h2>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Номер заявки</th>
+                                    <th>Дата</th>
+                                    <th>Производственный заказ</th>
+                                    <th>Запросил</th>
+                                    <th>Статус</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($materialRequests as $request): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($request['request_number']); ?></strong></td>
+                                        <td><?php echo date('d.m.Y', strtotime($request['request_date'])); ?></td>
+                                        <td><?php echo htmlspecialchars($request['production_number'] ?? 'Не указан'); ?></td>
+                                        <td><?php echo htmlspecialchars($request['requested_by_name'] ?? 'Неизвестно'); ?></td>
+                                        <td>
+                                            <?php
+                                            $statusBadges = [
+                                                'draft' => 'badge-secondary',
+                                                'pending' => 'badge-warning',
+                                                'approved' => 'badge-info',
+                                                'issued' => 'badge-success',
+                                                'cancelled' => 'badge-danger'
+                                            ];
+                                            $statusLabels = [
+                                                'draft' => 'Черновик',
+                                                'pending' => 'На рассмотрении',
+                                                'approved' => 'Утверждена',
+                                                'issued' => 'Выдана',
+                                                'cancelled' => 'Отменена'
+                                            ];
+                                            ?>
+                                            <span class="badge <?php echo $statusBadges[$request['status']] ?? 'badge-secondary'; ?>">
+                                                <?php echo $statusLabels[$request['status']] ?? $request['status']; ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary" onclick="showMaterialRequestDetails(<?php echo $request['id']; ?>)">
+                                                <i class="fas fa-eye"></i> Подробнее
+                                            </button>
+                                            <?php if ($request['status'] === 'approved'): ?>
+                                            <button class="btn btn-sm btn-success" onclick="fulfillMaterialRequest(<?php echo $request['id']; ?>)">
+                                                <i class="fas fa-check"></i> Выдать
+                                            </button>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <?php endif; ?>
                 <?php endif; ?>
                 
                 <!-- Low Stock Alert -->
