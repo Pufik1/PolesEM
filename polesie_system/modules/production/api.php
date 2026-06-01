@@ -1555,7 +1555,7 @@ try {
                     mr.id,
                     mr.request_number,
                     mr.production_order_id,
-                    po.order_number as production_order,
+                    po.production_number as production_order,
                     mr.status,
                     mr.request_date,
                     mr.created_at,
@@ -1598,6 +1598,50 @@ try {
                 'success' => true,
                 'request' => $request,
                 'items' => $items
+            ]);
+            break;
+
+        case 'delete_material_request':
+            // Удаление заявки на списание материалов
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Метод не разрешен');
+            }
+            
+            $request_id = (int)($_POST['id'] ?? 0);
+            if (!$request_id) {
+                throw new Exception('Не указан ID заявки');
+            }
+            
+            // Проверяем статус заявки - можно удалять только черновики или отмененные
+            $stmt = $pdo->prepare("SELECT status FROM material_requests WHERE id = ?");
+            $stmt->execute([$request_id]);
+            $request = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$request) {
+                throw new Exception('Заявка не найдена');
+            }
+            
+            if (!in_array($request['status'], ['draft', 'cancelled'])) {
+                throw new Exception('Нельзя удалить заявку со статусом: ' . $request['status']);
+            }
+            
+            $pdo->beginTransaction();
+            
+            // Удаляем позиции заявки
+            $stmt = $pdo->prepare("DELETE FROM material_request_items WHERE request_id = ?");
+            $stmt->execute([$request_id]);
+            
+            // Удаляем заявку
+            $stmt = $pdo->prepare("DELETE FROM material_requests WHERE id = ?");
+            $stmt->execute([$request_id]);
+            
+            $pdo->commit();
+            
+            logActivity($pdo, $_SESSION['user_id'], 'delete_material_request', 'material_requests', $request_id);
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Заявка успешно удалена'
             ]);
             break;
 
