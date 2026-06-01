@@ -12,7 +12,7 @@ if (!isLoggedIn()) {
 }
 
 // Check permissions
-if (!hasRole(['admin', 'manager', 'accountant'])) {
+if (!hasRole(['admin', 'director', 'manager', 'accountant'])) {
     redirect('../../dashboard.php');
 }
 
@@ -22,7 +22,7 @@ $success = '';
 $editInvoice = null;
 
 // Handle invoice addition
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(['admin', 'manager', 'accountant'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(['admin', 'director', 'manager', 'accountant'])) {
     try {
         if ($_POST['action'] === 'add') {
             $invoiceNumber = trim($_POST['invoice_number']);
@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && hasRole(
             
             logActivity($pdo, $_SESSION['user_id'], 'invoice_updated', 'invoices', $invoiceId);
             $success = 'Данные счета успешно обновлены';
-        } elseif ($_POST['action'] === 'mark_paid' && hasRole(['admin', 'manager', 'accountant'])) {
+        } elseif ($_POST['action'] === 'mark_paid' && hasRole(['admin', 'director', 'manager', 'accountant'])) {
             $invoiceId = (int)$_POST['invoice_id'];
             $paidAmount = (float)$_POST['paid_amount'];
             $paidDate = $_POST['paid_date'] ?: date('Y-m-d');
@@ -119,7 +119,7 @@ if (isset($_GET['success'])) {
 }
 
 // Handle invoice deletion
-if (isset($_GET['delete']) && hasRole(['admin', 'manager'])) {
+if (isset($_GET['delete']) && hasRole(['admin', 'director', 'manager'])) {
     try {
         $invoiceId = (int)$_GET['delete'];
         $stmt = $pdo->prepare("DELETE FROM invoices WHERE id = :id");
@@ -133,7 +133,7 @@ if (isset($_GET['delete']) && hasRole(['admin', 'manager'])) {
 }
 
 // Handle edit mode - load invoice data
-if (isset($_GET['edit']) && hasRole(['admin', 'manager', 'accountant'])) {
+if (isset($_GET['edit']) && hasRole(['admin', 'director', 'manager', 'accountant'])) {
     try {
         $invoiceId = (int)$_GET['edit'];
         $stmt = $pdo->prepare("SELECT * FROM invoices WHERE id = :id");
@@ -308,7 +308,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                 <div class="card">
                     <div class="card-header">
                         <h2 class="card-title">Реестр счетов</h2>
-                        <?php if (hasRole(['admin', 'manager', 'accountant'])): ?>
+                        <?php if (hasRole(['admin', 'director', 'manager', 'accountant'])): ?>
                             <button class="btn btn-primary" onclick="openModal('addInvoiceModal')">
                                 <i class="fas fa-plus"></i> Создать счет
                             </button>
@@ -395,7 +395,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                             </td>
                                             <td>
                                                 <div class="action-buttons">
-                                                    <?php if (hasRole(['admin', 'manager', 'accountant'])): ?>
+                                                    <?php if (hasRole(['admin', 'director', 'manager', 'accountant'])): ?>
                                                         <a href="?edit=<?php echo $invoice['id']; ?>" 
                                                            class="btn btn-sm btn-icon btn-secondary" 
                                                            title="Редактировать">
@@ -415,7 +415,7 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                                        title="Печать квитанции об оплате">
                                                         <i class="fas fa-print"></i>
                                                     </a>
-                                                    <?php if (hasRole(['admin', 'manager'])): ?>
+                                                    <?php if (hasRole(['admin', 'director', 'manager'])): ?>
                                                         <a href="?delete=<?php echo $invoice['id']; ?>" 
                                                            class="btn btn-sm btn-icon btn-danger"
                                                            onclick="return confirm('Вы уверены, что хотите удалить счет?')"

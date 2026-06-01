@@ -37,6 +37,8 @@ $menuItems = [
             ['icon' => 'fa-handshake', 'text' => 'Клиенты', 'url' => 'modules/clients/index.php'],
             ['icon' => 'fa-shopping-cart', 'text' => 'Заказы', 'url' => 'modules/orders/index.php'],
             ['icon' => 'fa-industry', 'text' => 'Производство', 'url' => 'modules/production/index.php'],
+            ['icon' => 'fa-warehouse', 'text' => 'Склад', 'url' => 'modules/warehouse/index.php'],
+            ['icon' => 'fa-file-invoice-dollar', 'text' => 'Финансы', 'url' => 'modules/finance/index.php'],
             ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
         ],
     ],
