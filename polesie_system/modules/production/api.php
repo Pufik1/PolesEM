@@ -1443,6 +1443,105 @@ try {
             }
             break;
 
+        case 'create_material_request':
+            // Создание заявки на материалы для производства
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Метод не разрешен');
+            }
+            
+            $order_id = (int)$_POST['order_id'];
+            $materials_data = json_decode($_POST['materials_data'], true);
+            
+            if (empty($materials_data)) {
+                throw new Exception('Нет материалов для заявки');
+            }
+            
+            $pdo->beginTransaction();
+            
+            try {
+                // Получаем или создаем производственный заказ для этого заказа клиента
+                $stmt = $pdo->prepare("SELECT id FROM production_orders WHERE source_order_id = ?");
+                $stmt->execute([$order_id]);
+                $production_order = $stmt->fetch();
+                
+                if (!$production_order) {
+                    // Создаем новый производственный заказ
+                    $stmt = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
+                    $stmt->execute([$order_id]);
+                    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    if (!empty($items)) {
+                        $item = $items[0];
+                        $prod_number = 'PO-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
+                        
+                        $stmt = $pdo->prepare("
+                            INSERT INTO production_orders 
+                            (production_number, product_id, quantity, status, priority, order_source, source_order_id, created_by)
+                            VALUES (?, ?, ?, 'planned', 'normal', 'customer_order', ?, ?)
+                        ");
+                        $stmt->execute([$prod_number, $item['product_id'], $item['quantity'], $order_id, $_SESSION['user_id']]);
+                        $production_order_id = $pdo->lastInsertId();
+                    } else {
+                        throw new Exception('Не найдены продукты в заказе');
+                    }
+                } else {
+                    $production_order_id = $production_order['id'];
+                }
+                
+                // Генерируем номер заявки
+                $stmt = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(request_number, '-', -1) AS UNSIGNED)) as max_num FROM material_requests");
+                $result = $stmt->fetch();
+                $next_num = ($result['max_num'] ?? 0) + 1;
+                $request_number = 'MR-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
+                
+                // Создаем заявку
+                $stmt = $pdo->prepare("
+                    INSERT INTO material_requests 
+                    (request_number, production_order_id, request_date, status, total_items, notes, requested_by)
+                    VALUES (?, ?, CURRENT_DATE, 'pending', ?, 'Заявка от производства', ?)
+                ");
+                $stmt->execute([
+                    $request_number,
+                    $production_order_id,
+                    count($materials_data),
+                    $_SESSION['user_id']
+                ]);
+                $request_id = $pdo->lastInsertId();
+                
+                // Добавляем позиции заявки
+                $stmt = $pdo->prepare("
+                    INSERT INTO material_request_items 
+                    (request_id, material_id, quantity_requested, unit)
+                    VALUES (?, ?, ?, ?)
+                ");
+                
+                foreach ($materials_data as $mat) {
+                    if ($mat['quantity'] > 0) {
+                        $stmt->execute([
+                            $request_id,
+                            $mat['material_id'],
+                            $mat['quantity'],
+                            $mat['unit'] ?? 'шт'
+                        ]);
+                    }
+                }
+                
+                $pdo->commit();
+                
+                logActivity($pdo, $_SESSION['user_id'], 'create_material_request', 'material_requests', $request_id);
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Заявка на склад отправлена',
+                    'request_id' => $request_id,
+                    'request_number' => $request_number
+                ]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+            break;
+
         default:
             throw new Exception('Неизвестное действие');
     }
