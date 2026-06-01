@@ -20,6 +20,8 @@ define('APP_INN', '123456789');
 define('APP_ADDRESS', 'г. Лунинец, ул. Красная 179');
 define('APP_PHONE', '+375 (232) 00-00-00');
 define('APP_EMAIL', 'info@polesie.by');
+define('APP_BANK', 'ОАО «Беларусбанк»');
+define('APP_BIK', '153001111');
 
 // Session settings
 ini_set('session.cookie_httponly', 1);
