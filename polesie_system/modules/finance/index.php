@@ -409,6 +409,12 @@ $initials = strtoupper(substr($userFullName, 0, 1));
                                                             </button>
                                                         <?php endif; ?>
                                                     <?php endif; ?>
+                                                    <a href="payment_print.php?id=<?php echo $invoice['id']; ?>" 
+                                                       target="_blank"
+                                                       class="btn btn-sm btn-icon btn-primary" 
+                                                       title="Печать квитанции об оплате">
+                                                        <i class="fas fa-print"></i>
+                                                    </a>
                                                     <?php if (hasRole(['admin', 'manager'])): ?>
                                                         <a href="?delete=<?php echo $invoice['id']; ?>" 
                                                            class="btn btn-sm btn-icon btn-danger"
