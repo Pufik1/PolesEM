@@ -905,8 +905,8 @@ try {
                 return;
             }
             
-            // Формируем данные для заявки на склад
-            let requestData = materialsToIssue.map(mat => ({
+            // Формируем данные для передачи на склад
+            let issueData = materialsToIssue.map(mat => ({
                 material_id: mat.material_id,
                 quantity: mat.total_required - mat.available_in_production,
                 unit: 'шт',
@@ -914,30 +914,15 @@ try {
                 sku: mat.sku
             }));
             
-            // Создаем заявку на материалы через API
-            fetch('api.php?action=create_material_request', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({
-                    order_id: currentOrderId,
-                    materials_data: JSON.stringify(requestData),
-                    notes: 'Заявка от производства'
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Заявка на склад отправлена. Номер заявки: ' + data.request_number);
-                    closeMaterialsModal();
-                } else {
-                    alert('Ошибка при создании заявки: ' + data.message);
-                }
-            })
-            .catch(error => {
-                alert('Ошибка сети: ' + error);
-            });
+            // Сохраняем в sessionStorage для использования на складе
+            sessionStorage.setItem('warehouse_issue_data', JSON.stringify({
+                order_id: currentOrderId,
+                materials: issueData,
+                mode: 'batch' // Режим массовой выдачи
+            }));
+            
+            // Переходим на страницу склада во вкладку материалы с флагом массовой выдачи
+            window.location.href = '../../modules/warehouse/index.php?tab=materials&issue_production=1&mode=batch';
         }
         
         function completeProduction(productionOrderId, orderQuantity) {
