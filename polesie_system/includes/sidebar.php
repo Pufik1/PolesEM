@@ -77,13 +77,6 @@ $menuItems = [
             ['icon' => 'fa-chart-bar', 'text' => 'Отчеты', 'url' => 'modules/reports/index.php'],
         ],
     ],
-    'hr_manager' => [
-        'main' => [
-            ['icon' => 'fa-tachometer-alt', 'text' => 'Главная', 'url' => 'dashboard.php'],
-        ],
-        'operations' => [
-        ],
-    ],
 ];
 
 // Get current user role and determine menu
