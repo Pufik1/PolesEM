@@ -2696,6 +2696,7 @@ try {
                 .then(data => {
                     if (data.success) {
                         const request = data.request;
+                        const items = data.items || [];
                         let statusBadge = '';
                         if (request.status === 'pending') {
                             statusBadge = '<span class="status-badge" style="background-color: #ffc107; color: #000;">В ожидании</span>';
@@ -2708,9 +2709,9 @@ try {
                         }
                         
                         let itemsHtml = '';
-                        if (request.items && request.items.length > 0) {
+                        if (items && items.length > 0) {
                             itemsHtml = '<table class="table" style="width: 100%; margin-top: 20px;"><thead><tr><th>Материал</th><th>Требуется</th><th>Ед. изм.</th><th>Примечание</th></tr></thead><tbody>';
-                            request.items.forEach(item => {
+                            items.forEach(item => {
                                 itemsHtml += `<tr>
                                     <td>${escapeHtml(item.material_name || item.sku)}</td>
                                     <td>${item.quantity_requested}</td>
@@ -2737,13 +2738,15 @@ try {
                         `;
                         
                         document.getElementById('materialRequestDetailsModalBody').innerHTML = detailsHtml;
+                        console.log('Request details loaded:', data);
                     } else {
+                        console.error('API returned success=false:', data);
                         document.getElementById('materialRequestDetailsModalBody').innerHTML = '<div style="padding: 20px;"><p>Ошибка загрузки данных заявки.</p></div>';
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching request details:', error);
-                    document.getElementById('materialRequestDetailsModalBody').innerHTML = '<div style="padding: 20px;"><p>Ошибка загрузки данных заявки.</p></div>';
+                    document.getElementById('materialRequestDetailsModalBody').innerHTML = '<div style="padding: 20px;"><p>Ошибка загрузки данных заявки: ' + error.message + '</p></div>';
                 });
         }
         
