@@ -1513,6 +1513,11 @@ try {
                                                 <i class="fas fa-check"></i> Выдать
                                             </button>
                                             <?php endif; ?>
+                                            <?php if (in_array($request['status'], ['draft', 'cancelled'])): ?>
+                                            <button class="btn btn-sm btn-danger" onclick="deleteMaterialRequest(<?php echo $request['id']; ?>)">
+                                                <i class="fas fa-trash"></i> Удалить
+                                            </button>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -2748,6 +2753,34 @@ try {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+        
+        // Удаление заявки на материалы
+        function deleteMaterialRequest(requestId) {
+            if (!confirm('Вы уверены, что хотите удалить эту заявку? Это действие нельзя отменить.')) {
+                return;
+            }
+            
+            fetch('../production/api.php?action=delete_material_request', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'id=' + requestId
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Заявка успешно удалена');
+                    location.reload();
+                } else {
+                    alert('Ошибка при удалении заявки: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting request:', error);
+                alert('Ошибка при удалении заявки');
+            });
         }
         
         // Show generic modal with content
