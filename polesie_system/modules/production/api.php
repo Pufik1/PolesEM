@@ -1545,3 +1545,199 @@ try {
         'message' => $e->getMessage()
     ]);
 }
+
+/**
+ * API endpoint для получения списка заявок на материалы со склада
+ */
+if ($action === 'get_material_requests') {
+    try {
+        $status = $_GET['status'] ?? 'all'; // pending, approved, completed, all
+        
+        $sql = "
+            SELECT 
+                mr.id,
+                mr.request_number,
+                mr.production_order_id,
+                po.production_number,
+                mr.request_date,
+                mr.required_date,
+                mr.status,
+                mr.total_items,
+                mr.notes,
+                u.full_name as requested_by_name,
+                mr.created_at
+            FROM material_requests mr
+            LEFT JOIN production_orders po ON mr.production_order_id = po.id
+            LEFT JOIN users u ON mr.requested_by = u.id
+        ";
+        
+        if ($status !== 'all') {
+            $sql .= " WHERE mr.status = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$status]);
+        } else {
+            $sql .= " ORDER BY mr.created_at DESC";
+            $stmt = $pdo->query($sql);
+        }
+        
+        $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Получаем элементы для каждой заявки
+        foreach ($requests as &$request) {
+            $stmt_items = $pdo->prepare("
+                SELECT 
+                    mri.id,
+                    mri.material_id,
+                    m.name as material_name,
+                    m.sku,
+                    m.unit,
+                    mri.quantity_requested,
+                    mri.quantity_approved,
+                    mri.quantity_issued,
+                    mri.status,
+                    mri.notes
+                FROM material_request_items mri
+                JOIN materials m ON mri.material_id = m.id
+                WHERE mri.request_id = ?
+            ");
+            $stmt_items->execute([$request['id']]);
+            $request['items'] = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
+        }
+        
+        echo json_encode([
+            'success' => true,
+            'requests' => $requests
+        ]);
+    } catch (Exception $e) {
+        echo json_encode([
+            'success' => false,
+            'message' => $e->getMessage()
+        ]);
+    }
+    exit;
+}
+
+/**
+ * API endpoint для подтверждения заявки и выдачи материалов
+ */
+if ($action === 'approve_material_request') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        echo json_encode(['success' => false, 'message' => 'Метод не разрешен']);
+        exit;
+    }
+    
+    try {
+        $request_id = (int)$_POST['request_id'];
+        $user_id = $_SESSION['user_id'];
+        
+        $pdo->beginTransaction();
+        
+        // Получаем заявку
+        $stmt = $pdo->prepare("SELECT * FROM material_requests WHERE id = ?");
+        $stmt->execute([$request_id]);
+        $request = $stmt->fetch();
+        
+        if (!$request) {
+            throw new Exception('Заявка не найдена');
+        }
+        
+        if ($request['status'] !== 'pending') {
+            throw new Exception('Заявка уже обработана');
+        }
+        
+        // Получаем элементы заявки
+        $stmt_items = $pdo->prepare("SELECT * FROM material_request_items WHERE request_id = ?");
+        $stmt_items->execute([$request_id]);
+        $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Проверяем наличие материалов на складе
+        foreach ($items as $item) {
+            $stmt_check = $pdo->prepare("SELECT current_stock FROM materials WHERE id = ?");
+            $stmt_check->execute([$item['material_id']]);
+            $material = $stmt_check->fetch();
+            
+            if (!$material || $material['current_stock'] < $item['quantity_requested']) {
+                throw new Exception('Недостаточно материала на складе: ' . $item['material_name']);
+            }
+        }
+        
+        // Обновляем статус заявки
+        $stmt = $pdo->prepare("UPDATE material_requests SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
+        $stmt->execute([$user_id, $request_id]);
+        
+        // Выдаем материалы и создаем документ списания
+        $total_items = count($items);
+        $total_quantity = 0;
+        $total_cost = 0;
+        
+        // Генерируем номер документа списания
+        $stmt_doc_num = $pdo->query("SELECT MAX(CAST(SUBSTRING_INDEX(document_number, '-', -1) AS UNSIGNED)) as max_num FROM material_writeoff_documents WHERE document_number LIKE 'СП-М-%'");
+        $result = $stmt_doc_num->fetch();
+        $next_num = ($result['max_num'] ?? 0) + 1;
+        $document_number = 'СП-М-' . date('Y') . '-' . str_pad($next_num, 3, '0', STR_PAD_LEFT);
+        
+        // Создаем документ списания
+        $stmt = $pdo->prepare("
+            INSERT INTO material_writeoff_documents 
+            (document_number, document_date, writeoff_type, warehouse_id, total_items, total_quantity, total_cost, status, reason, created_by)
+            VALUES (?, CURRENT_DATE, 'production_request', 1, ?, ?, ?, 'confirmed', ?, ?)
+        ");
+        $stmt->execute([$document_number, $total_items, 0, 0, 'Выдача по заявке ' . $request['request_number'], $user_id]);
+        $writeoff_id = $pdo->lastInsertId();
+        
+        // Обрабатываем каждый элемент
+        foreach ($items as $item) {
+            $quantity = $item['quantity_requested'];
+            $total_quantity += $quantity;
+            
+            // Списываем материал со склада
+            $stmt_update = $pdo->prepare("UPDATE materials SET current_stock = current_stock - ? WHERE id = ?");
+            $stmt_update->execute([$quantity, $item['material_id']]);
+            
+            // Добавляем позицию в документ списания
+            $stmt_item = $pdo->prepare("
+                INSERT INTO material_writeoff_items 
+                (writeoff_id, material_id, item_name, item_sku, item_unit, quantity, unit_cost, line_total)
+                VALUES (?, ?, ?, ?, 'шт', ?, 0, 0)
+            ");
+            $stmt_item->execute([$writeoff_id, $item['material_id'], $item['material_name'], $item['sku'], $quantity]);
+            
+            // Записываем выданный материал в производство
+            $stmt_prod = $pdo->prepare("
+                INSERT INTO production_materials 
+                (production_order_id, material_id, quantity_issued, status, notes, created_by)
+                VALUES (?, ?, ?, 'issued', ?, ?)
+            ");
+            $notes = 'По заявке ' . $request['request_number'];
+            $stmt_prod->execute([$request['production_order_id'], $item['material_id'], $quantity, $notes, $user_id]);
+            
+            // Обновляем элемент заявки
+            $stmt_update_item = $pdo->prepare("
+                UPDATE material_request_items 
+                SET quantity_issued = ?, status = 'issued' 
+                WHERE id = ?
+            ");
+            $stmt_update_item->execute([$quantity, $item['id']]);
+        }
+        
+        // Обновляем общее количество в документе
+        $stmt_update_doc = $pdo->prepare("UPDATE material_writeoff_documents SET total_quantity = ? WHERE id = ?");
+        $stmt_update_doc->execute([$total_quantity, $writeoff_id]);
+        
+        $pdo->commit();
+        
+        logActivity($pdo, $user_id, 'approve_material_request', 'material_requests', $request_id);
+        
+        echo json_encode([
+            'success' => true,
+            'message' => 'Заявка подтверждена. Материалы выданы. Документ: ' . $document_number
+        ]);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode([
+            'success' => false,
+            'message' => $e->getMessage()
+        ]);
+    }
+    exit;
+}
