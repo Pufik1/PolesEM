@@ -234,25 +234,13 @@ try {
                 </div>
                 
                 <div class="header-right">
-                    <div class="user-menu">
-                        <div class="user-info">
-                            <div class="user-avatar">
-                                <?php echo $initials; ?>
-                            </div>
-                            <div class="user-details">
-                                <span class="user-name"><?php echo htmlspecialchars($userFullName); ?></span>
-                                <span class="user-role"><?php echo translateRoleName($userRole); ?></span>
-                            </div>
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            <?php echo $initials; ?>
                         </div>
-                        <div class="dropdown user-dropdown">
-                            <button class="dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="fas fa-chevron-down"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                                <li><a class="dropdown-item" href="#"><i class="fas fa-user"></i> Профиль</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="../../logout.php"><i class="fas fa-sign-out-alt"></i> Выйти</a></li>
-                            </ul>
+                        <div class="user-details">
+                            <span class="user-name"><?php echo htmlspecialchars($userFullName); ?></span>
+                            <span class="user-role"><?php echo ucfirst($userRole); ?></span>
                         </div>
                     </div>
                 </div>
