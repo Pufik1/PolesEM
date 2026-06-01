@@ -921,8 +921,31 @@ try {
                 mode: 'batch' // Режим массовой выдачи
             }));
             
-            // Переходим на страницу склада во вкладку материалы с флагом массовой выдачи
-            window.location.href = '../../modules/warehouse/index.php?tab=materials&issue_production=1&mode=batch';
+            // Отправляем AJAX запрос на создание заявки
+            fetch('../../modules/production/api.php?action=create_material_request', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    order_id: currentOrderId,
+                    materials_data: JSON.stringify(issueData)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Заявка на склад отправлена. Ожидайте списания материалов.');
+                    closeMaterialsModal();
+                    // Обновляем страницу для отображения актуальных данных
+                    location.reload();
+                } else {
+                    alert('Ошибка при создании заявки: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Ошибка сети: ' + error);
+            });
         }
         
         function completeProduction(productionOrderId, orderQuantity) {
