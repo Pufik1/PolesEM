@@ -1255,7 +1255,7 @@ try {
         FROM material_requests mr
         LEFT JOIN production_orders po ON mr.production_order_id = po.id
         LEFT JOIN users u ON mr.requested_by = u.id
-        WHERE mr.status IN ('pending', 'approved')
+        WHERE mr.status IN ('pending', 'approved', 'draft')
         ORDER BY mr.request_date DESC, mr.created_at DESC
         LIMIT 50
     ");
@@ -1490,14 +1490,16 @@ try {
                                                 'pending' => 'badge-warning',
                                                 'approved' => 'badge-info',
                                                 'issued' => 'badge-success',
-                                                'cancelled' => 'badge-danger'
+                                                'cancelled' => 'badge-danger',
+                                                'rejected' => 'badge-danger'
                                             ];
                                             $statusLabels = [
                                                 'draft' => 'Черновик',
                                                 'pending' => 'На рассмотрении',
                                                 'approved' => 'Утверждена',
                                                 'issued' => 'Выдана',
-                                                'cancelled' => 'Отменена'
+                                                'cancelled' => 'Отменена',
+                                                'rejected' => 'Отклонена'
                                             ];
                                             ?>
                                             <span class="badge <?php echo $statusBadges[$request['status']] ?? 'badge-secondary'; ?>">
@@ -1508,14 +1510,19 @@ try {
                                             <button class="btn btn-sm btn-primary" onclick="showMaterialRequestDetails(<?php echo $request['id']; ?>)">
                                                 <i class="fas fa-eye"></i> Подробнее
                                             </button>
-                                            <?php if ($request['status'] === 'approved'): ?>
+                                            <?php if ($request['status'] === 'approved' || $request['status'] === 'pending'): ?>
                                             <button class="btn btn-sm btn-success" onclick="fulfillMaterialRequest(<?php echo $request['id']; ?>)">
-                                                <i class="fas fa-check"></i> Выдать
+                                                <i class="fas fa-check"></i> Выдать материалы
                                             </button>
                                             <?php endif; ?>
                                             <?php if (in_array($request['status'], ['draft', 'cancelled'])): ?>
                                             <button class="btn btn-sm btn-danger" onclick="deleteMaterialRequest(<?php echo $request['id']; ?>)">
                                                 <i class="fas fa-trash"></i> Удалить
+                                            </button>
+                                            <?php endif; ?>
+                                            <?php if (in_array($request['status'], ['pending', 'approved'])): ?>
+                                            <button class="btn btn-sm btn-danger" onclick="rejectMaterialRequest(<?php echo $request['id']; ?>)">
+                                                <i class="fas fa-times"></i> Отклонить
                                             </button>
                                             <?php endif; ?>
                                         </td>
@@ -2710,16 +2717,30 @@ try {
                         
                         let itemsHtml = '';
                         if (items && items.length > 0) {
-                            itemsHtml = '<table class="table" style="width: 100%; margin-top: 20px;"><thead><tr><th>Материал</th><th>Требуется</th><th>Ед. изм.</th><th>Примечание</th></tr></thead><tbody>';
+                            itemsHtml = '<table class="table" style="width: 100%; margin-top: 20px;"><thead><tr><th>Материал</th><th>Требуется</th><th>Ед. изм.</th></tr></thead><tbody>';
                             items.forEach(item => {
                                 itemsHtml += `<tr>
                                     <td>${escapeHtml(item.material_name || item.sku)}</td>
                                     <td>${item.quantity_requested}</td>
                                     <td>${escapeHtml(item.unit || 'шт.')}</td>
-                                    <td>${escapeHtml(item.note || '-')}</td>
                                 </tr>`;
                             });
                             itemsHtml += '</tbody></table>';
+                        }
+                        
+                        // Кнопки действий для заявки
+                        let actionButtons = '';
+                        if (request.status === 'pending' || request.status === 'approved') {
+                            actionButtons = `
+                                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                                    <button type="button" class="btn btn-success" onclick="fulfillMaterialRequestFromModal(${request.id})">
+                                        <i class="fas fa-check"></i> Выдать материалы
+                                    </button>
+                                    <button type="button" class="btn btn-danger" onclick="rejectMaterialRequest(${request.id})">
+                                        <i class="fas fa-times"></i> Отклонить заявку
+                                    </button>
+                                </div>
+                            `;
                         }
                         
                         detailsHtml = `
@@ -2734,6 +2755,7 @@ try {
                                 </div>
                                 <h4>Запрошенные материалы:</h4>
                                 ${itemsHtml}
+                                ${actionButtons}
                             </div>
                         `;
                         
@@ -2784,6 +2806,114 @@ try {
                 console.error('Error deleting request:', error);
                 alert('Ошибка при удалении заявки');
             });
+        }
+        
+        // Отклонение заявки на материалы
+        function rejectMaterialRequest(requestId) {
+            if (!confirm('Вы уверены, что хотите отклонить эту заявку?')) {
+                return;
+            }
+            
+            fetch('../production/api.php?action=reject_material_request', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'id=' + requestId
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Заявка успешно отклонена');
+                    location.reload();
+                } else {
+                    alert('Ошибка при отклонении заявки: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error rejecting request:', error);
+                alert('Ошибка при отклонении заявки');
+            });
+        }
+        
+        // Выдача материалов из модального окна заявки
+        function fulfillMaterialRequestFromModal(requestId) {
+            // Закрываем модальное окно деталей и открываем массовую выдачу
+            closeModal('materialRequestDetailsModal');
+            fulfillMaterialRequest(requestId);
+        }
+        
+        // Выдача материалов по заявке - переход к массовой выдаче
+        function fulfillMaterialRequest(requestId) {
+            // Загружаем данные заявки и открываем модальное окно массовой выдачи с предзаполненными данными
+            fetch('../production/api.php?action=get_material_request_details&id=' + requestId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const items = data.items || [];
+                        if (items.length === 0) {
+                            alert('В заявке нет материалов для выдачи');
+                            return;
+                        }
+                        
+                        // Открываем модальное окно массовой выдачи
+                        openModal('createProductionRequestModal');
+                        
+                        // Переключаем в режим массовой выдачи
+                        document.querySelector('input[name="issue_mode"][value="batch"]').checked = true;
+                        toggleIssueMode();
+                        
+                        // Очищаем контейнер и заполняем материалами из заявки
+                        const container = document.getElementById('batch_materials_container');
+                        container.innerHTML = '';
+                        
+                        items.forEach((item, index) => {
+                            const row = document.createElement('div');
+                            row.className = 'batch-material-row';
+                            row.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end;';
+                            row.innerHTML = `
+                                <div style="flex: 2;">
+                                    <select name="materials[${index}][material_id]" class="batch-material-select" required onchange="updateBatchMaterialInfo(this)">
+                                        <option value="">Выберите материал</option>
+                                        <?php foreach ($materials as $material): ?>
+                                            <option value="<?php echo $material['id']; ?>" 
+                                                    data-sku="<?php echo htmlspecialchars($material['sku']); ?>"
+                                                    data-stock="<?php echo $material['current_stock']; ?>"
+                                                    data-unit="<?php echo htmlspecialchars($material['unit']); ?>">
+                                                <?php echo htmlspecialchars($material['sku'] . ' - ' . $material['name']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div style="flex: 1;">
+                                    <input type="number" name="materials[${index}][quantity]" class="batch-quantity-input" required min="0.01" step="0.01" placeholder="Кол-во" onchange="checkBatchStockAvailability(this)" value="${item.quantity_requested}">
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="removeBatchRow(this)"${index === 0 ? ' disabled title="Нельзя удалить единственную строку"' : ''}>
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            `;
+                            container.appendChild(row);
+                            
+                            // Устанавливаем выбранный материал
+                            const select = row.querySelector('select');
+                            select.value = item.material_id;
+                            updateBatchMaterialInfo(select);
+                        });
+                        
+                        // Обновляем кнопку отправки
+                        document.getElementById('req_submit_btn').innerHTML = '<i class="fas fa-check"></i> Выдать материалы по заявке #' + requestId;
+                        document.getElementById('req_submit_btn').dataset.requestId = requestId;
+                        
+                    } else {
+                        alert('Ошибка загрузки данных заявки: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading request details:', error);
+                    alert('Ошибка загрузки данных заявки');
+                });
         }
         
         // Show generic modal with content
