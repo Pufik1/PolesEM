@@ -345,11 +345,11 @@ try {
             <div class="company-logo">
                 <h1>ОАО «Полесьеэлектромаш»</h1>
                 <div class="company-details">
-                    <p>УНП: <?php echo APP_INN ?? '123456789'; ?></p>
+                    <p>УНП: <?php echo APP_INN ?? '200106183'; ?></p>
                     <p>Адрес: <?php echo APP_ADDRESS; ?></p>
-                    <p>Тел: <?php echo APP_PHONE ?? '+375 (232) 00-00-00'; ?></p>
+                    <p>Тел: <?php echo APP_PHONE ?? '+375 (1647) 2-78-09'; ?></p>
                     <p>Email: <?php echo APP_EMAIL ?? 'info@polesie.by'; ?></p>
-                    <p>Банк: <?php echo APP_BANK ?? 'ОАО «Беларусбанк»; ?></p>
+                    <p>Банк: <?php echo defined('APP_BANK') ? APP_BANK : 'ОАО «Беларусбанк»'; ?></p>
                     <p>БИК: <?php echo APP_BIK ?? '153001111'; ?></p>
                 </div>
             </div>
