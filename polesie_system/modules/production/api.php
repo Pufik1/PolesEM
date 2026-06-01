@@ -1581,15 +1581,14 @@ try {
                     mri.id,
                     mri.material_id,
                     mri.quantity_requested,
-                    COALESCE(m.quantity_issued, 0) as quantity_issued,
-                    COALESCE(m.quantity_used, 0) as quantity_used,
+                    mri.quantity_approved,
+                    mri.quantity_issued,
                     mri.unit,
                     mat.sku,
                     mat.name as material_name,
-                    mri.note
+                    mri.notes as note
                 FROM material_request_items mri
                 JOIN materials mat ON mri.material_id = mat.id
-                LEFT JOIN production_materials m ON mri.id = m.request_item_id
                 WHERE mri.request_id = ?
             ");
             $stmt->execute([$request_id]);
