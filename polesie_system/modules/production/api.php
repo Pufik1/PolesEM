@@ -1542,6 +1542,65 @@ try {
             }
             break;
 
+        case 'get_material_request_details':
+            // Получение деталей заявки на списание материалов
+            $request_id = (int)($_GET['id'] ?? 0);
+            if (!$request_id) {
+                throw new Exception('Не указан ID заявки');
+            }
+
+            // Получаем информацию о заявке
+            $stmt = $pdo->prepare("
+                SELECT
+                    mr.id,
+                    mr.request_number,
+                    mr.production_order_id,
+                    po.order_number as production_order,
+                    mr.status,
+                    mr.created_at,
+                    mr.created_by,
+                    u.username as requested_by,
+                    u.full_name as requested_by_name,
+                    mr.comment
+                FROM material_requests mr
+                LEFT JOIN production_orders po ON mr.production_order_id = po.id
+                LEFT JOIN users u ON mr.created_by = u.id
+                WHERE mr.id = ?
+            ");
+            $stmt->execute([$request_id]);
+            $request = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$request) {
+                throw new Exception('Заявка не найдена');
+            }
+
+            // Получаем позиции заявки
+            $stmt = $pdo->prepare("
+                SELECT
+                    mri.id,
+                    mri.material_id,
+                    m.quantity_requested,
+                    m.quantity_issued,
+                    m.quantity_used,
+                    m.unit,
+                    mat.sku,
+                    mat.name as material_name,
+                    mri.note
+                FROM material_request_items mri
+                JOIN materials mat ON mri.material_id = mat.id
+                LEFT JOIN production_materials m ON mri.id = m.request_item_id
+                WHERE mri.request_id = ?
+            ");
+            $stmt->execute([$request_id]);
+            $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode([
+                'success' => true,
+                'request' => $request,
+                'items' => $items
+            ]);
+            break;
+
         default:
             throw new Exception('Неизвестное действие');
     }
