@@ -331,7 +331,7 @@ try {
                 <div class="header-title"><h1>Отчеты и аналитика</h1></div>
                 <div class="user-info">
                     <div class="user-details">
-                        <span class="user-role"><?php echo htmlspecialchars($userRole); ?></span>
+                        <span class="user-role"><?php echo translateRoleName($userRole); ?></span>
                         <span class="user-name"><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
                     </div>
                     <div class="user-avatar"><?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?></div>

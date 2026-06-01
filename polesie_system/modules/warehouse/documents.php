@@ -443,7 +443,7 @@ try {
                         </div>
                         <div class="user-details">
                             <span class="user-name"><?php echo htmlspecialchars($userFullName); ?></span>
-                            <span class="user-role"><?php echo ucfirst($userRole); ?></span>
+                            <span class="user-role"><?php echo translateRoleName($userRole); ?></span>
                         </div>
                     </div>
                 </div>
