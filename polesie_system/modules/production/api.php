@@ -1542,6 +1542,46 @@ try {
             }
             break;
 
+        case 'reject_material_request':
+            // Отклонение заявки на списание материалов
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Метод не разрешен');
+            }
+            
+            $request_id = (int)($_POST['id'] ?? 0);
+            if (!$request_id) {
+                throw new Exception('Не указан ID заявки');
+            }
+            
+            // Проверяем статус заявки - можно отклонять только pending или approved
+            $stmt = $pdo->prepare("SELECT status FROM material_requests WHERE id = ?");
+            $stmt->execute([$request_id]);
+            $request = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$request) {
+                throw new Exception('Заявка не найдена');
+            }
+            
+            if (!in_array($request['status'], ['pending', 'approved'])) {
+                throw new Exception('Нельзя отклонить заявку со статусом: ' . $request['status']);
+            }
+            
+            $pdo->beginTransaction();
+            
+            // Обновляем статус заявки на rejected
+            $stmt = $pdo->prepare("UPDATE material_requests SET status = 'rejected' WHERE id = ?");
+            $stmt->execute([$request_id]);
+            
+            $pdo->commit();
+            
+            logActivity($pdo, $_SESSION['user_id'], 'reject_material_request', 'material_requests', $request_id);
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Заявка успешно отклонена'
+            ]);
+            break;
+
         case 'get_material_request_details':
             // Получение деталей заявки на списание материалов
             $request_id = (int)($_GET['id'] ?? 0);
