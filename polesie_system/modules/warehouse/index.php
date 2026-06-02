@@ -1266,6 +1266,37 @@ try {
     $stmt->execute();
     $materialRequests = $stmt->fetchAll();
     
+    // Get orders ready for shipment (статус 'ready' - готов к отгрузке)
+    $stmt = $pdo->prepare("
+        SELECT o.id, o.order_number, o.client_id, c.company_name as client_name, o.order_date, o.delivery_date,
+               u.full_name as manager_name
+        FROM orders o
+        LEFT JOIN clients c ON o.client_id = c.id
+        LEFT JOIN users u ON o.user_id = u.id
+        WHERE o.status = 'ready'
+        ORDER BY o.order_date DESC
+    ");
+    $stmt->execute();
+    $readyOrders = $stmt->fetchAll();
+    
+    // Get order items for ready orders
+    $readyOrderItems = [];
+    if (!empty($readyOrders)) {
+        $orderIds = array_column($readyOrders, 'id');
+        $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+        $stmt = $pdo->prepare("
+            SELECT oi.order_id, oi.product_id, oi.quantity, p.product_name, p.product_code
+            FROM order_items oi
+            LEFT JOIN products p ON oi.product_id = p.id
+            WHERE oi.order_id IN ($placeholders)
+        ");
+        $stmt->execute($orderIds);
+        $items = $stmt->fetchAll();
+        foreach ($items as $item) {
+            $readyOrderItems[$item['order_id']][] = $item;
+        }
+    }
+    
 } catch (PDOException $e) {
     $error = 'Ошибка загрузки данных: ' . $e->getMessage();
     $products = [];
