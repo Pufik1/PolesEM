@@ -323,6 +323,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?");
                 $stmt->execute([$quantity, $product_id]);
                 
+                // Update order status to 'shipped' if order_id is provided
+                $order_id = isset($_POST['order_id']) && !empty($_POST['order_id']) ? (int)$_POST['order_id'] : 0;
+                if ($order_id > 0) {
+                    $stmt = $pdo->prepare("UPDATE orders SET status = 'shipped' WHERE id = ?");
+                    $stmt->execute([$order_id]);
+                }
+                
                 $pdo->commit();
                 logActivity($pdo, $_SESSION['user_id'], 'Отгрузка готовой продукции', 'warehouse_operations', $pdo->lastInsertId());
                 $success = 'Готовая продукция успешно отгружена. Документ: ' . htmlspecialchars($document_number);
@@ -467,6 +474,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         // Обновляем остаток товара
                         $stmt = $pdo->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?");
                         $stmt->execute([$item['quantity'], $item['product_id']]);
+                    }
+                    
+                    // Update order status to 'shipped' if order_id is provided
+                    $order_id = isset($_POST['order_id']) && !empty($_POST['order_id']) ? (int)$_POST['order_id'] : 0;
+                    if ($order_id > 0) {
+                        $stmt = $pdo->prepare("UPDATE orders SET status = 'shipped' WHERE id = ?");
+                        $stmt->execute([$order_id]);
                     }
                     
                     $pdo->commit();
@@ -1908,6 +1922,7 @@ try {
             </div>
             <form method="POST" action="" onsubmit="return handleShipmentSubmit(this);">
                 <input type="hidden" name="action" value="ship_product">
+                <input type="hidden" name="order_id" id="shipment_order_id" value="">
                 <div class="modal-body">
                     <!-- Order selection section -->
                     <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
@@ -3682,9 +3697,13 @@ try {
         function loadOrderItems(orderId) {
             if (!orderId) {
                 // Clear all products if no order selected
+                document.getElementById('shipment_order_id').value = '';
                 clearBatchProducts();
                 return;
             }
+            
+            // Set the order_id in hidden field
+            document.getElementById('shipment_order_id').value = orderId;
             
             // Get order items data from PHP
             const orderItemsData = <?php echo json_encode($readyOrderItems); ?>;
