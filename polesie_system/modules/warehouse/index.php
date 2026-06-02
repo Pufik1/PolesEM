@@ -1293,7 +1293,12 @@ try {
         $stmt->execute($orderIds);
         $items = $stmt->fetchAll();
         foreach ($items as $item) {
-            $readyOrderItems[$item['order_id']][] = $item;
+            $readyOrderItems[$item['order_id']][] = [
+                'product_id' => (int)$item['product_id'],
+                'quantity' => (float)$item['quantity'],
+                'product_name' => $item['product_name'],
+                'product_code' => $item['product_code']
+            ];
         }
     }
     
@@ -1904,6 +1909,21 @@ try {
             <form method="POST" action="" onsubmit="return handleShipmentSubmit(this);">
                 <input type="hidden" name="action" value="ship_product">
                 <div class="modal-body">
+                    <!-- Order selection section -->
+                    <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+                        <p style="margin: 0 0 10px 0; color: #0369a1;"><strong>Заказ клиента:</strong></p>
+                        <select id="order_select" onchange="loadOrderItems(this.value)" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+                            <option value="">-- Выберите заказ (не обязательно) --</option>
+                            <?php foreach ($readyOrders as $order): ?>
+                                <option value="<?php echo $order['id']; ?>" 
+                                        data-order-number="<?php echo htmlspecialchars($order['order_number']); ?>"
+                                        data-client="<?php echo htmlspecialchars($order['client_name']); ?>">
+                                    <?php echo htmlspecialchars($order['order_number'] . ' - ' . $order['client_name'] . ' (' . date('d.m.Y', strtotime($order['order_date'])) . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
                     <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
                         <p style="margin: 0 0 10px 0; color: #0369a1;"><strong>Режим отгрузки:</strong></p>
                         <label style="display: inline-flex; align-items: center; margin-right: 20px; cursor: pointer;">
@@ -3655,7 +3675,115 @@ try {
                 }
             }
             
-            return true;
+            return confirm('Вы уверены, что хотите выполнить отгрузку?');
+        }
+        
+        // Load order items when order is selected
+        function loadOrderItems(orderId) {
+            if (!orderId) {
+                // Clear all products if no order selected
+                clearBatchProducts();
+                return;
+            }
+            
+            // Get order items data from PHP
+            const orderItemsData = <?php echo json_encode($readyOrderItems); ?>;
+            
+            if (!orderItemsData[orderId]) {
+                alert('Ошибка: Товары для этого заказа не найдены!');
+                return;
+            }
+            
+            // Switch to batch mode
+            const batchRadio = document.querySelector('input[name="shipment_mode"][value="batch"]');
+            if (batchRadio) {
+                batchRadio.checked = true;
+                toggleShipmentMode();
+            }
+            
+            // Clear existing products
+            clearBatchProducts();
+            
+            // Add products from order
+            const items = orderItemsData[orderId];
+            const container = document.getElementById('batch_products_container');
+            
+            items.forEach((item, index) => {
+                const newRow = document.createElement('div');
+                newRow.className = 'batch-product-row';
+                newRow.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end;';
+                
+                // Build options string
+                let optionsHtml = '<option value="">Выберите продукцию</option>';
+                <?php foreach ($products as $product): ?>
+                optionsHtml += `<option value="<?php echo $product['id']; ?>" 
+                            data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
+                            data-stock="<?php echo $product['stock_quantity']; ?>">
+                            <?php echo htmlspecialchars($product['product_code'] . ' - ' . $product['product_name']); ?>
+                        </option>`;
+                <?php endforeach; ?>
+                
+                newRow.innerHTML = `
+                    <div style="flex: 2;">
+                        <select name="products[${index}][product_id]" class="batch-product-select" onchange="updateBatchProductInfo(this)">
+                            ${optionsHtml}
+                        </select>
+                    </div>
+                    <div style="flex: 1;">
+                        <input type="number" name="products[${index}][quantity]" class="batch-quantity-input" min="1" step="1" placeholder="Кол-во" onchange="checkBatchProductAvailability(this)" value="${item.quantity}">
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removeBatchProductRow(this)">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(newRow);
+                
+                // Set the product ID after appending
+                const select = newRow.querySelector('.batch-product-select');
+                if (select) {
+                    select.value = item.product_id;
+                    updateBatchProductInfo(select);
+                }
+            });
+        }
+        
+        // Clear all batch products
+        function clearBatchProducts() {
+            const container = document.getElementById('batch_products_container');
+            container.innerHTML = '';
+            
+            // Add one empty row
+            const newRow = document.createElement('div');
+            newRow.className = 'batch-product-row';
+            newRow.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end;';
+            
+            let optionsHtml = '<option value="">Выберите продукцию</option>';
+            <?php foreach ($products as $product): ?>
+            optionsHtml += `<option value="<?php echo $product['id']; ?>" 
+                        data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
+                        data-stock="<?php echo $product['stock_quantity']; ?>">
+                        <?php echo htmlspecialchars($product['product_code'] . ' - ' . $product['product_name']); ?>
+                    </option>`;
+            <?php endforeach; ?>
+            
+            newRow.innerHTML = `
+                <div style="flex: 2;">
+                    <select name="products[0][product_id]" class="batch-product-select" onchange="updateBatchProductInfo(this)">
+                        ${optionsHtml}
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <input type="number" name="products[0][quantity]" class="batch-quantity-input" min="1" step="1" placeholder="Кол-во" onchange="checkBatchProductAvailability(this)">
+                </div>
+                <div>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeBatchProductRow(this)" disabled title="Нельзя удалить единственную строку">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(newRow);
         }
     </script>
 </body>
