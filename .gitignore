@@ -1,1 +1,1 @@
-Nothing needs to be added to the .gitignore file based on the provided file changes, as they only include source code files (PHP files) without any build artifacts, dependencies, or temporary files that would typically be ignored.
+Nothing should be ignored based on the provided file changes. The only modified file is a PHP source file (`polesie_system/modules/warehouse/index.php`), which should not be added to .gitignore.
