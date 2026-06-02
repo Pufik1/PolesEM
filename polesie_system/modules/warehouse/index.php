@@ -1926,7 +1926,7 @@ try {
                             <div id="batch_products_container" style="margin-bottom: 15px;">
                                 <div class="batch-product-row" style="display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end;">
                                     <div style="flex: 2;">
-                                        <select name="products[0][product_id]" class="batch-product-select" required onchange="updateBatchProductInfo(this)">
+                                        <select name="products[0][product_id]" class="batch-product-select" onchange="updateBatchProductInfo(this)">
                                             <option value="">Выберите продукцию</option>
                                             <?php foreach ($products as $product): ?>
                                                 <option value="<?php echo $product['id']; ?>" 
@@ -1938,7 +1938,7 @@ try {
                                         </select>
                                     </div>
                                     <div style="flex: 1;">
-                                        <input type="number" name="products[0][quantity]" class="batch-quantity-input" required min="1" step="1" placeholder="Кол-во" onchange="checkBatchProductAvailability(this)">
+                                        <input type="number" name="products[0][quantity]" class="batch-quantity-input" min="1" step="1" placeholder="Кол-во" onchange="checkBatchProductAvailability(this)">
                                     </div>
                                     <div>
                                         <button type="button" class="btn btn-danger btn-sm" onclick="removeBatchProductRow(this)" disabled title="Нельзя удалить единственную строку">
@@ -3463,20 +3463,13 @@ try {
                 // Remove required from single form fields
                 document.getElementById('outcome_product_id').required = false;
                 document.getElementById('outcome_quantity').required = false;
-                // Add required to first batch row
-                const firstSelect = document.querySelector('.batch-product-select');
-                const firstInput = document.querySelector('#batch_products_container .batch-quantity-input');
-                if (firstSelect) firstSelect.required = true;
-                if (firstInput) firstInput.required = true;
+                // Batch validation is handled in handleShipmentSubmit
             } else {
                 singleForm.style.display = 'block';
                 batchForm.style.display = 'none';
                 // Add required to single form fields
                 document.getElementById('outcome_product_id').required = true;
                 document.getElementById('outcome_quantity').required = true;
-                // Remove required from batch form fields
-                document.querySelectorAll('.batch-product-select').forEach(el => el.required = false);
-                document.querySelectorAll('#batch_products_container .batch-quantity-input').forEach(el => el.required = false);
             }
         }
         
@@ -3490,7 +3483,7 @@ try {
             newRow.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end;';
             newRow.innerHTML = `
                 <div style="flex: 2;">
-                    <select name="products[${rowCount}][product_id]" class="batch-product-select" required onchange="updateBatchProductInfo(this)">
+                    <select name="products[${rowCount}][product_id]" class="batch-product-select" onchange="updateBatchProductInfo(this)">
                         <option value="">Выберите продукцию</option>
                         <?php foreach ($products as $product): ?>
                             <option value="<?php echo $product['id']; ?>" 
@@ -3502,7 +3495,7 @@ try {
                     </select>
                 </div>
                 <div style="flex: 1;">
-                    <input type="number" name="products[${rowCount}][quantity]" class="batch-quantity-input" required min="1" step="1" placeholder="Кол-во" onchange="checkBatchProductAvailability(this)">
+                    <input type="number" name="products[${rowCount}][quantity]" class="batch-quantity-input" min="1" step="1" placeholder="Кол-во" onchange="checkBatchProductAvailability(this)">
                 </div>
                 <div>
                     <button type="button" class="btn btn-danger btn-sm" onclick="removeBatchProductRow(this)">
