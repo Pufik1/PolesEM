@@ -785,7 +785,7 @@ try {
                         if (stage.status === 'completed') {
                             statusBadge = '<span class="badge badge-success">Завершен</span>';
                         } else if (stage.status === 'available') {
-                            statusBadge = '<span class="badge badge-info">Доступен</span>';
+                            statusBadge = '<span class="badge badge-info">В процессе</span>';
                             actionButton = '<button class="btn btn-primary" style="padding:4px 12px;" onclick="completeStage(' + stage.id + ', ' + stage.stage_number + ', ' + orderId + ')">Завершить</button>';
                         } else {
                             statusBadge = '<span class="badge badge-warning">В ожидании</span>';
@@ -837,17 +837,22 @@ try {
             .then(data => {
                 if (data.success) {
                     alert('Этап успешно завершен!');
-                    // Перезагружаем модальное окно с обновленными данными
-                    const titleText = document.getElementById('routeSheetTitle').innerText;
-                    const productionNumber = titleText.replace('Маршрутный лист № ', '');
-                    // Находим productId и quantity из текущей таблицы
-                    const row = document.querySelector(`button[onclick*="'${productionNumber}'"]`);
-                    if (row) {
-                        const td = row.closest('td');
-                        const tr = td.closest('tr');
-                        const qty = tr.querySelector('td:nth-child(3)').textContent.replace(' шт', '').trim();
-                        const productName = tr.querySelector('td:nth-child(2) strong').textContent;
-                        openRouteSheet(productionOrderId, productionNumber, productName, qty);
+                    // Если это последний этап (5), перезагружаем страницу
+                    if (stageNumber === 5) {
+                        location.reload();
+                    } else {
+                        // Перезагружаем модальное окно с обновленными данными
+                        const titleText = document.getElementById('routeSheetTitle').innerText;
+                        const productionNumber = titleText.replace('Маршрутный лист № ', '');
+                        // Находим productId и quantity из текущей таблицы
+                        const row = document.querySelector(`button[onclick*="'${productionNumber}'"]`);
+                        if (row) {
+                            const td = row.closest('td');
+                            const tr = td.closest('tr');
+                            const qty = tr.querySelector('td:nth-child(3)').textContent.replace(' шт', '').trim();
+                            const productName = tr.querySelector('td:nth-child(2) strong').textContent;
+                            openRouteSheet(productionOrderId, productionNumber, productName, qty);
+                        }
                     }
                 } else {
                     alert('Ошибка: ' + data.message);
