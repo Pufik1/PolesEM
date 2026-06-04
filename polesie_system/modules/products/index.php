@@ -104,6 +104,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("DELETE FROM warehouse_operations WHERE product_id = :id");
             $stmt->execute([':id' => $product_id]);
             
+            // shipment_items
+            $stmt = $pdo->prepare("DELETE FROM shipment_items WHERE product_id = :id");
+            $stmt->execute([':id' => $product_id]);
+            
+            // production_completion_documents
+            $stmt = $pdo->prepare("DELETE FROM production_completion_documents WHERE product_id = :id");
+            $stmt->execute([':id' => $product_id]);
+            
             // Теперь удаляем продукт
             $stmt = $pdo->prepare("DELETE FROM products WHERE id = :id");
             $stmt->execute([':id' => $product_id]);
