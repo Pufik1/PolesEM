@@ -227,7 +227,7 @@ try {
             // Выдаем материалы
             $stmt = $pdo->prepare("
                 INSERT INTO production_materials 
-                (production_order_id, material_id, quantity_issued, status, notes, created_by)
+                (production_order_id, source_order_id, material_id, quantity_issued, status, notes, created_by)
                 VALUES (?, ?, ?, 'issued', ?, ?)
             ");
             
@@ -235,6 +235,7 @@ try {
                 if ($mat['quantity'] > 0) {
                     $stmt->execute([
                         $production_order_id,
+                        $order_id,
                         $mat['material_id'],
                         $mat['quantity'],
                         $notes,
@@ -1389,22 +1390,25 @@ try {
                                     
                                     if ($material_id > 0) {
                                         // Получаем фактически выданное количество для этого материала
+                                        // Учитываем материалы выданные как по production_order_id, так и по source_order_id
                                         $stmt_qty = $pdo->prepare("
                                             SELECT SUM(quantity_issued) as total_issued, SUM(quantity_used) as total_used
                                             FROM production_materials
-                                            WHERE production_order_id = ? AND material_id = ?
+                                            WHERE (production_order_id = ? OR source_order_id = ?) AND material_id = ?
                                         ");
-                                        $stmt_qty->execute([$production_order_id, $material_id]);
+                                        $stmt_qty->execute([$production_order_id, $po_data['source_order_id'], $material_id]);
                                         $qty_result = $stmt_qty->fetch();
                                         $quantity_issued = floatval($qty_result['total_issued'] ?? 0);
                                         
                                         // Обновляем запись в production_materials как использованную
+                                        // Обновляем все записи связанные с этим производственным заказом или заказом клиента
                                         $stmt_use = $pdo->prepare("
                                             UPDATE production_materials
                                             SET quantity_used = quantity_used + ?, status = 'used'
-                                            WHERE production_order_id = ? AND material_id = ?
+                                            WHERE (production_order_id = ? OR source_order_id = ?) AND material_id = ?
+                                            AND (quantity_issued - quantity_used) > 0
                                         ");
-                                        $stmt_use->execute([$quantity_planned, $production_order_id, $material_id]);
+                                        $stmt_use->execute([$quantity_planned, $production_order_id, $po_data['source_order_id'], $material_id]);
                                         
                                         // Создаем запись о списании в production_material_writeoffs
                                         $stmt_writeoff = $pdo->prepare("
