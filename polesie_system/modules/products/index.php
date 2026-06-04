@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'delete') {
             $product_id = (int)$_POST['product_id'];
             
-            // Сначала удаляем связанные записи во всех таблицах где есть product_id
+            // Сначала удаляем связанные записи во всех таблицах, где есть product_id
             // production_orders
             $stmt = $pdo->prepare("DELETE FROM production_orders WHERE product_id = :id");
             $stmt->execute([':id' => $product_id]);
@@ -92,16 +92,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("DELETE FROM order_items WHERE product_id = :id");
             $stmt->execute([':id' => $product_id]);
             
-            // technological_operations
-            $stmt = $pdo->prepare("DELETE FROM technological_operations WHERE product_id = :id");
+            // invoice_items
+            $stmt = $pdo->prepare("DELETE FROM invoice_items WHERE product_id = :id");
             $stmt->execute([':id' => $product_id]);
             
-            // quality_control
-            $stmt = $pdo->prepare("DELETE FROM quality_control WHERE product_id = :id");
+            // delivery_note_items
+            $stmt = $pdo->prepare("DELETE FROM delivery_note_items WHERE product_id = :id");
             $stmt->execute([':id' => $product_id]);
             
-            // warehouse_inventory
-            $stmt = $pdo->prepare("DELETE FROM warehouse_inventory WHERE product_id = :id");
+            // warehouse_operations
+            $stmt = $pdo->prepare("DELETE FROM warehouse_operations WHERE product_id = :id");
             $stmt->execute([':id' => $product_id]);
             
             // Теперь удаляем продукт
