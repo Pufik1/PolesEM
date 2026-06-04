@@ -324,6 +324,9 @@ try {
             
             // Списываем материалы из производства согласно BOM
             if (!empty($bom_data) && is_array($bom_data)) {
+                // Получаем информацию о связанном заказе клиента для поиска выданных материалов
+                $source_order_id = $order['source_order_id'] ?? 0;
+                
                 // Получаем все выданные материалы для этого производственного заказа ИЛИ для связанного заказа клиента
                 // Материалы могут быть выданы как с production_order_id, так и без него (только с source_order_id через прямую выдачу)
                 $stmt_issued = $pdo->prepare("
@@ -338,10 +341,10 @@ try {
                         m.unit
                     FROM production_materials pm
                     JOIN materials m ON pm.material_id = m.id
-                    WHERE (pm.production_order_id = ? OR pm.production_order_id IS NULL)
+                    WHERE (pm.production_order_id = ? OR (pm.production_order_id IS NULL AND pm.source_order_id = ?))
                     AND pm.status IN ('issued', 'used')
                 ");
-                $stmt_issued->execute([$production_order_id]);
+                $stmt_issued->execute([$production_order_id, $source_order_id]);
                 $issued_materials = $stmt_issued->fetchAll(PDO::FETCH_ASSOC);
                 
                 // Создаем карту выданных материалов по material_id (агрегируем все записи)
