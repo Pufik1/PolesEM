@@ -16,9 +16,9 @@ define('APP_NAME', 'Полесьеэлектромаш - Корпоративн�
 define('APP_VERSION', '1.0.0');
 define('APP_URL', 'http://localhost:8888/polesie_system/');
 define('APP_COMPANY_NAME', 'ОАО «Полесьеэлектромаш»');
-define('APP_INN', '123456789');
+define('APP_INN', '200106183');
 define('APP_ADDRESS', 'г. Лунинец, ул. Красная 179');
-define('APP_PHONE', '+375 (232) 00-00-00');
+define('APP_PHONE', '+375-1647-2-78-09');
 define('APP_EMAIL', 'info@polesie.by');
 define('APP_BANK', 'ОАО «Беларусбанк»');
 define('APP_BIK', '153001111');
